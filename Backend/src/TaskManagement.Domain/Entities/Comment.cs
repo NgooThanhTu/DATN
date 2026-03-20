@@ -14,6 +14,8 @@ namespace TaskManagement.Domain.Entities
         public Guid? ParentCommentId { get; set; }
         public Comment? ParentComment { get; set; }
         public DateTime CreatedAt { get; set; }
+        public DateTime UpdatedAt { get; set; }
+        public bool IsDeleted { get; set; } = false;
 
         public ICollection<Comment> ChildComments { get; set; } = new List<Comment>();
     }

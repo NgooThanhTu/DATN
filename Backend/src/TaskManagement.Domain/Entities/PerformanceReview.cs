@@ -12,5 +12,6 @@ namespace TaskManagement.Domain.Entities
         public double Score { get; set; }
         public string? Feedback { get; set; }
         public string? ReviewPeriod { get; set; }
+        public DateTime CreatedAt { get; set; }
     }
 }

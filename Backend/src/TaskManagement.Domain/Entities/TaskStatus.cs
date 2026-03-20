@@ -6,8 +6,8 @@ namespace TaskManagement.Domain.Entities
     public class TaskStatus
     {
         public Guid Id { get; set; }
-        public Guid ProjectId { get; set; }
-        public Project Project { get; set; } = null!;
+        public Guid? ProjectId { get; set; }
+        public Project? Project { get; set; }
         public string Name { get; set; } = string.Empty;
         public string? ColorCode { get; set; }
         public int Position { get; set; }

@@ -11,5 +11,6 @@ namespace TaskManagement.Domain.Entities
         public string AIResponse { get; set; } = string.Empty;
         public string? CorrectedResponse { get; set; }
         public int? Rating { get; set; }
+        public DateTime CreatedAt { get; set; }
     }
 }

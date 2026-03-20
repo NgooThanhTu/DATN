@@ -11,5 +11,6 @@ namespace TaskManagement.Domain.Entities
         public User User { get; set; } = null!;
 
         public DateTime JoinedAt { get; set; }
+        public DateTime? LeftAt { get; set; }
     }
 }

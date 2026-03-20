@@ -8,7 +8,7 @@ namespace TaskManagement.Domain.Entities
         public Guid UserId { get; set; }
         public User User { get; set; } = null!;
         public string FeatureCode { get; set; } = string.Empty;
-        public int TokensUsed { get; set; }
+        public long TokensUsed { get; set; }
         public DateTime CreatedAt { get; set; }
     }
 }

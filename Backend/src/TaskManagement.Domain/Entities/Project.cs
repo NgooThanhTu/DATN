@@ -10,11 +10,16 @@ namespace TaskManagement.Domain.Entities
         public string Name { get; set; } = string.Empty;
         public string? Description { get; set; }
         public DateTime StartDate { get; set; }
-        public DateTime EndDate { get; set; }
-        public int Status { get; set; }
-        public Guid OwnerId { get; set; }
-        public User Owner { get; set; } = null!;
+        public DateTime? EndDate { get; set; }
+        public bool Status { get; set; } = true;
+        public Guid CreatorId { get; set; }
+        public User Creator { get; set; } = null!;
+        public DateTime CreatedAt { get; set; }
+        public DateTime UpdatedAt { get; set; }
+        public bool IsDeleted { get; set; } = false;
 
+        // Navigation properties
+        public ICollection<ProjectMember> ProjectMembers { get; set; } = new List<ProjectMember>();
         public ICollection<Sprint> Sprints { get; set; } = new List<Sprint>();
         public ICollection<TaskType> TaskTypes { get; set; } = new List<TaskType>();
         public ICollection<TaskStatus> TaskStatuses { get; set; } = new List<TaskStatus>();

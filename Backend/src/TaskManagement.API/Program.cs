@@ -49,8 +49,9 @@ app.UseHttpsRedirection();
 app.UseCors(myAllowSpecificOrigins);
 
 app.UseAuthorization();
-
+app.UseDefaultFiles(); // Phải gọi dòng này trước
+app.UseStaticFiles();
 // 5. Nối các endpoint vào Controllers
 app.MapControllers();
-
+app.MapFallbackToFile("index.html");
 app.Run();

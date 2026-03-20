@@ -9,65 +9,73 @@ namespace TaskManagement.Infrastructure.Data
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
         { }
 
-        // CỤM 1: QUẢN TRỊ & PHÂN QUYỀN
+        // Group 1: System & Access
         public DbSet<User> Users { get; set; }
         public DbSet<Role> Roles { get; set; }
         public DbSet<UserRole> UserRoles { get; set; }
         public DbSet<Permission> Permissions { get; set; }
         public DbSet<RolePermission> RolePermissions { get; set; }
 
-        // CỤM 2: TỔ CHỨC & NHÂN SỰ
+        // Group 2: Organization
         public DbSet<Department> Departments { get; set; }
         public DbSet<DepartmentMember> DepartmentMembers { get; set; }
 
-        // CỤM 3: LÕI QUẢN LÝ CÔNG VIỆC
+        // Group 3: Core Work Management
         public DbSet<Project> Projects { get; set; }
+        public DbSet<ProjectMember> ProjectMembers { get; set; }
         public DbSet<Sprint> Sprints { get; set; }
         public DbSet<TaskType> TaskTypes { get; set; }
-        public DbSet<TaskStatus> TaskStatuses { get; set; }
+        public DbSet<TaskManagement.Domain.Entities.TaskStatus> TaskStatuses { get; set; }
         public DbSet<WorkTask> WorkTasks { get; set; }
         public DbSet<TaskAssignment> TaskAssignments { get; set; }
         public DbSet<TaskDependency> TaskDependencies { get; set; }
 
-        // CỤM 4: TƯƠNG TÁC & TRUY VẾT
+        // Group 4: Collaboration & Tracking
         public DbSet<Comment> Comments { get; set; }
         public DbSet<Attachment> Attachments { get; set; }
         public DbSet<AuditLog> AuditLogs { get; set; }
         public DbSet<Notification> Notifications { get; set; }
 
-        // CỤM 5: HIỆU SUẤT & GAMIFICATION
+        // Group 5: Gamification
         public DbSet<PerformanceReview> PerformanceReviews { get; set; }
         public DbSet<UserWallet> UserWallets { get; set; }
         public DbSet<PointTransaction> PointTransactions { get; set; }
 
-        // CỤM 6: TRÍ TUỆ NHÂN TẠO
+        // Group 6: AI Integration
         public DbSet<AIPromptTemplate> AIPromptTemplates { get; set; }
         public DbSet<AITokenUsage> AITokenUsages { get; set; }
         public DbSet<AIFeedback> AIFeedbacks { get; set; }
         public DbSet<AITrainingDataset> AITrainingDatasets { get; set; }
         public DbSet<TaskVectorEmbedding> TaskVectorEmbeddings { get; set; }
 
+        // Group 6: Time Tracking
+        public DbSet<TimeLog> TimeLogs { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
 
-            // 1. Composite Keys
+            // =============================================
+            // 1. Composite Keys & Special PKs
+            // =============================================
             modelBuilder.Entity<UserRole>().HasKey(x => new { x.UserId, x.RoleId });
             modelBuilder.Entity<RolePermission>().HasKey(x => new { x.RoleId, x.PermissionId });
             modelBuilder.Entity<DepartmentMember>().HasKey(x => new { x.DepartmentId, x.UserId });
+            modelBuilder.Entity<ProjectMember>().HasKey(x => new { x.ProjectId, x.UserId });
             modelBuilder.Entity<TaskAssignment>().HasKey(x => new { x.WorkTaskId, x.UserId });
             modelBuilder.Entity<TaskDependency>().HasKey(x => new { x.PredecessorTaskId, x.SuccessorTaskId });
-
-            // 2. Primary Keys configured conventionally
             modelBuilder.Entity<UserWallet>().HasKey(x => x.UserId);
             modelBuilder.Entity<TaskVectorEmbedding>().HasKey(x => x.WorkTaskId);
 
-            // 3. Unique constraints
+            // =============================================
+            // 2. Unique Constraints
+            // =============================================
             modelBuilder.Entity<User>().HasIndex(u => u.Email).IsUnique();
             modelBuilder.Entity<Permission>().HasIndex(p => p.Code).IsUnique();
 
-            // 4. Relationships
-            // Cụm 1
+            // =============================================
+            // 3. Relationships - Group 1: System & Access
+            // =============================================
             modelBuilder.Entity<UserRole>()
                 .HasOne(ur => ur.User)
                 .WithMany(u => u.UserRoles)
@@ -92,7 +100,9 @@ namespace TaskManagement.Infrastructure.Data
                 .HasForeignKey(rp => rp.PermissionId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // Cụm 2
+            // =============================================
+            // 4. Relationships - Group 2: Organization
+            // =============================================
             modelBuilder.Entity<Department>()
                 .HasOne(d => d.Manager)
                 .WithMany(u => u.ManagedDepartments)
@@ -111,12 +121,26 @@ namespace TaskManagement.Infrastructure.Data
                 .HasForeignKey(dm => dm.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // Cụm 3
+            // =============================================
+            // 5. Relationships - Group 3: Core Work Management
+            // =============================================
             modelBuilder.Entity<Project>()
-                .HasOne(p => p.Owner)
-                .WithMany(u => u.OwnedProjects)
-                .HasForeignKey(p => p.OwnerId)
+                .HasOne(p => p.Creator)
+                .WithMany(u => u.CreatedProjects)
+                .HasForeignKey(p => p.CreatorId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<ProjectMember>()
+                .HasOne(pm => pm.Project)
+                .WithMany(p => p.ProjectMembers)
+                .HasForeignKey(pm => pm.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ProjectMember>()
+                .HasOne(pm => pm.User)
+                .WithMany(u => u.ProjectMemberships)
+                .HasForeignKey(pm => pm.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<Sprint>()
                 .HasOne(s => s.Project)
@@ -147,6 +171,12 @@ namespace TaskManagement.Infrastructure.Data
                 .WithMany(s => s.WorkTasks)
                 .HasForeignKey(wt => wt.SprintId)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<WorkTask>()
+                .HasOne(wt => wt.ParentTask)
+                .WithMany(wt => wt.ChildTasks)
+                .HasForeignKey(wt => wt.ParentTaskId)
+                .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<WorkTask>()
                 .HasOne(wt => wt.TaskType)
@@ -190,7 +220,9 @@ namespace TaskManagement.Infrastructure.Data
                 .HasForeignKey(td => td.SuccessorTaskId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // Cụm 4
+            // =============================================
+            // 6. Relationships - Group 4: Collaboration & Tracking
+            // =============================================
             modelBuilder.Entity<Comment>()
                 .HasOne(c => c.WorkTask)
                 .WithMany(wt => wt.Comments)
@@ -222,6 +254,12 @@ namespace TaskManagement.Infrastructure.Data
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<AuditLog>()
+                .HasOne(al => al.WorkTask)
+                .WithMany(wt => wt.AuditLogs)
+                .HasForeignKey(al => al.WorkTaskId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<AuditLog>()
                 .HasOne(al => al.User)
                 .WithMany(u => u.AuditLogs)
                 .HasForeignKey(al => al.UserId)
@@ -233,7 +271,9 @@ namespace TaskManagement.Infrastructure.Data
                 .HasForeignKey(n => n.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // Cụm 5
+            // =============================================
+            // 7. Relationships - Group 5: Gamification
+            // =============================================
             modelBuilder.Entity<PerformanceReview>()
                 .HasOne(pr => pr.Reviewer)
                 .WithMany(u => u.ReviewsGiven)
@@ -253,12 +293,14 @@ namespace TaskManagement.Infrastructure.Data
                 .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<PointTransaction>()
-                .HasOne(pt => pt.Wallet)
+                .HasOne(pt => pt.UserWallet)
                 .WithMany(uw => uw.PointTransactions)
-                .HasForeignKey(pt => pt.WalletId)
+                .HasForeignKey(pt => pt.UserWalletUserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // Cụm 6
+            // =============================================
+            // 8. Relationships - Group 6: AI Integration
+            // =============================================
             modelBuilder.Entity<AITokenUsage>()
                 .HasOne(tu => tu.User)
                 .WithMany(u => u.AITokenUsages)
@@ -271,11 +313,32 @@ namespace TaskManagement.Infrastructure.Data
                 .HasForeignKey(f => f.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            modelBuilder.Entity<AITrainingDataset>()
+                .HasOne(td => td.Creator)
+                .WithMany(u => u.AITrainingDatasets)
+                .HasForeignKey(td => td.CreatorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             modelBuilder.Entity<TaskVectorEmbedding>()
                 .HasOne(tve => tve.WorkTask)
                 .WithOne(wt => wt.TaskVectorEmbedding)
                 .HasForeignKey<TaskVectorEmbedding>(tve => tve.WorkTaskId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // =============================================
+            // 9. Relationships - Time Tracking
+            // =============================================
+            modelBuilder.Entity<TimeLog>()
+                .HasOne(tl => tl.WorkTask)
+                .WithMany(wt => wt.TimeLogs)
+                .HasForeignKey(tl => tl.WorkTaskId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<TimeLog>()
+                .HasOne(tl => tl.User)
+                .WithMany(u => u.TimeLogs)
+                .HasForeignKey(tl => tl.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }
