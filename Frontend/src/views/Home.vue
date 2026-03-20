@@ -50,35 +50,32 @@ const features = [
   }
 ]
 
+// Dữ liệu mặc định trống
 const kanbanColumns = [
   {
-    title: 'CẦN LÀM',
-    count: 3,
+    title: 'TO DO',
+    count: 1,
     items: [
-      { title: 'Cập nhật Hệ thống Thiết kế', tag: 'UI/UX', tagType: 'primary' },
-      { title: 'Nghiên cứu Thị trường', tag: 'Analysis', tagType: 'info' }
+      { id: 'SCRUM-1', title: 'Task 1', date: 'Mar 17, 2026', overdue: true, icon: 'square-check' }
     ]
   },
   {
-    title: 'ĐANG LÀM',
-    count: 2,
+    title: 'IN PROGRESS',
+    count: 1,
     items: [
-      { title: 'Tích hợp API', tag: 'Backend', tagType: 'warning' }
+      { id: 'SCRUM-2', title: 'Task 2', date: 'Mar 22, 2026', overdue: false, icon: 'square-check', active: true }
     ]
   },
   {
     title: 'CHỜ DUYỆT',
-    count: 1,
-    items: [
-      { title: 'Mẫu Prototype V2.0', tag: 'Design', tagType: 'success' }
-    ]
+    count: 0,
+    items: []
   },
   {
-    title: 'HOÀN THÀNH',
-    count: 4,
-    items: [
-      { title: 'Đăng nhập Người dùng', tag: 'Core', tagType: 'danger' }
-    ]
+    title: 'DONE',
+    count: 0,
+    items: [],
+    done: true
   }
 ]
 </script>
@@ -92,8 +89,7 @@ const kanbanColumns = [
           <img :src="logoImg" alt="SprintA Logo" class="custom-logo" />
           <span class="logo-text">SprintA</span>
         </a>
-        <div class="nav-actions" style="margin-left: auto; display: flex; align-items: center; gap: 16px;">
-          <HelpDropdown />
+        <div class="nav-actions">
           <el-button link @click="$router.push('/login')">Đăng nhập</el-button>
           <el-button type="primary" round @click="$router.push('/register')">Đăng ký</el-button>
         </div>
@@ -111,10 +107,10 @@ const kanbanColumns = [
           <span class="text-primary">Tiến độ Thần tốc.</span>
         </h1>
         <p class="hero-sub">
-          Nền tảng quản lý công việc tất-cả-trong-một dành cho các đội ngũ muốn tạo ra<br />
+          Nền tảng quản lý công việc tất-cả-trong-một dành cho các đội ngũ muốn tạo ra<br class="desktop-only" />
           sản phẩm xuất sắc mà không bị rối loạn.
         </p>
-        <div class="hero-btns" style="justify-content: flex-start;">
+        <div class="hero-btns">
           <el-button type="primary" size="large" round class="btn-cta" @click="$router.push('/register')">Bắt đầu Miễn phí</el-button>
         </div>
 
@@ -144,40 +140,75 @@ const kanbanColumns = [
       </div>
     </section>
 
-    <!-- Pipeline Section -->
-    <section class="pipeline-section section-padding bg-light">
-      <div class="container">
+    <section class="pipeline-section section-padding bg-white">
+      <div class="container animate-fade-up">
         <div class="pipeline-header">
-          <h2>Dòng chảy Công việc Khép kín</h2>
+          <h2 class="text-black">Dòng chảy Công việc Khép kín</h2>
           <div class="header-action">
-            <a href="#" class="view-all">Xem tất cả biểu mẫu <ArrowRight :size="16" /></a>
+            <a href="#" class="view-all text-black">Xem tất cả biểu mẫu <ArrowRight :size="16" /></a>
           </div>
         </div>
         
-        <el-row :gutter="24" class="kanban-wrapper">
-          <el-col :md="6" v-for="col in kanbanColumns" :key="col.title">
-            <div class="kanban-col">
-              <div class="col-head">
-                <span>{{ col.title }}</span>
-                <span class="counter">{{ col.count }}</span>
-              </div>
-              <div class="tasks">
-                <div v-for="task in col.items" :key="task.title" class="task-card">
-                  <h4>{{ task.title }}</h4>
-                  <el-tag :type="task.tagType" size="small">{{ task.tag }}</el-tag>
+        <div class="kanban-container-home">
+          <el-row :gutter="20" class="kanban-wrapper-home">
+            <el-col :xs="24" :sm="12" :md="6" v-for="col in kanbanColumns" :key="col.title">
+              <div class="kanban-col-home">
+                <div class="col-head-home">
+                  <span class="col-title">{{ col.title }}</span>
+                  <span v-if="!col.done" class="col-count">{{ col.count }}</span>
+                  <i v-if="col.title === 'IN PROGRESS'" class="fa-solid fa-ellipsis ml-auto"></i>
+                  <i v-if="col.done" class="fa-solid fa-check-double ml-auto done-icon"></i>
+                </div>
+                
+                <div class="tasks-container">
+                  <div v-for="task in col.items" :key="task.id" class="task-card-home" :class="{ 'active-task': task.active }">
+                    <div class="card-top">
+                      <h4 class="task-title">{{ task.title }}</h4>
+                      <i v-if="task.active" class="fa-regular fa-pen-to-square edit-icon"></i>
+                      <i v-if="task.active" class="fa-solid fa-ellipsis more-icon"></i>
+                    </div>
+                    
+                    <div class="card-mid">
+                      <span class="date-badge-home" :class="{ 'overdue': task.overdue }">
+                        <i :class="task.overdue ? 'fa-solid fa-triangle-exclamation' : 'fa-regular fa-calendar'"></i>
+                        {{ task.date }}
+                      </span>
+                    </div>
+                    
+                    <div class="card-bottom">
+                      <div class="task-id-home">
+                        <i class="fa-regular fa-square-check"></i> {{ task.id }}
+                      </div>
+                      <div class="bottom-right">
+                        <span v-if="task.active" class="link-tag-home">-</span>
+                        <i v-if="task.active" class="fa-solid fa-network-wired"></i>
+                        <div class="avatar-home">
+                          <i class="fa-solid fa-user"></i>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div v-if="col.items.length === 0" class="empty-placeholder-home">
+                    Trống
+                  </div>
+                  
+                  <div class="btn-create-task-home">
+                    <i class="fa-solid fa-plus"></i> Create
+                  </div>
                 </div>
               </div>
-            </div>
-          </el-col>
-        </el-row>
+            </el-col>
+          </el-row>
+        </div>
       </div>
     </section>
 
     <!-- Focus Section -->
     <section class="focus-section section-padding">
       <div class="container">
-        <el-row align="middle" :gutter="80">
-          <el-col :md="12">
+        <el-row align="middle" :gutter="40">
+          <el-col :xs="24" :md="12">
             <div class="focus-content">
               <h2 class="section-title text-left">Thiết kế để Tập trung</h2>
               <p class="section-sub text-left">Loại bỏ sự phiền nhiễu với các công cụ được xây dựng cho công việc chuyên sâu và năng suất cao.</p>
@@ -198,9 +229,9 @@ const kanbanColumns = [
               </div>
             </div>
           </el-col>
-          <el-col :md="12">
+          <el-col :xs="24" :md="12">
             <div class="focus-image">
-              <img :src="focusImage" alt="Focus Focus" />
+              <img :src="focusImage" alt="Focus" />
             </div>
           </el-col>
         </el-row>
@@ -220,8 +251,8 @@ const kanbanColumns = [
     <!-- Footer -->
     <footer class="footer">
       <div class="container">
-        <el-row :gutter="40">
-          <el-col :md="8">
+        <el-row :gutter="40" class="footer-row">
+          <el-col :xs="24" :md="8">
             <a href="/" class="logo">
               <img :src="logoImg" alt="SprintA Logo" class="custom-logo" />
               <span class="logo-text">SprintA</span>
@@ -236,7 +267,7 @@ const kanbanColumns = [
               <Facebook :size="20" />
             </div>
           </el-col>
-          <el-col :md="4">
+          <el-col :xs="12" :md="4">
             <h4>Sản Phẩm</h4>
             <ul>
               <li><a href="#">Tính năng</a></li>
@@ -245,7 +276,7 @@ const kanbanColumns = [
               <li><a href="#">Cập nhật</a></li>
             </ul>
           </el-col>
-          <el-col :md="4">
+          <el-col :xs="12" :md="4">
             <h4>Công Ty</h4>
             <ul>
               <li><a href="#">Về chúng tôi</a></li>
@@ -254,7 +285,7 @@ const kanbanColumns = [
               <li><a href="#">Báo chí</a></li>
             </ul>
           </el-col>
-          <el-col :md="4">
+          <el-col :xs="12" :md="4">
             <h4>Hỗ trợ</h4>
             <ul>
               <li><a href="#">Trung tâm trợ giúp</a></li>
@@ -284,7 +315,7 @@ const kanbanColumns = [
 
 /* Navbar */
 .navbar {
-  height: 100px;
+  height: 80px;
   display: flex;
   align-items: center;
   position: sticky;
@@ -295,139 +326,73 @@ const kanbanColumns = [
   border-bottom: 1px solid #f0f0f0;
 }
 
-.navbar .container {
-  max-width: 1440px;
-  width: 100%;
-}
-
 .nav-content {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   width: 100%;
 }
 
 .logo {
   display: flex;
   align-items: center;
-  gap: 0;
-  font-weight: 900;
-  font-size: 32px;
-  color: #1a1a1a;
-  flex-shrink: 0;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  letter-spacing: -1px;
   text-decoration: none;
-  cursor: pointer;
-}
-
-.logo-text {
-  margin-left: -90px;
-}
-
-.footer .logo .logo-text {
-  color: white;
-  /* (inherit -32px from above) */
-}
-
-.logo-icon {
-  width: 1024px;
-  height: 1024px;
-  background: var(--el-color-primary);
-  border-radius: 8px;
+  color: #1a1a1a;
 }
 
 .custom-logo {
-  height: 128px;
+  height: 60px;
   width: auto;
   object-fit: contain;
 }
 
-.nav-links {
+.logo-text {
+  font-weight: 900;
+  font-size: 24px;
+  letter-spacing: -1px;
+  margin-left: -10px;
+}
+
+.nav-actions {
   display: flex;
-  gap: 32px;
-  margin-left: auto;
-  margin-right: 48px;
-}
-
-.nav-links a {
-  text-decoration: none;
-  color: #666;
-  font-weight: 500;
-  font-size: 12px;
-  transition: color 0.3s;
-}
-
-.nav-links a:hover {
-  color: var(--el-color-primary);
+  align-items: center;
+  gap: 16px;
 }
 
 /* Hero Section */
 .hero-section {
-  background: var(--bg-gradient);
+  padding-top: 60px;
   padding-bottom: 0;
 }
 
-.new-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 16px;
-  background: #f0f7ff;
-  border-radius: 100px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--el-color-primary);
-  margin-bottom: 24px;
-}
-
-.new-badge span {
-  background: var(--el-color-primary);
-  color: white;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-}
-
 .hero-title {
-  font-size: 14px;
-  font-weight: 700;
+  font-size: clamp(2rem, 5vw, 4rem);
+  font-weight: 800;
+  line-height: 1.1;
   margin-bottom: 24px;
   color: #0d121f;
 }
 
 .hero-sub {
-  font-size: 12px;
-  color: #666;
+  font-size: 1.1rem;
+  color: #64748b;
   line-height: 1.6;
   margin-bottom: 40px;
 }
 
-.hero-btns {
-  display: flex;
-  justify-content: center;
-  gap: 16px;
-  margin-bottom: 60px;
-}
-
 .btn-cta {
-  padding: 24px 40px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.btn-secondary {
-  padding: 24px 32px;
-  font-size: 12px;
+  padding: 24px 48px;
+  font-size: 1.1rem;
 }
 
 .dashboard-preview {
-  margin-top: 40px;
-  border-radius: 20px 20px 0 0;
-  overflow: hidden;
-  box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.1);
+  margin-top: 60px;
   max-width: 1000px;
   margin-left: auto;
   margin-right: auto;
+  border-radius: 20px 20px 0 0;
+  overflow: hidden;
+  box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.1);
 }
 
 .dashboard-preview img {
@@ -437,152 +402,75 @@ const kanbanColumns = [
 
 /* Features */
 .section-title {
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 2.25rem;
   margin-bottom: 16px;
 }
 
 .section-sub {
-  font-size: 12px;
-  color: #666;
+  font-size: 1.1rem;
+  color: #64748b;
   margin-bottom: 60px;
 }
 
-.feature-grid {
-  margin-top: 40px;
-}
-
 .feature-card {
-  padding: 40px 24px;
+  padding: 32px;
   text-align: left;
-  transition: transform 0.3s;
-}
-
-.feature-card:hover {
-  transform: translateY(-5px);
-}
-
-.icon-wrap {
-  width: 56px;
-  height: 56px;
-  border-radius: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 24px;
-}
-
-.feature-card h3 {
-  font-size: 14px;
-  margin-bottom: 12px;
-}
-
-.feature-card p {
-  font-size: 12px;
-  color: #666;
-  line-height: 1.6;
-}
-
-/* Pipeline */
-.bg-light {
-  background-color: #f8faff;
-}
-
-.pipeline-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 48px;
-}
-
-.view-all {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--el-color-primary);
-  text-decoration: none;
-  font-weight: 600;
-}
-
-.kanban-col {
+  background: white;
+  border-radius: 24px;
+  transition: all 0.3s ease;
   height: 100%;
 }
 
-.col-head {
-  display: flex;
-  justify-content: space-between;
-  padding: 12px 16px;
-  background: white;
-  border-radius: 12px;
-  font-weight: 700;
-  font-size: 14px;
-  margin-bottom: 16px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+.feature-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.05);
 }
 
-.counter {
-  color: #999;
-}
+/* Pipeline Home */
+.bg-white { background-color: #ffffff !important; }
+.kanban-container-home { padding: 40px 0; }
+.kanban-wrapper-home { display: flex; flex-wrap: wrap; }
+.kanban-col-home { background-color: #f4f5f7; border-radius: 12px; padding: 16px 14px; height: 100%; display: flex; flex-direction: column; border: 1px solid #ebecf0; }
+.col-head-home { display: flex; align-items: center; padding: 0 4px 16px; color: #44546f; }
+.col-title { font-size: 12px; font-weight: 700; letter-spacing: 0.5px; }
+.col-count { margin-left: 8px; background-color: #ebecf0; color: #44546f; border-radius: 10px; padding: 2px 8px; font-size: 11px; font-weight: 700; }
+.done-icon { color: #1f845a; }
+.ml-auto { margin-left: auto; }
 
-.task-card {
-  background: white;
-  padding: 20px;
-  border-radius: 12px;
-  margin-bottom: 12px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.03);
-}
+.task-card-home { background-color: white; border: 1px solid #ebecf0; border-radius: 8px; padding: 16px; margin-bottom: 12px; cursor: pointer; box-shadow: 0 1px 1px rgba(0,0,0,0.05); transition: all 0.2s; }
+.task-card-home:hover { transform: translateY(-2px); box-shadow: 0 8px 16px rgba(0,0,0,0.04); border-color: #3b82f644; }
+.active-task { border-left: 3px solid #3b82f6; }
+.card-top { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.task-title { font-size: 15px; color: #172b4d; flex: 1; margin: 0; font-weight: 600; }
+.edit-icon, .more-icon { font-size: 14px; color: #626f84; opacity: 0.6; }
+.card-mid { margin-bottom: 12px; }
+.date-badge-home { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background-color: #f4f5f7; border-radius: 4px; font-size: 11px; color: #44546f; font-weight: 600; }
+.date-badge-home.overdue { background-color: #ffebe6; color: #bf2600; }
+.card-bottom { display: flex; justify-content: space-between; align-items: center; }
+.task-id-home { font-size: 12px; color: #626f84; display: flex; align-items: center; gap: 6px; font-weight: 500; }
+.bottom-right { display: flex; align-items: center; gap: 10px; color: #626f84; }
+.link-tag-home { background-color: #ebecf0; padding: 0 6px; border-radius: 4px; font-size: 11px; font-weight: 700; }
+.avatar-home { width: 24px; height: 24px; border-radius: 50%; background-color: #dfe1e6; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #44546f; }
 
-.task-card h4 {
-  font-size: 14px;
-  margin-bottom: 12px;
-}
+.empty-placeholder-home { text-align: center; padding: 24px; border: 2px dashed #ebecf0; border-radius: 12px; color: #94a3b8; font-size: 13px; margin-bottom: 12px; }
+.btn-create-task-home { padding: 8px 0; color: #626f84; font-size: 14px; cursor: pointer; border-radius: 4px; display: flex; align-items: center; gap: 8px; font-weight: 500; }
+.btn-create-task-home:hover { color: #172b4d; }
 
-/* Focus Section */
-.text-left {
-  text-align: left;
-}
-
+/* Focus */
 .focus-content {
-  padding-right: 40px;
-}
-
-.focus-item {
-  display: flex;
-  gap: 20px;
-  margin-top: 32px;
-}
-
-.item-icon {
-  width: 48px;
-  height: 48px;
-  background: #f0f7ff;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.item-text h4 {
-  font-size: 14px;
-  margin-bottom: 8px;
-}
-
-.item-text p {
-  font-size: 12px;
-  color: #666;
-  line-height: 1.6;
+  padding-right: 0;
 }
 
 .focus-image img {
   width: 100%;
-  border-radius: 32px;
-  box-shadow: 0 24px 64px rgba(0,0,0,0.1);
+  border-radius: 24px;
+  margin-top: 40px;
 }
 
 /* CTA */
 .cta-section {
-  padding: 80px 24px;
+  margin-top: 100px;
+  margin-bottom: 120px;
 }
 
 .cta-card {
@@ -591,32 +479,12 @@ const kanbanColumns = [
   border-radius: 32px;
   text-align: center;
   color: white;
-  position: relative;
-  overflow: hidden;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.1);
 }
 
 .cta-card h2 {
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 2.5rem;
   margin-bottom: 24px;
-}
-
-.cta-card p {
-  font-size: 12px;
-  opacity: 0.8;
-  margin-bottom: 40px;
-}
-
-.cta-primary-btn {
-  padding: 28px 48px;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.small-note {
-  margin-top: 20px;
-  font-size: 12px !important;
-  opacity: 0.6 !important;
 }
 
 /* Footer */
@@ -626,68 +494,64 @@ const kanbanColumns = [
   color: white;
 }
 
-.logo.white { color: white; }
-.logo-icon.white { background: #fff; }
+.footer-row {
+  margin-bottom: 40px;
+}
 
 .footer-about {
-  margin: 24px 0;
-  opacity: 0.6;
-  line-height: 1.6;
+  margin: 20px 0;
+  opacity: 0.7;
 }
 
 .socials {
   display: flex;
-  gap: 20px;
-}
-
-.socials svg {
-  opacity: 0.6;
-  cursor: pointer;
-  transition: opacity 0.3s;
-}
-
-.socials svg:hover { opacity: 1; }
-
-.footer h4 {
-  font-size: 14px;
-  margin-bottom: 24px;
+  gap: 16px;
+  margin-bottom: 40px;
 }
 
 .footer ul {
   list-style: none;
+  padding: 0;
 }
 
 .footer ul li {
-  font-size: 12px;
   margin-bottom: 12px;
 }
 
 .footer ul li a {
   color: white;
+  opacity: 0.7;
   text-decoration: none;
-  opacity: 0.6;
-  transition: opacity 0.3s;
 }
-
-.footer ul li a:hover { opacity: 1; }
 
 .footer-bottom {
-  margin-top: 80px;
-  padding-top: 32px;
   border-top: 1px solid rgba(255,255,255,0.1);
+  padding-top: 32px;
   display: flex;
-  justify-content: space-between;
-  opacity: 0.4;
-  font-size: 12px;
+  flex-direction: column;
+  gap: 20px;
+  align-items: center;
+  text-align: center;
 }
 
-.bottom-links {
-  display: flex;
-  gap: 24px;
+@media (min-width: 768px) {
+  .footer-bottom {
+    flex-direction: row;
+    justify-content: space-between;
+    text-align: left;
+  }
 }
 
-.bottom-links a {
-  color: white;
-  text-decoration: none;
+.desktop-only {
+  display: none;
+}
+
+@media (min-width: 992px) {
+  .desktop-only {
+    display: flex;
+  }
+  .focus-image img {
+    margin-top: 0;
+  }
 }
 </style>

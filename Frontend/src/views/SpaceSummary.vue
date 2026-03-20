@@ -3,14 +3,17 @@
     <!-- Navbar -->
     <header class="top-nav">
       <div class="nav-left">
+        <div class="menu-toggle mobile-only" @click="sidebarVisible = !sidebarVisible">
+          <i class="fa-solid fa-bars"></i>
+        </div>
         <router-link to="/dashboard" class="nav-brand">
           <img :src="logoImg" alt="SprintA Logo" class="nav-logo" />
-          <span>SprintA</span>
+          <span class="desktop-only">SprintA</span>
         </router-link>
-        <span class="nav-link active">Dự án</span>
+        <span class="nav-link active desktop-only">Dự án</span>
       </div>
 
-      <div class="nav-center">
+      <div class="nav-center desktop-only">
         <div class="top-search-create">
           <div class="search-input-mock">
             <i class="fa-solid fa-magnifying-glass" style="margin-right: 8px;"></i>
@@ -178,16 +181,16 @@
           <i class="fa-solid fa-robot"></i>
         </div>
 
-        <NotificationsDropdown />
-        <SettingsDropdown />
-        <HelpDropdown />
+        <NotificationsDropdown class="desktop-only" />
+        <SettingsDropdown class="desktop-only" />
+        <HelpDropdown class="desktop-only" />
         <UserDropdown />
       </div>
     </header>
 
     <div class="main-body">
       <!-- Sidebar -->
-      <aside class="sidebar">
+      <aside class="sidebar" :class="{ 'show': sidebarVisible }">
         <ul class="side-menu">
           <li @click="goToDashboard"><i class="fa-solid fa-border-all"></i> Dành cho bạn</li>
           <li class="active"><i class="fa-regular fa-folder-open"></i> Không gian</li>
@@ -249,7 +252,7 @@
               <div class="widget">
                 <i class="fa-regular fa-calendar widget-icon" style="color: #f59e0b"></i>
                 <div class="widget-info">
-                  <div class="num">1 due soon</div>
+                  <div class="num">0 due soon</div>
                   <div class="sub">in the next 7 days</div>
                 </div>
               </div>
@@ -268,13 +271,13 @@
                   <div class="donut-chart">
                     <div class="donut-ring"></div>
                     <div class="donut-center">
-                      <span class="val">4</span>
+                      <span class="val">0</span>
                       <span class="lbl">Tổng số công việc</span>
                     </div>
                   </div>
                   <div class="donut-legend">
-                    <div class="leg-item"><span class="dot" style="background:#3b82f6"></span> Đang thực hiện: 2</div>
-                    <div class="leg-item"><span class="dot" style="background:#84cc16"></span> Cần làm: 2</div>
+                    <div class="leg-item"><span class="dot" style="background:#3b82f6"></span> Đang thực hiện: 0</div>
+                    <div class="leg-item"><span class="dot" style="background:#84cc16"></span> Cần làm: 0</div>
                   </div>
                 </div>
               </div>
@@ -302,7 +305,7 @@
                     <div class="bar-col"><div class="bar-fill" style="height:0"></div></div>
                     <div class="bar-col"><div class="bar-fill" style="height:0"></div></div>
                     <div class="bar-col"><div class="bar-fill" style="height:0"></div></div>
-                    <div class="bar-col"><div class="bar-fill" style="height:100%;background:#64748b"></div></div>
+                    <div class="bar-col"><div class="bar-fill" style="height:0%;background:#64748b"></div></div>
                   </div>
                   <div class="bar-x">
                     <span style="color:#ef4444">︽ Cao nhất</span>
@@ -326,11 +329,11 @@
                   
                   <div class="type-row">
                     <div class="t-name"><i class="fa-solid fa-square-check" style="color:#3b82f6"></i> Công việc</div>
-                    <div class="t-dist"><div class="t-prog" style="width:75%">75%</div></div>
+                    <div class="t-dist"><div class="t-prog" style="width:0%">0%</div></div>
                   </div>
                   <div class="type-row">
                     <div class="t-name"><i class="fa-solid fa-diagram-project" style="color:#0ea5e9"></i> Việc con</div>
-                    <div class="t-dist"><div class="t-prog" style="width:25%">25%</div></div>
+                    <div class="t-dist"><div class="t-prog" style="width:0%">0%</div></div>
                   </div>
                   <div class="type-row">
                     <div class="t-name"><i class="fa-solid fa-bolt" style="color:#a855f7"></i> Epic</div>
@@ -353,7 +356,7 @@
                   <div class="stack-item" style="background: #3b82f6;">DN</div>
                   <div class="stack-item" style="background: #a855f7;">AN</div>
                   <div class="stack-item" style="background: #f59e0b;">TN</div>
-                  <div class="stack-count">+5</div>
+                  <div class="stack-count">+0</div>
                 </div>
               </div>
               <el-button size="small" plain class="dark-btn"><i class="fa-solid fa-filter"></i> Bộ lọc</el-button>
@@ -368,71 +371,40 @@
               <!-- TO DO -->
               <div class="kanban-column">
                 <div class="column-header">
-                  <span class="column-title">CẦN LÀM</span>
-                  <span class="column-count">4</span>
-                  <i class="fa-solid fa-ellipsis"></i>
+                  <span class="column-title">TO DO</span>
+                  <span class="column-count-badge">0</span>
                 </div>
                 <div class="kanban-cards">
-                  <div class="kanban-card" v-for="i in 2" :key="'todo-'+i">
-                    <p class="card-text">Thiết kế hệ thống thông báo cho người dùng mới</p>
-                    <div class="card-footer">
-                      <div class="card-id"><i class="fa-solid fa-square-check" style="color: #4ade80;"></i> SCRUM-{{i+10}}</div>
-                      <div class="card-meta">
-                        <i class="fa-solid fa-circle-exclamation" style="color: #ef4444;"></i>
-                        <div class="avatar-xs">AN</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="btn-create-issue"><i class="fa-solid fa-plus"></i> Tạo công việc</div>
+                  <div class="btn-create-card"><i class="fa-solid fa-plus"></i> Create</div>
                 </div>
               </div>
 
               <!-- IN PROGRESS -->
               <div class="kanban-column">
                 <div class="column-header">
-                  <span class="column-title">ĐANG LÀM</span>
-                  <span class="column-count">2</span>
-                  <i class="fa-solid fa-ellipsis"></i>
+                  <span class="column-title">IN PROGRESS</span>
+                  <span class="column-count-badge">0</span>
+                  <i class="fa-solid fa-ellipsis header-more"></i>
                 </div>
                 <div class="kanban-cards">
-                  <div class="kanban-card" v-for="i in 1" :key="'doing-'+i">
-                    <p class="card-text">Tích hợp API thanh toán Stripe vào chức năng checkout</p>
-                    <div class="card-footer">
-                      <div class="card-id"><i class="fa-solid fa-book" style="color: #3b82f6;"></i> SCRUM-24</div>
-                      <div class="card-meta">
-                        <span class="date">Sep 24</span>
-                        <div class="avatar-xs">DN</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="btn-create-issue"><i class="fa-solid fa-plus"></i> Tạo công việc</div>
+                  <div class="btn-create-card"><i class="fa-solid fa-plus"></i> Create</div>
                 </div>
               </div>
 
               <!-- DONE -->
               <div class="kanban-column">
                 <div class="column-header">
-                  <span class="column-title">HOÀN THÀNH</span>
-                  <span class="column-count">5</span>
-                  <i class="fa-solid fa-ellipsis"></i>
+                  <span class="column-title">DONE</span>
+                  <i class="fa-solid fa-check-double done-icon"></i>
                 </div>
                 <div class="kanban-cards">
-                  <div class="kanban-card" v-for="i in 1" :key="'done-'+i">
-                    <p class="card-text">Fix lỗi không hiển thị avatar sau khi cập nhật hồ sơ</p>
-                    <div class="card-footer">
-                      <div class="card-id"><i class="fa-solid fa-bolt" style="color: #a855f7;"></i> SCRUM-05</div>
-                      <div class="card-meta">
-                        <div class="avatar-xs">TN</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="btn-create-issue"><i class="fa-solid fa-plus"></i> Tạo công việc</div>
+                  <div class="btn-create-card"><i class="fa-solid fa-plus"></i> Create</div>
                 </div>
               </div>
 
               <!-- ADD STATUS COLUMN BUTTON -->
-              <div class="add-column-trigger">
-                <i class="fa-solid fa-plus"></i>
+              <div class="add-column-box">
+                <div class="add-column-btn"><i class="fa-solid fa-plus"></i></div>
               </div>
             </div>
           </div>
@@ -482,13 +454,7 @@
 
                 <!-- Row 2 -->
                 <div class="day-cell">3</div>
-                <div class="day-cell">
-                  <span>4</span>
-                  <div class="calendar-event blue">
-                    <span class="event-id">MT-12</span>
-                    <span class="event-name">Design UI...</span>
-                  </div>
-                </div>
+                <div class="day-cell">4</div>
                 <div class="day-cell">5</div>
                 <div class="day-cell">6</div>
                 <div class="day-cell">7</div>
@@ -500,10 +466,6 @@
                 <div class="day-cell">11</div>
                 <div class="day-cell today">
                   <span class="day-num-circle">12</span>
-                  <div class="calendar-event orange">
-                    <span class="event-id">MT-45</span>
-                    <span class="event-name">API Integration...</span>
-                  </div>
                 </div>
                 <div class="day-cell">13</div>
                 <div class="day-cell">14</div>
@@ -515,13 +477,7 @@
                 <div class="day-cell">18</div>
                 <div class="day-cell">19</div>
                 <div class="day-cell">20</div>
-                <div class="day-cell">
-                  <span>21</span>
-                  <div class="calendar-event green">
-                    <span class="event-id">MT-22</span>
-                    <span class="event-name">Database Sync...</span>
-                  </div>
-                </div>
+                <div class="day-cell">21</div>
                 <div class="day-cell">22</div>
                 <div class="day-cell">23</div>
               </div>
@@ -548,9 +504,6 @@
                 <div class="panel-header">Công việc</div>
                 <div class="panel-sub-header">Sprints</div>
                 <div class="panel-list">
-                  <div class="epic-row"><i class="fa-solid fa-bolt" style="color: #a855f7;"></i> SprintA-10 Mobile App Dev</div>
-                  <div class="epic-row"><i class="fa-solid fa-bolt" style="color: #3b82f6;"></i> SprintA-11 Backend API</div>
-                  <div class="epic-row"><i class="fa-solid fa-bolt" style="color: #22c55e;"></i> SprintA-12 Frontend UI</div>
                   <div class="add-epic-btn"><i class="fa-solid fa-plus"></i> Tạo Epic</div>
                 </div>
               </div>
@@ -569,10 +522,6 @@
                 <div class="timeline-rows-container">
                   <div class="timeline-task-row" v-for="i in 4" :key="'row-'+i">
                     <div class="grid-line" v-for="j in 5" :key="'line-'+j"></div>
-                    <!-- Sample Bars -->
-                    <div class="gantt-bar purple" v-if="i === 1" style="left: 10%; width: 40%;"></div>
-                    <div class="gantt-bar blue" v-if="i === 2" style="left: 30%; width: 50%;"></div>
-                    <div class="gantt-bar green" v-if="i === 3" style="left: 60%; width: 30%;"></div>
                   </div>
                 </div>
               </div>
@@ -977,6 +926,8 @@ const goToAI = () => {
   router.push('/ai-assistant')
 }
 
+const sidebarVisible = ref(false)
+
 const toggleAI = () => {
   aiVisible.value = !aiVisible.value
 }
@@ -989,10 +940,7 @@ const taskGroups = ref([
     statusBg: '#6b21a8',
     statusColor: '#ffffff',
     expanded: true,
-    items: [
-      { id: 'task-1', name: 'Thêm login bằng Google', status: 'IN PROGRESS', commentCount: 1 },
-      { id: 'task-2', name: 'Sửa lỗi giao diện Mobile', status: 'IN PROGRESS', commentCount: 0 }
-    ]
+    items: []
   },
   {
     id: 'grp-todo',
@@ -1000,10 +948,7 @@ const taskGroups = ref([
     statusBg: '#374151',
     statusColor: '#9ca3af',
     expanded: true,
-    items: [
-      { id: 'task-3', name: 'Viết tài liệu API', status: 'TO DO', commentCount: 0 },
-      { id: 'task-4', name: 'Thiết kế Database mới', status: 'TO DO', commentCount: 2 }
-    ]
+    items: []
   }
 ])
 </script>
@@ -1028,8 +973,9 @@ const taskGroups = ref([
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 20px;
+  padding: 0 16px;
   flex-shrink: 0;
+  width: 100%;
 }
 
 .nav-left, .nav-right {
@@ -1393,6 +1339,78 @@ const taskGroups = ref([
   border-left: 1px solid #1e293b;
   display: flex;
   flex-direction: column;
+}
+
+@media (max-width: 1200px) {
+  .ai-sidebar {
+    position: fixed;
+    right: 0;
+    top: 56px;
+    bottom: 0;
+    z-index: 1000;
+  }
+}
+
+@media (max-width: 900px) {
+  .search-input-mock {
+    width: 100% !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    left: -260px;
+    top: 56px;
+    bottom: 0;
+    z-index: 1001;
+    transition: left 0.3s ease;
+  }
+  .sidebar.show {
+    left: 0;
+  }
+  .content-area {
+    padding: 20px 16px;
+  }
+  .top-widgets {
+    grid-template-columns: 1fr 1fr;
+  }
+  .charts-grid {
+    grid-template-columns: 1fr;
+  }
+  .nav-center {
+    display: none;
+  }
+  .nav-left, .nav-right {
+    width: auto;
+  }
+  .jira-tabs {
+    overflow-x: auto;
+    padding-bottom: 8px;
+  }
+  .jira-tab {
+    white-space: nowrap;
+  }
+}
+
+.mobile-only {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-only {
+    display: flex;
+  }
+  .desktop-only {
+    display: none;
+  }
+}
+
+.menu-toggle {
+  font-size: 20px;
+  color: #94a3b8;
+  cursor: pointer;
+  margin-right: 12px;
 }
 
 .ai-header {
@@ -2538,9 +2556,9 @@ const taskGroups = ref([
 
 .kanban-column {
   background-color: #161a1d;
-  width: 300px;
-  min-width: 300px;
-  border-radius: 4px;
+  width: 280px;
+  min-width: 280px;
+  border-radius: 8px;
   padding: 12px 10px;
   display: flex;
   flex-direction: column;
@@ -2549,28 +2567,33 @@ const taskGroups = ref([
 .column-header {
   display: flex;
   align-items: center;
-  padding: 4px 8px 12px;
+  padding: 4px 8px 16px;
   color: #8c9bab;
 }
 
 .column-title {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.8px;
 }
 
-.column-count {
-  margin: 0 12px 0 8px;
-  font-size: 12px;
-  font-weight: 500;
+.column-count-badge {
+  margin-left: 8px;
+  background-color: #333c43;
+  color: #f1f5f9;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 10px;
 }
 
-.column-header i {
+.header-more, .done-icon {
   margin-left: auto;
+  font-size: 12px;
   cursor: pointer;
-  padding: 4px;
 }
+.done-icon { color: #4ade80; }
 
 .kanban-cards {
   display: flex;
@@ -2581,21 +2604,64 @@ const taskGroups = ref([
 .kanban-card {
   background-color: #22272b;
   border: 1px solid #333c43;
-  border-radius: 3px;
+  border-radius: 4px;
   padding: 12px;
   cursor: pointer;
-  box-shadow: 0 1px 1px rgba(0,0,0,0.2);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  transition: background 0.2s;
 }
 
 .kanban-card:hover {
   background-color: #2c333a;
 }
 
-.card-text {
-  font-size: 14px;
+.kanban-card.active-card {
+  background-color: #2c333a;
+  border-color: #579dff;
+}
+
+.card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.card-title {
+  font-size: 15px;
   color: #f4f5f7;
-  margin: 0 0 12px 0;
-  line-height: 1.4;
+  flex: 1;
+  margin: 0;
+  font-weight: 500;
+}
+
+.edit-icon, .more-icon {
+  font-size: 14px;
+  color: #8c9bab;
+  opacity: 0.6;
+}
+.edit-icon:hover, .more-icon:hover { opacity: 1; color: white; }
+
+.card-badges {
+  margin-bottom: 16px;
+}
+
+.date-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background-color: rgba(255, 255, 255, 0.05);
+  border: 1px solid #333c43;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #cbd5e1;
+}
+
+.date-badge.overdue {
+  background-color: rgba(239, 68, 68, 0.1);
+  border-color: #ef4444;
+  color: #f87171;
 }
 
 .card-footer {
@@ -2604,60 +2670,69 @@ const taskGroups = ref([
   align-items: center;
 }
 
-.card-id {
+.card-task-id {
   font-size: 12px;
   color: #8c9bab;
   display: flex;
   align-items: center;
   gap: 6px;
+  font-weight: 500;
 }
 
-.card-meta {
+.footer-right-icons {
   display: flex;
   align-items: center;
-  gap: 8px;
-}
-
-.card-meta .date {
-  font-size: 11px;
+  gap: 12px;
   color: #8c9bab;
 }
 
-.avatar-xs {
-  width: 24px;
-  height: 24px;
+.link-tag {
+  background-color: #333c43;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.avatar-circle-xs {
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   background-color: #475569;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 9px;
-  font-weight: 700;
+  font-size: 10px;
   color: white;
 }
 
-.btn-create-issue {
+.btn-create-card {
   padding: 8px 10px;
   color: #8c9bab;
-  font-size: 14px;
+  font-size: 13px;
   cursor: pointer;
   border-radius: 4px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  transition: background 0.1s;
+  gap: 6px;
+  margin-top: 4px;
 }
 
-.btn-create-issue:hover {
+.btn-create-card:hover {
   background-color: rgba(255,255,255,0.05);
   color: #f4f5f7;
 }
 
-.add-column-trigger {
+.add-column-box {
   width: 40px;
   min-width: 40px;
+  display: flex;
+  justify-content: center;
+}
+
+.add-column-btn {
+  width: 40px;
   height: 40px;
-  background-color: transparent;
+  background-color: #161a1d;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2665,10 +2740,10 @@ const taskGroups = ref([
   color: #8c9bab;
   cursor: pointer;
   transition: all 0.2s;
-  margin-top: 8px;
+  margin-top: 0;
 }
 
-.add-column-trigger:hover {
+.add-column-btn:hover {
   background-color: #2c333a;
   color: white;
 }

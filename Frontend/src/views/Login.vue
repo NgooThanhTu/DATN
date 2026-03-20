@@ -7,7 +7,6 @@
           <span class="logo-text">SprintA</span>
         </router-link>
         <div class="nav-actions" style="display: flex; align-items: center; gap: 16px;">
-          <HelpDropdown />
           <el-button link @click="$router.push('/login')">Đăng nhập</el-button>
           <el-button type="primary" round @click="$router.push('/register')">Đăng ký</el-button>
         </div>
@@ -77,7 +76,6 @@ import { reactive } from 'vue'
 import logoImg from '../assets/logo_QLCV.png'
 import googleIcon from '../assets/Icongoogle.png'
 import githubIcon from '../assets/Icongithub.png'
-import HelpDropdown from '../components/HelpDropdown.vue'
 
 import { useRouter } from 'vue-router'
 
@@ -123,23 +121,19 @@ const handleLogin = () => {
   justify-content: space-between;
 }
 
-/* Copied Logo Styles aligned with App.vue */
+/* Logo Styles */
 .logo {
   display: flex;
   align-items: center;
-  gap: 0;
-  font-weight: 900;
-  font-size: 32px;
+  gap: 8px;
+  font-weight: 800;
+  font-size: 24px;
   color: #1a1a1a;
   text-decoration: none;
 }
 
-.logo-text {
-  margin-left: -90px;
-}
-
 .custom-logo {
-  height: 128px;
+  height: 48px;
   width: auto;
   object-fit: contain;
 }
@@ -253,6 +247,22 @@ const handleLogin = () => {
   display: flex;
   gap: 16px;
   margin-bottom: 32px;
+}
+
+@media (max-width: 640px) {
+  .logo-text {
+    display: none;
+  }
+  .auth-card {
+    padding: 32px 24px;
+    border-radius: 12px;
+  }
+  .auth-title {
+    font-size: 24px;
+  }
+  .social-login {
+    flex-direction: column;
+  }
 }
 
 .social-btn {
