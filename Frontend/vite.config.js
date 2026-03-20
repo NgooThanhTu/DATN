@@ -15,4 +15,8 @@ export default defineConfig({
       resolvers: [ElementPlusResolver()],
     }),
   ],
+
+  server: {
+    allowedHosts: ['sprinta.io.vn'] 
+  }
 })
