@@ -10,6 +10,7 @@ namespace TaskManagement.Domain.Entities
         public string Title { get; set; } = string.Empty;
         public string Content { get; set; } = string.Empty;
         public string? LinkUrl { get; set; }
-        public bool IsRead { get; set; }
+        public bool IsRead { get; set; } = false;
+        public DateTime CreatedAt { get; set; }
     }
 }

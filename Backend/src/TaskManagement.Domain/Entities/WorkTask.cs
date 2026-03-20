@@ -11,6 +11,8 @@ namespace TaskManagement.Domain.Entities
         public Project Project { get; set; } = null!;
         public Guid? SprintId { get; set; }
         public Sprint? Sprint { get; set; }
+        public Guid? ParentTaskId { get; set; }
+        public WorkTask? ParentTask { get; set; }
         public Guid TaskTypeId { get; set; }
         public TaskType TaskType { get; set; } = null!;
         public Guid TaskStatusId { get; set; }
@@ -18,17 +20,26 @@ namespace TaskManagement.Domain.Entities
         public string Title { get; set; } = string.Empty;
         public string? Description { get; set; }
         public int Priority { get; set; }
-        public int StoryPoints { get; set; }
-        public DateTime? DueDate { get; set; }
+        public double StoryPoints { get; set; }
+        public DateTime? PlannedStartDate { get; set; }
+        public DateTime? PlannedEndDate { get; set; }
         public Guid ReporterId { get; set; }
         public User Reporter { get; set; } = null!;
+        public DateTime CreatedAt { get; set; }
+        public DateTime UpdatedAt { get; set; }
+        public bool IsDeleted { get; set; } = false;
+        public double TotalEstimatedHours { get; set; }
+        public double TotalActualHours { get; set; }
 
         // Navigation properties
+        public ICollection<WorkTask> ChildTasks { get; set; } = new List<WorkTask>();
         public ICollection<TaskAssignment> TaskAssignments { get; set; } = new List<TaskAssignment>();
         public ICollection<TaskDependency> PredecessorDependencies { get; set; } = new List<TaskDependency>();
         public ICollection<TaskDependency> SuccessorDependencies { get; set; } = new List<TaskDependency>();
         public ICollection<Comment> Comments { get; set; } = new List<Comment>();
         public ICollection<Attachment> Attachments { get; set; } = new List<Attachment>();
+        public ICollection<AuditLog> AuditLogs { get; set; } = new List<AuditLog>();
+        public ICollection<TimeLog> TimeLogs { get; set; } = new List<TimeLog>();
         public TaskVectorEmbedding? TaskVectorEmbedding { get; set; }
     }
 }

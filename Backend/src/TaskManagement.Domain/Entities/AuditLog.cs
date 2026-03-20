@@ -5,13 +5,13 @@ namespace TaskManagement.Domain.Entities
     public class AuditLog
     {
         public Guid Id { get; set; }
-        public string EntityName { get; set; } = string.Empty;
-        public string EntityId { get; set; } = string.Empty;
-        public string Action { get; set; } = string.Empty;
-        public string? OldValues { get; set; }
-        public string? NewValues { get; set; }
+        public Guid WorkTaskId { get; set; }
+        public WorkTask WorkTask { get; set; } = null!;
         public Guid UserId { get; set; }
         public User User { get; set; } = null!;
+        public string FieldChanged { get; set; } = string.Empty;
+        public string? OldValue { get; set; }
+        public string? NewValue { get; set; }
         public DateTime CreatedAt { get; set; }
     }
 }

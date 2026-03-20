@@ -10,13 +10,16 @@ namespace TaskManagement.Domain.Entities
         public string PasswordHash { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;
         public string? AvatarUrl { get; set; }
-        public bool IsActive { get; set; }
+        public bool IsActive { get; set; } = true;
+        public DateTime CreatedAt { get; set; }
+        public DateTime UpdatedAt { get; set; }
 
         // Navigation properties
         public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
         public ICollection<Department> ManagedDepartments { get; set; } = new List<Department>();
         public ICollection<DepartmentMember> DepartmentMemberships { get; set; } = new List<DepartmentMember>();
-        public ICollection<Project> OwnedProjects { get; set; } = new List<Project>();
+        public ICollection<Project> CreatedProjects { get; set; } = new List<Project>();
+        public ICollection<ProjectMember> ProjectMemberships { get; set; } = new List<ProjectMember>();
         public ICollection<WorkTask> ReportedTasks { get; set; } = new List<WorkTask>();
         public ICollection<TaskAssignment> TaskAssignments { get; set; } = new List<TaskAssignment>();
         public ICollection<Comment> Comments { get; set; } = new List<Comment>();
@@ -28,5 +31,7 @@ namespace TaskManagement.Domain.Entities
         public UserWallet? Wallet { get; set; }
         public ICollection<AITokenUsage> AITokenUsages { get; set; } = new List<AITokenUsage>();
         public ICollection<AIFeedback> AIFeedbacks { get; set; } = new List<AIFeedback>();
+        public ICollection<AITrainingDataset> AITrainingDatasets { get; set; } = new List<AITrainingDataset>();
+        public ICollection<TimeLog> TimeLogs { get; set; } = new List<TimeLog>();
     }
 }

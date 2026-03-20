@@ -11,6 +11,7 @@ namespace TaskManagement.Domain.Entities
         public User User { get; set; } = null!;
         public string FileName { get; set; } = string.Empty;
         public string FileUrl { get; set; } = string.Empty;
-        public int FileSize { get; set; }
+        public long FileSize { get; set; }
+        public DateTime CreatedAt { get; set; }
     }
 }

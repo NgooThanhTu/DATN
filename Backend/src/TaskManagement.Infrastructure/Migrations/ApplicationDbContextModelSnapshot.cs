@@ -35,6 +35,9 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Property<string>("CorrectedResponse")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("PromptContent")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -87,8 +90,8 @@ namespace TaskManagement.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int>("TokensUsed")
-                        .HasColumnType("int");
+                    b.Property<long>("TokensUsed")
+                        .HasColumnType("bigint");
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uniqueidentifier");
@@ -110,6 +113,12 @@ namespace TaskManagement.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("CreatorId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("InputData")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -123,6 +132,8 @@ namespace TaskManagement.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CreatorId");
+
                     b.ToTable("AITrainingDatasets");
                 });
 
@@ -132,12 +143,15 @@ namespace TaskManagement.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("FileName")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int>("FileSize")
-                        .HasColumnType("int");
+                    b.Property<long>("FileSize")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("FileUrl")
                         .IsRequired()
@@ -164,33 +178,30 @@ namespace TaskManagement.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("Action")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("EntityId")
+                    b.Property<string>("FieldChanged")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("EntityName")
-                        .IsRequired()
+                    b.Property<string>("NewValue")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("NewValues")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("OldValues")
+                    b.Property<string>("OldValue")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid>("WorkTaskId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
 
                     b.HasIndex("UserId");
+
+                    b.HasIndex("WorkTaskId");
 
                     b.ToTable("AuditLogs");
                 });
@@ -208,8 +219,14 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
                     b.Property<Guid?>("ParentCommentId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uniqueidentifier");
@@ -233,6 +250,9 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<Guid?>("ManagerId")
                         .HasColumnType("uniqueidentifier");
@@ -259,6 +279,9 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Property<DateTime>("JoinedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("LeftAt")
+                        .HasColumnType("datetime2");
+
                     b.HasKey("DepartmentId", "UserId");
 
                     b.HasIndex("UserId");
@@ -275,6 +298,9 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Property<string>("Content")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<bool>("IsRead")
                         .HasColumnType("bit");
@@ -301,6 +327,9 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("Feedback")
                         .HasColumnType("nvarchar(max)");
@@ -364,12 +393,12 @@ namespace TaskManagement.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<Guid>("WalletId")
+                    b.Property<Guid>("UserWalletUserId")
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("WalletId");
+                    b.HasIndex("UserWalletUserId");
 
                     b.ToTable("PointTransactions");
                 });
@@ -380,30 +409,67 @@ namespace TaskManagement.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("CreatorId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<DateTime>("EndDate")
+                    b.Property<DateTime?>("EndDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<Guid>("OwnerId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<DateTime>("StartDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
+                    b.Property<bool>("Status")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("OwnerId");
+                    b.HasIndex("CreatorId");
 
                     b.ToTable("Projects");
+                });
+
+            modelBuilder.Entity("TaskManagement.Domain.Entities.ProjectMember", b =>
+                {
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("JoinedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("LeftAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ProjectRole")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("Status")
+                        .HasColumnType("bit");
+
+                    b.HasKey("ProjectId", "UserId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("ProjectMembers");
                 });
 
             modelBuilder.Entity("TaskManagement.Domain.Entities.Role", b =>
@@ -445,6 +511,9 @@ namespace TaskManagement.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime>("EndDate")
                         .HasColumnType("datetime2");
 
@@ -458,8 +527,8 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Property<DateTime>("StartDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
+                    b.Property<bool>("Status")
+                        .HasColumnType("bit");
 
                     b.HasKey("Id");
 
@@ -475,6 +544,27 @@ namespace TaskManagement.Infrastructure.Migrations
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("ActualEndDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ActualStartDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<double>("EstimatedHours")
+                        .HasColumnType("float");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("Status")
+                        .HasColumnType("bit");
+
+                    b.Property<double>("TotalActualHours")
+                        .HasColumnType("float");
 
                     b.HasKey("WorkTaskId", "UserId");
 
@@ -517,7 +607,7 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Property<int>("Position")
                         .HasColumnType("int");
 
-                    b.Property<Guid>("ProjectId")
+                    b.Property<Guid?>("ProjectId")
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
@@ -543,7 +633,7 @@ namespace TaskManagement.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<Guid>("ProjectId")
+                    b.Property<Guid?>("ProjectId")
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
@@ -570,6 +660,40 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.ToTable("TaskVectorEmbeddings");
                 });
 
+            modelBuilder.Entity("TaskManagement.Domain.Entities.TimeLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<double>("Hours")
+                        .HasColumnType("float");
+
+                    b.Property<DateTime>("LoggedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("WorkTaskId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("WorkType")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("WorkTaskId");
+
+                    b.ToTable("TimeLogs");
+                });
+
             modelBuilder.Entity("TaskManagement.Domain.Entities.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -578,6 +702,9 @@ namespace TaskManagement.Infrastructure.Migrations
 
                     b.Property<string>("AvatarUrl")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("Email")
                         .IsRequired()
@@ -593,6 +720,9 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
 
                     b.HasKey("Id");
 
@@ -639,10 +769,22 @@ namespace TaskManagement.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<DateTime?>("DueDate")
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid?>("ParentTaskId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("PlannedEndDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("PlannedStartDate")
                         .HasColumnType("datetime2");
 
                     b.Property<int>("Priority")
@@ -657,8 +799,8 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Property<Guid?>("SprintId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<int>("StoryPoints")
-                        .HasColumnType("int");
+                    b.Property<double>("StoryPoints")
+                        .HasColumnType("float");
 
                     b.Property<Guid>("TaskStatusId")
                         .HasColumnType("uniqueidentifier");
@@ -670,7 +812,18 @@ namespace TaskManagement.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<double>("TotalActualHours")
+                        .HasColumnType("float");
+
+                    b.Property<double>("TotalEstimatedHours")
+                        .HasColumnType("float");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("ParentTaskId");
 
                     b.HasIndex("ProjectId");
 
@@ -707,6 +860,17 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("TaskManagement.Domain.Entities.AITrainingDataset", b =>
+                {
+                    b.HasOne("TaskManagement.Domain.Entities.User", "Creator")
+                        .WithMany("AITrainingDatasets")
+                        .HasForeignKey("CreatorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Creator");
+                });
+
             modelBuilder.Entity("TaskManagement.Domain.Entities.Attachment", b =>
                 {
                     b.HasOne("TaskManagement.Domain.Entities.User", "User")
@@ -734,7 +898,15 @@ namespace TaskManagement.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("TaskManagement.Domain.Entities.WorkTask", "WorkTask")
+                        .WithMany("AuditLogs")
+                        .HasForeignKey("WorkTaskId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.Navigation("User");
+
+                    b.Navigation("WorkTask");
                 });
 
             modelBuilder.Entity("TaskManagement.Domain.Entities.Comment", b =>
@@ -824,24 +996,43 @@ namespace TaskManagement.Infrastructure.Migrations
 
             modelBuilder.Entity("TaskManagement.Domain.Entities.PointTransaction", b =>
                 {
-                    b.HasOne("TaskManagement.Domain.Entities.UserWallet", "Wallet")
+                    b.HasOne("TaskManagement.Domain.Entities.UserWallet", "UserWallet")
                         .WithMany("PointTransactions")
-                        .HasForeignKey("WalletId")
+                        .HasForeignKey("UserWalletUserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Wallet");
+                    b.Navigation("UserWallet");
                 });
 
             modelBuilder.Entity("TaskManagement.Domain.Entities.Project", b =>
                 {
-                    b.HasOne("TaskManagement.Domain.Entities.User", "Owner")
-                        .WithMany("OwnedProjects")
-                        .HasForeignKey("OwnerId")
+                    b.HasOne("TaskManagement.Domain.Entities.User", "Creator")
+                        .WithMany("CreatedProjects")
+                        .HasForeignKey("CreatorId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("Owner");
+                    b.Navigation("Creator");
+                });
+
+            modelBuilder.Entity("TaskManagement.Domain.Entities.ProjectMember", b =>
+                {
+                    b.HasOne("TaskManagement.Domain.Entities.Project", "Project")
+                        .WithMany("ProjectMembers")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TaskManagement.Domain.Entities.User", "User")
+                        .WithMany("ProjectMemberships")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("TaskManagement.Domain.Entities.RolePermission", b =>
@@ -917,8 +1108,7 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.HasOne("TaskManagement.Domain.Entities.Project", "Project")
                         .WithMany("TaskStatuses")
                         .HasForeignKey("ProjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.Navigation("Project");
                 });
@@ -928,8 +1118,7 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.HasOne("TaskManagement.Domain.Entities.Project", "Project")
                         .WithMany("TaskTypes")
                         .HasForeignKey("ProjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.Navigation("Project");
                 });
@@ -941,6 +1130,25 @@ namespace TaskManagement.Infrastructure.Migrations
                         .HasForeignKey("TaskManagement.Domain.Entities.TaskVectorEmbedding", "WorkTaskId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("WorkTask");
+                });
+
+            modelBuilder.Entity("TaskManagement.Domain.Entities.TimeLog", b =>
+                {
+                    b.HasOne("TaskManagement.Domain.Entities.User", "User")
+                        .WithMany("TimeLogs")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TaskManagement.Domain.Entities.WorkTask", "WorkTask")
+                        .WithMany("TimeLogs")
+                        .HasForeignKey("WorkTaskId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
 
                     b.Navigation("WorkTask");
                 });
@@ -977,6 +1185,11 @@ namespace TaskManagement.Infrastructure.Migrations
 
             modelBuilder.Entity("TaskManagement.Domain.Entities.WorkTask", b =>
                 {
+                    b.HasOne("TaskManagement.Domain.Entities.WorkTask", "ParentTask")
+                        .WithMany("ChildTasks")
+                        .HasForeignKey("ParentTaskId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("TaskManagement.Domain.Entities.Project", "Project")
                         .WithMany("WorkTasks")
                         .HasForeignKey("ProjectId")
@@ -1006,6 +1219,8 @@ namespace TaskManagement.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.Navigation("ParentTask");
+
                     b.Navigation("Project");
 
                     b.Navigation("Reporter");
@@ -1034,6 +1249,8 @@ namespace TaskManagement.Infrastructure.Migrations
 
             modelBuilder.Entity("TaskManagement.Domain.Entities.Project", b =>
                 {
+                    b.Navigation("ProjectMembers");
+
                     b.Navigation("Sprints");
 
                     b.Navigation("TaskStatuses");
@@ -1071,11 +1288,15 @@ namespace TaskManagement.Infrastructure.Migrations
 
                     b.Navigation("AITokenUsages");
 
+                    b.Navigation("AITrainingDatasets");
+
                     b.Navigation("Attachments");
 
                     b.Navigation("AuditLogs");
 
                     b.Navigation("Comments");
+
+                    b.Navigation("CreatedProjects");
 
                     b.Navigation("DepartmentMemberships");
 
@@ -1083,7 +1304,7 @@ namespace TaskManagement.Infrastructure.Migrations
 
                     b.Navigation("Notifications");
 
-                    b.Navigation("OwnedProjects");
+                    b.Navigation("ProjectMemberships");
 
                     b.Navigation("ReportedTasks");
 
@@ -1092,6 +1313,8 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Navigation("ReviewsReceived");
 
                     b.Navigation("TaskAssignments");
+
+                    b.Navigation("TimeLogs");
 
                     b.Navigation("UserRoles");
 
@@ -1107,6 +1330,10 @@ namespace TaskManagement.Infrastructure.Migrations
                 {
                     b.Navigation("Attachments");
 
+                    b.Navigation("AuditLogs");
+
+                    b.Navigation("ChildTasks");
+
                     b.Navigation("Comments");
 
                     b.Navigation("PredecessorDependencies");
@@ -1116,6 +1343,8 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Navigation("TaskAssignments");
 
                     b.Navigation("TaskVectorEmbedding");
+
+                    b.Navigation("TimeLogs");
                 });
 #pragma warning restore 612, 618
         }

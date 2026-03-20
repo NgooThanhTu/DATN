@@ -11,7 +11,8 @@ namespace TaskManagement.Domain.Entities
         public string Name { get; set; } = string.Empty;
         public DateTime StartDate { get; set; }
         public DateTime EndDate { get; set; }
-        public int Status { get; set; }
+        public bool Status { get; set; } = true;
+        public DateTime CreatedAt { get; set; }
 
         public ICollection<WorkTask> WorkTasks { get; set; } = new List<WorkTask>();
     }
