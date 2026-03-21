@@ -7,7 +7,6 @@
           <span class="logo-text">SprintA</span>
         </router-link>
         <div class="nav-actions" style="display: flex; align-items: center; gap: 16px;">
-          <HelpDropdown />
           <el-button link @click="$router.push('/login')">Đăng nhập</el-button>
           <el-button type="primary" round @click="$router.push('/register')">Đăng ký</el-button>
         </div>
@@ -63,7 +62,6 @@
 import { reactive } from 'vue'
 import logoImg from '../assets/logo_QLCV.png'
 import googleIcon from '../assets/Icongoogle.png'
-import HelpDropdown from '../components/HelpDropdown.vue'
 
 const form = reactive({
   name: '',
@@ -105,22 +103,19 @@ const handleRegister = () => {
   justify-content: space-between;
 }
 
+/* Logo Styles */
 .logo {
   display: flex;
   align-items: center;
-  gap: 0;
-  font-weight: 900;
-  font-size: 32px;
+  gap: 8px;
+  font-weight: 800;
+  font-size: 24px;
   color: #1a1a1a;
   text-decoration: none;
 }
 
-.logo-text {
-  margin-left: -90px;
-}
-
 .custom-logo {
-  height: 128px;
+  height: 48px;
   width: auto;
   object-fit: contain;
 }
@@ -191,6 +186,22 @@ const handleRegister = () => {
 .auth-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 20px rgba(0, 97, 255, 0.3);
+}
+
+@media (max-width: 640px) {
+  .logo-text {
+    display: none;
+  }
+  .auth-navbar {
+    height: 60px;
+  }
+  .auth-card {
+    padding: 32px 20px;
+    border-radius: 12px;
+  }
+  .auth-title {
+    font-size: 20px;
+  }
 }
 
 .social-btn.full-width {

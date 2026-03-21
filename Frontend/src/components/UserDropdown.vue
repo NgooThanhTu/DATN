@@ -1,16 +1,16 @@
 <template>
   <el-dropdown trigger="click" popper-class="user-dropdown-popper" @command="handleCommand" :teleported="true">
     <div class="user-avatar-trigger">
-      DN
+      U
     </div>
     <template #dropdown>
       <el-dropdown-menu class="jira-user-menu">
         <!-- User Info Header -->
         <div class="user-menu-header">
-          <div class="header-avatar">DN</div>
+          <div class="header-avatar">U</div>
           <div class="header-info">
-            <div class="user-display-name">Danh Nguyễn</div>
-            <div class="user-email">danhnttb01630@gmail.com</div>
+            <div class="user-display-name">Người dùng</div>
+            <div class="user-email">user@example.com</div>
           </div>
         </div>
 

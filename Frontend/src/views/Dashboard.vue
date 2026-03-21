@@ -3,14 +3,17 @@
     <!-- Navbar -->
     <header class="top-nav">
       <div class="nav-left">
+        <button class="menu-toggle" @click="toggleSidebar">
+          <i class="fa-solid fa-bars"></i>
+        </button>
         <router-link to="/dashboard" class="nav-brand">
           <img :src="logoImg" alt="SprintA Logo" class="nav-logo" />
           <span>SprintA</span>
         </router-link>
-        <span class="nav-link active">Dự án</span>
+        <span class="nav-link active desktop-only">Dự án</span>
       </div>
 
-      <div class="nav-center">
+      <div class="nav-center desktop-only">
         <div class="top-search-create">
           <div class="search-input-mock">
             <i class="fa-solid fa-magnifying-glass"></i>
@@ -26,9 +29,9 @@
           <i class="fa-solid fa-robot"></i>
         </div>
 
-        <NotificationsDropdown />
-        <HelpDropdown />
-        <SettingsDropdown />
+        <NotificationsDropdown class="desktop-only" />
+        <HelpDropdown class="desktop-only" />
+        <SettingsDropdown class="desktop-only" />
 
         <UserDropdown />
       </div>
@@ -36,7 +39,12 @@
 
     <div class="main-body">
       <!-- Sidebar -->
-      <aside class="sidebar">
+      <aside class="sidebar" :class="{ 'mobile-show': sidebarVisible }">
+        <div class="sidebar-header mobile-only">
+          <button class="close-sidebar" @click="toggleSidebar">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
         <ul class="side-menu">
           <li class="active"><i class="fa-solid fa-border-all"></i> Dành cho bạn</li>
           <li @click="goToSpace('my-team')"><i class="fa-regular fa-folder-open"></i> Không gian</li>
@@ -57,16 +65,20 @@
           </div>
 
           <div class="recent-spaces-grid">
-            <div class="space-card jira-card" @click="goToSpace('my-team')">
-              <div class="card-left-border"></div>
+            <div v-if="spaces.length === 0" class="empty-state">
+              <i class="fa-regular fa-folder-open"></i>
+              <p>Chưa có không gian nào gần đây</p>
+            </div>
+            <div v-else class="space-card jira-card" v-for="space in spaces" :key="space.id" @click="goToSpace(space.id)">
+              <div class="card-left-border" :style="{ backgroundColor: space.color }"></div>
               <div class="card-content">
                 <div class="card-header">
-                  <div class="space-icon-jira">
-                    <i class="fa-solid fa-table-columns"></i>
+                  <div class="space-icon-jira" :style="{ background: space.gradient }">
+                    <i :class="space.icon"></i>
                   </div>
                   <div class="space-title-block">
-                    <h4>Nhóm của tôi</h4>
-                    <span>Phần mềm do nhóm quản lý</span>
+                    <h4>{{ space.name }}</h4>
+                    <span>{{ space.type }}</span>
                   </div>
                 </div>
                 
@@ -75,19 +87,16 @@
                   <a href="#">Công việc đang mở của tôi</a>
                   <span class="badge-count">0</span>
                 </div>
-                <div class="space-link-item">
-                  <a href="#">Công việc đã hoàn thành</a>
-                </div>
                 
                 <div class="board-dropdown">
-                  1 bảng <i class="fa-solid fa-chevron-down"></i>
+                  0 bảng <i class="fa-solid fa-chevron-down"></i>
                 </div>
               </div>
             </div>
           </div>
 
           <!-- Tabs -->
-          <div class="jira-tabs">
+          <div class="jira-tabs scrollable-tabs">
             <div class="jira-tab active">Đã làm</div>
             <div class="jira-tab">Đã xem</div>
             <div class="jira-tab">Được giao cho tôi <span class="badge-count tab-badge">0</span></div>
@@ -98,6 +107,10 @@
           <div class="task-list-section">
             <div class="list-time-header">TRONG THÁNG QUA</div>
             
+            <div v-if="tasks.length === 0" class="empty-state">
+              <i class="fa-solid fa-square-check"></i>
+              <p>Không tìm thấy công việc nào</p>
+            </div>
             <div class="jira-task-row" v-for="task in tasks" :key="task.id">
               <div class="jira-task-left">
                 <!-- Icon logic based on type -->
@@ -111,7 +124,7 @@
               </div>
               
               <div class="jira-task-right">
-                <span class="task-action-text">Đã tạo</span>
+                <span class="task-action-text desktop-only">Đã tạo</span>
                 <div class="user-avatar-small">DN</div>
               </div>
             </div>
@@ -124,6 +137,9 @@
         <aside class="ai-sidebar" v-if="aiVisible">
           <div class="ai-header">
             <h4><i class="fa-solid fa-robot"></i> Trợ lý AI</h4>
+            <button class="close-ai mobile-only" @click="toggleAI">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
           </div>
           
           <div class="ai-content">
@@ -170,6 +186,18 @@ import UserDropdown from '../components/UserDropdown.vue'
 
 const router = useRouter()
 
+const sidebarVisible = ref(false)
+const aiVisible = ref(false)
+const searchQuery = ref('')
+
+const toggleSidebar = () => {
+  sidebarVisible.value = !sidebarVisible.value
+}
+
+const toggleAI = () => {
+  aiVisible.value = !aiVisible.value
+}
+
 const goToSpace = (id) => {
   router.push(`/space/${id}`)
 }
@@ -178,40 +206,9 @@ const goToAI = () => {
   router.push('/ai-assistant')
 }
 
-const searchQuery = ref('')
-const aiVisible = ref(true)
-
-const toggleAI = () => {
-  aiVisible.value = !aiVisible.value
-}
-
-// Data hiển thị Layout Jira For You
-const tasks = ref([
-  {
-    id: 'SCRUM-4',
-    name: 'Subtask 2.1',
-    space: 'My Team',
-    isSubtask: true
-  },
-  {
-    id: 'SCRUM-3',
-    name: 'Task 3',
-    space: 'My Team',
-    isSubtask: false
-  },
-  {
-    id: 'SCRUM-2',
-    name: 'Task 2',
-    space: 'My Team',
-    isSubtask: false
-  },
-  {
-    id: 'SCRUM-1',
-    name: 'Task 1',
-    space: 'My Team',
-    isSubtask: false
-  }
-])
+// Emptied Data
+const spaces = ref([])
+const tasks = ref([])
 </script>
 
 <style scoped>
@@ -235,12 +232,23 @@ const tasks = ref([
   justify-content: space-between;
   padding: 0 20px;
   flex-shrink: 0;
+  z-index: 1000;
 }
 
 .nav-left, .nav-right {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 12px;
+}
+
+.menu-toggle {
+  display: none;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 8px;
 }
 
 .nav-brand {
@@ -293,7 +301,8 @@ const tasks = ref([
   border: 1px solid #738496; 
   border-radius: 4px;
   padding: 0 12px;
-  width: 550px;
+  width: 100%;
+  max-width: 550px;
   height: 32px;
   transition: background-color 0.2s, border-color 0.2s;
 }
@@ -383,6 +392,7 @@ const tasks = ref([
   display: flex;
   flex: 1;
   overflow: hidden;
+  position: relative;
 }
 
 .sidebar {
@@ -390,6 +400,8 @@ const tasks = ref([
   background-color: #020617; 
   border-right: 1px solid #1e293b;
   padding: 24px 16px;
+  flex-shrink: 0;
+  transition: transform 0.3s ease;
 }
 
 .side-menu {
@@ -444,9 +456,9 @@ const tasks = ref([
 }
 
 .content-wrapper {
-  max-width: none;
+  max-width: 1200px;
   width: 100%;
-  margin: 0;
+  margin: 0 auto;
 }
 
 .page-title {
@@ -481,6 +493,9 @@ const tasks = ref([
 
 .recent-spaces-grid {
   margin-bottom: 40px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
 }
 
 .space-card.jira-card {
@@ -583,6 +598,12 @@ const tasks = ref([
   gap: 28px;
   border-bottom: 1px solid #333c43;
   margin-bottom: 24px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.jira-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .jira-tab {
@@ -595,6 +616,7 @@ const tasks = ref([
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .jira-tab:hover {
@@ -618,6 +640,10 @@ const tasks = ref([
 .tab-badge {
   background-color: #f4f5f7;
   color: #1d2125;
+}
+
+.task-list-section {
+  padding: 8px 0;
 }
 
 .list-time-header {
@@ -697,6 +723,26 @@ const tasks = ref([
   justify-content: center;
   font-size: 10px;
   font-weight: 700;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  width: 100%;
+  color: #64748b;
+  gap: 16px;
+}
+
+.empty-state i {
+  font-size: 48px;
+  opacity: 0.5;
+}
+
+.empty-state p {
+  font-size: 15px;
 }
 
 

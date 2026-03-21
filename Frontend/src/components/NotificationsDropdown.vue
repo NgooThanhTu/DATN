@@ -1,7 +1,7 @@
 <template>
   <el-dropdown trigger="click" popper-class="notifications-dropdown-popper">
     <div class="nav-icon notification-trigger">
-      <el-badge :value="1" class="notification-badge" :hidden="false">
+      <el-badge :value="0" class="notification-badge" :hidden="true">
         <i class="fa-regular fa-bell"></i>
       </el-badge>
     </div>
@@ -23,23 +23,7 @@
         </div>
 
         <div class="notif-scroll-area">
-          <div class="notif-section">
-            <h3 class="section-label">Mới nhất</h3>
-            
-            <!-- Sample Notification Item -->
-            <div class="notif-item unread">
-              <div class="notif-avatar">QV</div>
-              <div class="notif-content">
-                <div class="notif-text">
-                  <span class="user-name">Quân Đạt Võ</span> đã thêm bạn vào một nhóm <span class="time-ago">1 tuần trước</span>
-                </div>
-                <div class="notif-context">
-                  <i class="fa-solid fa-table-columns"></i> quản lý công việc
-                </div>
-              </div>
-              <div class="unread-dot"></div>
-            </div>
-          </div>
+          <!-- Notifications are empty by default -->
 
           <!-- Empty State -->
           <div class="notif-empty-state">

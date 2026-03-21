@@ -187,12 +187,12 @@ import NotificationsDropdown from '../components/NotificationsDropdown.vue'
 import UserDropdown from '../components/UserDropdown.vue'
 
 const profileData = ref({
-  fullName: 'Danh Nguyễn',
-  publicName: 'Danh Nguyễn',
+  fullName: '',
+  publicName: '',
   jobTitle: '',
   department: '',
   organization: '',
-  email: 'danhnttb01630@gmail.com'
+  email: ''
 })
 </script>
 
@@ -207,13 +207,13 @@ const profileData = ref({
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 24px;
+  padding: 0 16px;
   height: 60px;
   background-color: #161b22;
   border-bottom: 1px solid #30363d;
 }
 
-.nav-left { display: flex; align-items: center; gap: 20px; }
+.nav-left { display: flex; align-items: center; gap: 12px; }
 .nav-brand { display: flex; align-items: center; gap: 8px; text-decoration: none; color: #579dff; font-weight: 700; font-size: 18px; }
 .nav-logo { height: 32px; }
 .nav-link { color: #8b949e; font-size: 14px; font-weight: 500; }
@@ -384,4 +384,43 @@ const profileData = ref({
   border: none !important;
 }
 :deep(.el-input__inner) { color: #f0f6fc !important; }
+
+@media (max-width: 768px) {
+  .nav-brand span {
+    display: none;
+  }
+  .main-body {
+    padding: 20px 10px;
+  }
+  .profile-header-section {
+    margin-bottom: 60px;
+  }
+  .header-image-box {
+    height: 120px;
+  }
+  .large-profile-avatar {
+    height: 80px;
+    width: 80px;
+    font-size: 24px;
+    left: 20px;
+    bottom: -40px;
+  }
+  .avatar-inside-wrapper {
+    left: 20px;
+    bottom: -40px;
+  }
+  .profile-content-form {
+    padding: 0 16px;
+  }
+  .form-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .field-input-wrapper {
+    max-width: 100%;
+  }
+  .top-nav .nav-right :not(:first-child) {
+    display: none;
+  }
+}
 </style>

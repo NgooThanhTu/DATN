@@ -3,14 +3,17 @@
     <!-- Navbar -->
     <header class="top-nav">
       <div class="nav-left">
+        <div class="menu-toggle mobile-only" @click="sidebarVisible = !sidebarVisible">
+          <i class="fa-solid fa-bars"></i>
+        </div>
         <router-link to="/dashboard" class="nav-brand">
           <img :src="logoImg" alt="SprintA Logo" class="nav-logo" />
-          <span>SprintA</span>
+          <span class="desktop-only">SprintA</span>
         </router-link>
-        <span class="nav-link">Trợ lý AI</span>
+        <span class="nav-link desktop-only">Trợ lý AI</span>
       </div>
 
-      <div class="nav-center">
+      <div class="nav-center desktop-only">
         <div class="top-search-create">
           <div class="search-input-mock">
             <i class="fa-solid fa-magnifying-glass"></i>
@@ -26,16 +29,16 @@
           <i class="fa-solid fa-robot"></i>
         </div>
 
-        <NotificationsDropdown />
-        <HelpDropdown />
-        <SettingsDropdown />
+        <NotificationsDropdown class="desktop-only" />
+        <HelpDropdown class="desktop-only" />
+        <SettingsDropdown class="desktop-only" />
         <UserDropdown />
       </div>
     </header>
 
     <div class="main-body">
       <!-- Sidebar -->
-      <aside class="sidebar">
+      <aside class="sidebar" :class="{ 'show': sidebarVisible }">
         <ul class="side-menu">
           <li @click="goToDashboard"><i class="fa-solid fa-border-all"></i> Dành cho bạn</li>
           <li @click="goToSpace"><i class="fa-regular fa-folder-open"></i> Không gian</li>
@@ -43,25 +46,6 @@
           <li class="active"><i class="fa-solid fa-robot"></i> Trợ lý AI</li>
           <li><i class="fa-solid fa-ellipsis"></i> Thêm</li>
         </ul>
-
-        <div class="sidebar-section">
-          <div class="section-label">YÊU THÍCH</div>
-          <ul class="side-menu">
-            <li><span class="dot blue"></span> Phát triển Mobile App</li>
-            <li><span class="dot orange"></span> Marketing Quý 1</li>
-          </ul>
-        </div>
-
-        <div class="sidebar-footer">
-          <div class="user-card-mini">
-            <div class="user-avatar-small">DN</div>
-            <div class="user-info">
-              <div class="name">Duy Nghĩa</div>
-              <div class="plan">Gói miễn phí</div>
-            </div>
-            <i class="fa-solid fa-chevron-up"></i>
-          </div>
-        </div>
       </aside>
 
       <!-- AI Content Area -->
@@ -88,29 +72,6 @@
               <div class="bot-icon-circle"><i class="fa-solid fa-robot"></i></div>
               <div class="bubble">
                 Xin chào! Tôi là trợ lý AI của SprintA. Tôi có thể giúp bạn tổ chức dự án, tóm tắt các luồng thảo luận dài, hoặc tạo lộ trình. Tôi có thể giúp gì cho bạn hôm nay?
-              </div>
-            </div>
-
-            <!-- User Query -->
-            <div class="chat-row user">
-              <div class="bubble primary">
-                Bạn có thể giúp tôi soạn bản thảo cập nhật phát hành cho dự án Phát triển Mobile App không? Tập trung vào mô-đun xác thực mới mà chúng tôi đã hoàn thành tuần trước.
-              </div>
-              <div class="user-avatar-circle">DN</div>
-            </div>
-
-            <!-- Bot Response -->
-            <div class="chat-row bot">
-              <div class="bot-icon-circle"><i class="fa-solid fa-robot"></i></div>
-              <div class="bubble">
-                <p>Chắc chắn rồi! Dựa trên hoạt động trong không gian 'Phát triển Mobile App', đây là bản thảo cho cập nhật phát hành của bạn:</p>
-                <div class="draft-box">
-                  <strong>Ghi chú phát hành: v2.4.0 - Tăng cường bảo mật</strong><br/>
-                  • Triển khai luồng xác thực OAuth2.0.<br/>
-                  • Thêm hỗ trợ đăng nhập sinh trắc học (FaceID/TouchID).<br/>
-                  • Cấu trúc lại quản lý phiên để tối ưu hiệu suất.
-                </div>
-                <p>Bạn có muốn tôi đăng nội dung này lên kênh thông báo không?</p>
               </div>
             </div>
           </div>
@@ -207,6 +168,8 @@ const toggleAIView = () => {
   // Toggle the popup even on this page if requested
   toggleAI()
 }
+
+const sidebarVisible = ref(false)
 
 const goToDashboard = () => {
   router.push('/dashboard')
@@ -395,5 +358,59 @@ const goToSpace = () => {
 .slide-right-enter-active, .slide-right-leave-active { transition: transform 0.3s ease; }
 .slide-right-enter-from, .slide-right-leave-to { transform: translateX(100%); }
 
-.mt-30 { margin-top: 30px; }
+.mobile-only {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .ai-details-panel {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .mobile-only {
+    display: flex;
+  }
+  .desktop-only {
+    display: none;
+  }
+  .sidebar {
+    position: fixed;
+    left: -260px;
+    top: 56px;
+    bottom: 0;
+    z-index: 1001;
+    transition: left 0.3s ease;
+  }
+  .sidebar.show {
+    left: 0;
+  }
+  .nav-left, .nav-right {
+    width: auto;
+  }
+  .ai-page-header {
+    padding: 20px 16px 0;
+  }
+  .jira-tabs {
+    overflow-x: auto;
+    padding-bottom: 8px;
+  }
+  .jira-tab {
+    white-space: nowrap;
+  }
+  .chat-history {
+    padding: 20px;
+  }
+  .ai-chat-input-wrapper {
+    padding: 16px;
+  }
+}
+
+.menu-toggle {
+  font-size: 20px;
+  color: #94a3b8;
+  cursor: pointer;
+  margin-right: 12px;
+}
 </style>
