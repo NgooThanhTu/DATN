@@ -10,6 +10,10 @@ namespace TaskManagement.Domain.Entities
         public Guid? ManagerId { get; set; }
         public DateTime CreatedAt { get; set; }
 
+        // New properties
+        public bool IsActive { get; set; } = true;
+        public bool IsDeleted { get; set; } = false;
+
         public User? Manager { get; set; }
         public ICollection<DepartmentMember> DepartmentMembers { get; set; } = new List<DepartmentMember>();
     }
