@@ -43,7 +43,7 @@
             <el-input v-model="form.confirmPassword" type="password" placeholder="••••••••" size="large" show-password />
           </el-form-item>
           
-          <el-button type="primary" native-type="submit" class="auth-btn" size="large">Tạo Tài Khoản</el-button>
+          <el-button type="primary" native-type="submit" class="auth-btn" size="large" :loading="isLoading">Tạo Tài Khoản</el-button>
           
           <p class="auth-footer-text">
             Đã có tài khoản? <router-link to="/login">Đăng nhập</router-link>
@@ -59,9 +59,15 @@
 </template>
 
 <script setup>
-import { reactive } from 'vue'
+import { reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import axiosClient from '../api/axiosClient'
 import logoImg from '../assets/logo_QLCV.png'
 import googleIcon from '../assets/Icongoogle.png'
+import { ElMessage } from 'element-plus'
+
+const router = useRouter()
+const isLoading = ref(false)
 
 const form = reactive({
   name: '',
@@ -70,8 +76,28 @@ const form = reactive({
   confirmPassword: ''
 })
 
-const handleRegister = () => {
-  console.log('Register attempt:', form)
+const handleRegister = async () => {
+  if (form.password !== form.confirmPassword) {
+    ElMessage.error('Mật khẩu không khớp!')
+    return
+  }
+
+  isLoading.value = true;
+  try {
+    const payload = {
+      fullName: form.name,
+      email: form.email,
+      password: form.password
+    }
+    const response = await axiosClient.post('/auth/register', payload);
+    ElMessage.success(response.data.message || 'Đăng ký thành công!');
+    router.push('/login');
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || 'Có lỗi xảy ra khi đăng ký.')
+    console.error('Register error:', error)
+  } finally {
+    isLoading.value = false;
+  }
 }
 </script>
 

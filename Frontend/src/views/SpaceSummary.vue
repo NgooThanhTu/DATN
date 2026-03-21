@@ -19,7 +19,7 @@
             <i class="fa-solid fa-magnifying-glass" style="margin-right: 8px;"></i>
             <input type="text" placeholder="Tìm kiếm" v-model="searchQuery" />
           </div>
-          <button class="btn-create-jira"><i class="fa-solid fa-plus"></i> Tạo mới</button>
+          <button class="btn-create-jira" v-if="canEditBoard"><i class="fa-solid fa-plus"></i> Tạo mới</button>
         </div>
       </div>
 
@@ -375,7 +375,7 @@
                   <span class="column-count-badge">0</span>
                 </div>
                 <div class="kanban-cards">
-                  <div class="btn-create-card"><i class="fa-solid fa-plus"></i> Create</div>
+                  <div class="btn-create-card" v-if="canEditBoard"><i class="fa-solid fa-plus"></i> Create</div>
                 </div>
               </div>
 
@@ -403,7 +403,7 @@
               </div>
 
               <!-- ADD STATUS COLUMN BUTTON -->
-              <div class="add-column-box">
+              <div class="add-column-box" v-if="hasRole(['PO', 'PM', 'SM', 'TechLead'])">
                 <div class="add-column-btn"><i class="fa-solid fa-plus"></i></div>
               </div>
             </div>
@@ -504,7 +504,7 @@
                 <div class="panel-header">Công việc</div>
                 <div class="panel-sub-header">Sprints</div>
                 <div class="panel-list">
-                  <div class="add-epic-btn"><i class="fa-solid fa-plus"></i> Tạo Epic</div>
+                  <div class="add-epic-btn" v-if="canEditBoard"><i class="fa-solid fa-plus"></i> Tạo Epic</div>
                 </div>
               </div>
               
@@ -897,7 +897,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search } from '@element-plus/icons-vue'
 import logoImg from '../assets/logo_QLCV.png'
@@ -951,6 +951,12 @@ const taskGroups = ref([
     items: []
   }
 ])
+
+// --- RBAC UI GUARDS ---
+const currentProjectRole = ref('DEV'); // Mock data, would come from Pinia/Store in reality
+const canEditBoard = computed(() => !['Guest', 'Stakeholder'].includes(currentProjectRole.value));
+const hasRole = (roles) => roles.includes(currentProjectRole.value);
+
 </script>
 
 <style scoped>
