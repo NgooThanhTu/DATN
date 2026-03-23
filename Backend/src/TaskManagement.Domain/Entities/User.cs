@@ -14,6 +14,12 @@ namespace TaskManagement.Domain.Entities
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
 
+        // JWT Authentication
+        public string? RefreshToken { get; set; }
+        public DateTime? RefreshTokenExpiryTime { get; set; }
+
+        // Soft Delete
+        public bool IsDeleted { get; set; } = false;
         // Navigation properties
         public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
         public ICollection<Department> ManagedDepartments { get; set; } = new List<Department>();

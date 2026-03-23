@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 using TaskManagement.Infrastructure.Data;
 
+using TaskManagement.API.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,6 +12,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 
 builder.Services.AddOpenApi();
+
+// Đăng ký Custom Services từ Extension Methods
+builder.Services.AddAuthServices(builder.Configuration);
 
 // 2. Khai báo Policy CORS
 var myAllowSpecificOrigins = "_myAllowSpecificOrigins";
@@ -22,7 +26,8 @@ builder.Services.AddCors(options =>
                           // Cho phép Vue.js gọi vào
                           policy.WithOrigins("http://localhost:5173")
                                 .AllowAnyHeader()
-                                .AllowAnyMethod();
+                                .AllowAnyMethod()
+                                .AllowCredentials();
                       });
 });
 
@@ -43,11 +48,12 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-app.UseHttpsRedirection();
+// app.UseHttpsRedirection(); // Tắt HTTPS redirect để Axios có thể gọi vào HTTP 5136 mà ko bị CORS lỗi
 
 // 4. KÍCH HOẠT CORS (Vị trí cực kỳ quan trọng, phải đứng trước Authorization)
 app.UseCors(myAllowSpecificOrigins);
 
+app.UseAuthentication();
 app.UseAuthorization();
 app.UseDefaultFiles(); // Phải gọi dòng này trước
 app.UseStaticFiles();
