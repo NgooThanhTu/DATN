@@ -8,6 +8,8 @@ using TaskManagement.API.Filters;
 using TaskManagement.Application.DTOs.WorkTask;
 using TaskManagement.Application.Interfaces;
 using TaskManagement.Domain.Constants;
+using Microsoft.AspNetCore.SignalR;
+using TaskManagement.API.Hubs;
 
 namespace TaskManagement.API.Controllers
 {
@@ -17,10 +19,12 @@ namespace TaskManagement.API.Controllers
     public class WorkTasksController : ControllerBase
     {
         private readonly IWorkTaskService _workTaskService;
+        private readonly IHubContext<KanbanHub> _hubContext;
 
-        public WorkTasksController(IWorkTaskService workTaskService)
+        public WorkTasksController(IWorkTaskService workTaskService, IHubContext<KanbanHub> hubContext)
         {
             _workTaskService = workTaskService;
+            _hubContext = hubContext;
         }
 
         [HttpGet]
@@ -64,6 +68,10 @@ namespace TaskManagement.API.Controllers
             {
                 var result = await _workTaskService.UpdateTaskAsync(userId, id, dto);
                 if (result == null) return NotFound();
+                
+                // Broadcast update to anyone in the project
+                await _hubContext.Clients.Group(projectId.ToString()).SendAsync("TaskUpdated", result);
+                
                 return Ok(result);
             }
             catch (Exception ex) when (ex.Message.Contains("Conflict"))
@@ -81,6 +89,10 @@ namespace TaskManagement.API.Controllers
             {
                 var result = await _workTaskService.MoveTaskAsync(userId, id, dto);
                 if (result == null) return NotFound();
+                
+                // Broadcast move to anyone in the project
+                await _hubContext.Clients.Group(projectId.ToString()).SendAsync("TaskMoved", result);
+                
                 return Ok(result);
             }
             catch (Exception ex) when (ex.Message.Contains("Conflict"))

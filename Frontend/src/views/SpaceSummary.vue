@@ -1475,6 +1475,14 @@ const handleCommentAdded = (taskId, comment) => {
   }
 }
 
+const handleFileUploaded = (taskId, attachment) => {
+  if (selectedTask.value && selectedTask.value.id === taskId) {
+    // If we have an attachments list, push it there. 
+    // For now, just notifying or refreshing might be enough if the UI doesn't have a list ref.
+    ElNotification({ title: 'Tệp mới', message: `Đã tải lên: ${attachment.fileName}`, type: 'info' })
+  }
+}
+
 onMounted(async () => {
   await fetchTasks()
   if (projectId.value) {
@@ -1484,6 +1492,7 @@ onMounted(async () => {
     signalRService.on('TaskMoved', handleTaskMoved)
     signalRService.on('TaskDeleted', handleTaskDeleted)
     signalRService.on('CommentAdded', handleCommentAdded)
+    signalRService.on('FileUploaded', handleFileUploaded)
   }
 })
 

@@ -68,9 +68,11 @@
           </div>
           
           <div class="social-login">
-            <el-button plain class="social-btn">
-              <img :src="googleIcon" alt="Google" class="social-icon" /> Google
-            </el-button>
+            <GoogleLogin :callback="handleGoogleLogin">
+              <el-button plain class="social-btn">
+                <img :src="googleIcon" alt="Google" class="social-icon" /> Google
+              </el-button>
+            </GoogleLogin>
             <el-button plain class="social-btn">
               <img :src="githubIcon" alt="GitHub" class="social-icon" /> GitHub
             </el-button>
@@ -141,6 +143,31 @@ const handleLogin = async () => {
   } catch (error) {
     console.error('Login error:', error)
     const errorMsg = error.response?.data?.message || 'Email hoặc mật khẩu không chính xác'
+    ElMessage.error(errorMsg)
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const handleGoogleLogin = async (response) => {
+  isLoading.value = true
+  try {
+    const res = await axiosClient.post('/auth/google-login', {
+      credential: response.credential
+    })
+    
+    const { accessToken, fullName, email, systemRoles, id } = res.data.data
+    
+    localStorage.setItem('accessToken', accessToken)
+    localStorage.setItem('user', JSON.stringify({ id, fullName, email, systemRoles }))
+    
+    ElMessage.success('Đăng nhập bằng Google thành công!')
+    
+    const redirect = router.currentRoute.value.query.redirect
+    router.push(redirect || '/dashboard')
+  } catch (error) {
+    console.error('Google login error:', error)
+    const errorMsg = error.response?.data?.message || 'Không thể đăng nhập bằng Google'
     ElMessage.error(errorMsg)
   } finally {
     isLoading.value = false
