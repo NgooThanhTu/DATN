@@ -7,6 +7,9 @@ using TaskManagement.Domain.Entities;
 using TaskManagement.Infrastructure.Data;
 
 using TaskManagement.API.Filters;
+using Ganss.Xss;
+using Microsoft.AspNetCore.SignalR;
+using TaskManagement.API.Hubs;
 
 namespace TaskManagement.API.Controllers
 {
@@ -16,10 +19,12 @@ namespace TaskManagement.API.Controllers
     public class CommentsController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly IHubContext<KanbanHub> _hubContext;
 
-        public CommentsController(ApplicationDbContext context)
+        public CommentsController(ApplicationDbContext context, IHubContext<KanbanHub> hubContext)
         {
             _context = context;
+            _hubContext = hubContext;
         }
 
         [HttpPost]
@@ -30,8 +35,9 @@ namespace TaskManagement.API.Controllers
 
             var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
             
-            // XSS Prevention: Simple sanitization (in production use a library like HtmlSanitizer)
-            var sanitizedContent = content.Replace("<", "&lt;").Replace(">", "&gt;");
+            // XSS Prevention using HtmlSanitizer
+            var sanitizer = new HtmlSanitizer();
+            var sanitizedContent = sanitizer.Sanitize(content);
 
             var comment = new Comment
             {
@@ -45,6 +51,9 @@ namespace TaskManagement.API.Controllers
 
             _context.Comments.Add(comment);
             await _context.SaveChangesAsync();
+            
+            // Broadcast real-time comment
+            await _hubContext.Clients.Group(projectId.ToString()).SendAsync("CommentAdded", taskId, comment);
 
             return Ok(comment);
         }

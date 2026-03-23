@@ -1,0 +1,12 @@
+﻿Using launch settings from src\TaskManagement.API\Properties\launchSettings.json...
+Building...
+C:\Users\hiep7\OneDrive\Hì€nh à‰nh\MĂ¡y tĂ­nh\QLCV\DOING\QuanLyCongViec\Backend\src\TaskManagement.API\Controllers\AuthController.cs(81,30): warning CS0168: The variable 'ex' is declared but never used [C:\Users\hiep7\OneDrive\Hì€nh à‰nh\MĂ¡y tĂ­nh\QLCV\DOING\QuanLyCongViec\Backend\src\TaskManagement.API\TaskManagement.API.csproj]
+Lá»—i khi Migrate/Seed: A network-related or instance-specific error occurred while establishing a connection to SQL Server. The server was not found or was not accessible. Verify that the instance name is correct and that SQL Server is configured to allow remote connections. (provider: TCP Provider, error: 0 - The wait operation timed out.)
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: http://localhost:5136
+info: Microsoft.Hosting.Lifetime[0]
+      Application started. Press Ctrl+C to shut down.
+info: Microsoft.Hosting.Lifetime[0]
+      Hosting environment: Development
+info: Microsoft.Hosting.Lifetime[0]
+      Content root path: C:\Users\hiep7\OneDrive\Hì€nh à‰nh\MĂ¡y tĂ­nh\QLCV\DOING\QuanLyCongViec\Backend\src\TaskManagement.API

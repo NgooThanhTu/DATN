@@ -41,6 +41,31 @@ namespace TaskManagement.API.Controllers
             }
         }
 
+        [HttpPost("google-login")]
+        public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginRequestDto request)
+        {
+            try
+            {
+                var (response, refreshToken) = await _authService.GoogleLoginAsync(request);
+
+                // Set Refresh Token as HttpOnly Cookie
+                var cookieOptions = new CookieOptions
+                {
+                    HttpOnly = true,
+                    Secure = Request.IsHttps,
+                    SameSite = SameSiteMode.Strict,
+                    Expires = DateTime.UtcNow.AddDays(7)
+                };
+                Response.Cookies.Append("refreshToken", refreshToken, cookieOptions);
+
+                return Ok(new { statusCode = 200, message = "Success", data = response });
+            }
+            catch (Exception ex)
+            {
+                return Unauthorized(new { statusCode = 401, message = ex.Message });
+            }
+        }
+
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterRequestDto request)
         {

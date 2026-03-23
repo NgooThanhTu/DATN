@@ -37,7 +37,11 @@ builder.Services.AddCors(options =>
 // Chiều nay Dev 1 tạo xong file 'ApplicationDbContext' bên thư mục Infrastructure thì mới mở comment ra!
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-   options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+   options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"),
+       sqlOptions => sqlOptions.EnableRetryOnFailure(
+           maxRetryCount: 5,
+           maxRetryDelay: TimeSpan.FromSeconds(30),
+           errorNumbersToAdd: null)));
 
 
 var app = builder.Build();
