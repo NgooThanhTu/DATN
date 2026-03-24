@@ -17,7 +17,7 @@ namespace TaskManagement.API.Extensions
             services.AddScoped<IAuthService, AuthService>();
             services.AddScoped<IProjectMemberService, ProjectMemberService>();
             services.AddScoped<IWorkTaskService, WorkTaskService>();
-            services.AddScoped<IWorkTaskNotificationService, TaskManagement.API.Services.WorkTaskNotificationService>();
+            services.AddScoped<IWorkTaskNotificationService, TaskManagement.Infrastructure.Services.MockWorkTaskNotificationService>();
             services.AddScoped<IFileService, FileService>();
 
             // Cấu hình JWT Authentication
