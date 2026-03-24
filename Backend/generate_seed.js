@@ -4,7 +4,7 @@ const path = require('path');
 function generateGuid(index, prefix) {
     // A simple deterministic GUID generator based on index and prefix
     const hex = index.toString(16).padStart(4, '0');
-    return `${prefix}0000-0000-0000-0000-00000000${hex}`;
+    return `${prefix}-0000-0000-0000-00000000${hex}`;
 }
 
 const roles = [
@@ -71,7 +71,7 @@ sql += '\n';
 sql += `-- Permissions\n`;
 for (let i = 1; i <= ROW_COUNT; i++) {
     let id = generateGuid(i, PERM_PREFIX);
-    sql += `INSERT INTO Permissions (Id, Name, Code, Module) VALUES ('${id}', 'Permission ${i}', 'PERM_${i}', 'Module${(i%5)+1}');\n`;
+    sql += `INSERT INTO Permissions (Id, Code, Module) VALUES ('${id}', 'PERM_${i}', 'Module${(i%5)+1}');\n`;
 }
 sql += '\n';
 
@@ -89,7 +89,7 @@ sql += `-- Departments\n`;
 for (let i = 1; i <= ROW_COUNT; i++) {
     let id = generateGuid(i, DEPT_PREFIX);
     let managerId = generateGuid(i, USERS_PREFIX); // Use user i as manager
-    sql += `INSERT INTO Departments (Id, Name, Description, ManagerId, CreatedAt, UpdatedAt) VALUES ('${id}', 'Department ${i}', 'Dept Desc ${i}', '${managerId}', GETDATE(), GETDATE());\n`;
+    sql += `INSERT INTO Departments (Id, Name, ManagerId, CreatedAt, IsActive, IsDeleted) VALUES ('${id}', 'Department ${i}', '${managerId}', GETDATE(), 1, 0);\n`;
 }
 sql += '\n';
 
@@ -98,7 +98,7 @@ sql += `-- DepartmentMembers\n`;
 for (let i = 1; i <= ROW_COUNT; i++) {
     let did = generateGuid(i, DEPT_PREFIX);
     let uid = generateGuid(i, USERS_PREFIX);
-    sql += `INSERT INTO DepartmentMembers (DepartmentId, UserId, JoinedAt, RoleInDepartment) VALUES ('${did}', '${uid}', GETDATE(), 'Member');\n`;
+    sql += `INSERT INTO DepartmentMembers (DepartmentId, UserId, JoinedAt) VALUES ('${did}', '${uid}', GETDATE());\n`;
 }
 sql += '\n';
 
@@ -107,7 +107,7 @@ sql += `-- Projects\n`;
 for (let i = 1; i <= ROW_COUNT; i++) {
     let id = generateGuid(i, PROJ_PREFIX);
     let creatorId = generateGuid(i, USERS_PREFIX);
-    sql += `INSERT INTO Projects (Id, Name, Description, Status, CreatorId, CreatedAt, UpdatedAt) VALUES ('${id}', 'Project ${i}', 'Proj Desc ${i}', ${(i%3)}, '${creatorId}', GETDATE(), GETDATE());\n`;
+    sql += `INSERT INTO Projects (Id, Name, Description, StartDate, EndDate, Status, CreatorId, CreatedAt, UpdatedAt) VALUES ('${id}', 'Project ${i}', 'Proj Desc ${i}', GETDATE(), DATEADD(month, 3, GETDATE()), ${(i%3)}, '${creatorId}', GETDATE(), GETDATE());\n`;
 }
 sql += '\n';
 
@@ -116,7 +116,7 @@ sql += `-- ProjectMembers\n`;
 for (let i = 1; i <= ROW_COUNT; i++) {
     let pid = generateGuid(i, PROJ_PREFIX);
     let uid = generateGuid(i, USERS_PREFIX);
-    sql += `INSERT INTO ProjectMembers (ProjectId, UserId, RoleInProject, JoinedAt) VALUES ('${pid}', '${uid}', 'Developer', GETDATE());\n`;
+    sql += `INSERT INTO ProjectMembers (ProjectId, UserId, ProjectRole, JoinedAt, Status) VALUES ('${pid}', '${uid}', 'DEV', GETDATE(), 1);\n`;
 }
 sql += '\n';
 
@@ -125,7 +125,7 @@ sql += `-- Sprints\n`;
 for (let i = 1; i <= ROW_COUNT; i++) {
     let id = generateGuid(i, SPRINT_PREFIX);
     let pid = generateGuid(i, PROJ_PREFIX); // link sprint i to project i
-    sql += `INSERT INTO Sprints (Id, Name, StartDate, EndDate, Goal, ProjectId, Status, CreatedAt, UpdatedAt) VALUES ('${id}', 'Sprint ${i}', GETDATE(), DATEADD(day, 14, GETDATE()), 'Goal ${i}', '${pid}', ${(i%2)}, GETDATE(), GETDATE());\n`;
+    sql += `INSERT INTO Sprints (Id, Name, StartDate, EndDate, ProjectId, Status, CreatedAt) VALUES ('${id}', 'Sprint ${i}', GETDATE(), DATEADD(day, 14, GETDATE()), '${pid}', ${(i%2)}, GETDATE());\n`;
 }
 sql += '\n';
 
@@ -156,7 +156,7 @@ for (let i = 1; i <= ROW_COUNT; i++) {
     let tid = generateGuid((i%20)+1, TYPE_PREFIX);
     let tsid = generateGuid((i%20)+1, STAT_PREFIX);
     let rid = generateGuid((i%20)+1, USERS_PREFIX);
-    sql += `INSERT INTO WorkTasks (Id, Title, Description, Priority, StoryPoints, StartDate, DueDate, IsCompleted, ProjectId, SprintId, TaskTypeId, TaskStatusId, ReporterId, OriginalEstimate, RemainingEstimate, TimeSpent, CreatedAt, UpdatedAt) VALUES ('${id}', 'Task ${i}', 'Desc ${i}', ${(i%4)}, ${i%8}, GETDATE(), DATEADD(day, 5, GETDATE()), 0, '${pid}', '${sid}', '${tid}', '${tsid}', '${rid}', 8, 4, 4, GETDATE(), GETDATE());\n`;
+    sql += `INSERT INTO WorkTasks (Id, Title, Description, Priority, StoryPoints, PlannedStartDate, PlannedEndDate, IsDeleted, ProjectId, SprintId, TaskTypeId, TaskStatusId, ReporterId, TotalEstimatedHours, TotalActualHours, CreatedAt, UpdatedAt) VALUES ('${id}', 'Task ${i}', 'Desc ${i}', ${(i%4)}, ${i%8}, GETDATE(), DATEADD(day, 5, GETDATE()), 0, '${pid}', '${sid}', '${tid}', '${tsid}', '${rid}', 8, 4, GETDATE(), GETDATE());\n`;
 }
 sql += '\n';
 
@@ -165,7 +165,7 @@ sql += `-- TaskAssignments\n`;
 for (let i = 1; i <= ROW_COUNT; i++) {
     let tid = generateGuid(i, TASK_PREFIX);
     let uid = generateGuid(i, USERS_PREFIX);
-    sql += `INSERT INTO TaskAssignments (WorkTaskId, UserId, AssignedAt) VALUES ('${tid}', '${uid}', GETDATE());\n`;
+    sql += `INSERT INTO TaskAssignments (WorkTaskId, UserId, Status, ActualStartDate, ActualEndDate) VALUES ('${tid}', '${uid}', 0, GETDATE(), DATEADD(day, 2, GETDATE()));\n`;
 }
 sql += '\n';
 
@@ -187,7 +187,7 @@ for (let i = 1; i <= ROW_COUNT; i++) {
     let id = generateGuid(i, COMM_PREFIX);
     let tid = generateGuid(i, TASK_PREFIX);
     let uid = generateGuid(i, USERS_PREFIX);
-    sql += `INSERT INTO Comments (Id, Content, WorkTaskId, UserId, CreatedAt, UpdatedAt, IsEdited) VALUES ('${id}', 'Comment ${i}', '${tid}', '${uid}', GETDATE(), GETDATE(), 0);\n`;
+    sql += `INSERT INTO Comments (Id, Content, WorkTaskId, UserId, CreatedAt, UpdatedAt) VALUES ('${id}', 'Comment ${i}', '${tid}', '${uid}', GETDATE(), GETDATE());\n`;
 }
 sql += '\n';
 
@@ -197,7 +197,7 @@ for (let i = 1; i <= ROW_COUNT; i++) {
     let id = generateGuid(i, ATTA_PREFIX);
     let tid = generateGuid(i, TASK_PREFIX);
     let uid = generateGuid(i, USERS_PREFIX);
-    sql += `INSERT INTO Attachments (Id, FileName, FileUrl, FileSize, FileType, WorkTaskId, UserId, UploadedAt) VALUES ('${id}', 'file${i}.pdf', '/files/file${i}.pdf', 1024, 'application/pdf', '${tid}', '${uid}', GETDATE());\n`;
+    sql += `INSERT INTO Attachments (Id, FileName, FileUrl, FileSize, WorkTaskId, UserId, CreatedAt) VALUES ('${id}', 'file${i}.pdf', '/files/file${i}.pdf', 1024, '${tid}', '${uid}', GETDATE());\n`;
 }
 sql += '\n';
 
@@ -207,7 +207,7 @@ for (let i = 1; i <= ROW_COUNT; i++) {
     let id = generateGuid(i, AUDIT_PREFIX);
     let tid = generateGuid(i, TASK_PREFIX);
     let uid = generateGuid(i, USERS_PREFIX);
-    sql += `INSERT INTO AuditLogs (Id, Action, EntityName, EntityId, OldValues, NewValues, UserId, WorkTaskId, Timestamp) VALUES ('${id}', 'Update', 'WorkTask', '${tid}', '{}', '{}', '${uid}', '${tid}', GETDATE());\n`;
+    sql += `INSERT INTO AuditLogs (Id, WorkTaskId, UserId, FieldChanged, OldValue, NewValue, CreatedAt) VALUES ('${id}', '${tid}', '${uid}', 'Status', 'To Do', 'In Progress', GETDATE());\n`;
 }
 sql += '\n';
 
@@ -216,7 +216,7 @@ sql += `-- Notifications\n`;
 for (let i = 1; i <= ROW_COUNT; i++) {
     let id = generateGuid(i, NOTIF_PREFIX);
     let uid = generateGuid(i, USERS_PREFIX);
-    sql += `INSERT INTO Notifications (Id, Title, Content, Type, IsRead, UserId, CreatedAt, ReferenceId, ReferenceType) VALUES ('${id}', 'Notif ${i}', 'Content ${i}', 0, 0, '${uid}', GETDATE(), NULL, NULL);\n`;
+    sql += `INSERT INTO Notifications (Id, Title, Content, LinkUrl, IsRead, UserId, CreatedAt) VALUES ('${id}', 'Notif ${i}', 'Content ${i}', '/tasks/${id}', 0, '${uid}', GETDATE());\n`;
 }
 sql += '\n';
 
@@ -235,7 +235,7 @@ sql += '\n';
 sql += `-- UserWallets\n`;
 for (let i = 1; i <= ROW_COUNT; i++) {
     let uid = generateGuid(i, USERS_PREFIX);
-    sql += `INSERT INTO UserWallets (UserId, Balance, TotalEarned, TotalSpent, UpdatedAt) VALUES ('${uid}', 1000, 1000, 0, GETDATE());\n`;
+    sql += `INSERT INTO UserWallets (UserId, TotalPoints, Level) VALUES ('${uid}', 1000, 1);\n`;
 }
 sql += '\n';
 
@@ -244,7 +244,7 @@ sql += `-- PointTransactions\n`;
 for (let i = 1; i <= ROW_COUNT; i++) {
     let id = generateGuid(i, TRAN_PREFIX);
     let uid = generateGuid(i, USERS_PREFIX);
-    sql += `INSERT INTO PointTransactions (Id, UserWalletUserId, Amount, TransactionType, ReferenceId, Description, CreatedAt) VALUES ('${id}', '${uid}', 10, 0, NULL, 'Transaction ${i}', GETDATE());\n`;
+    sql += `INSERT INTO PointTransactions (Id, UserWalletUserId, Amount, Reason, CreatedAt) VALUES ('${id}', '${uid}', 10, 'Completed Task ${i}', GETDATE());\n`;
 }
 sql += '\n';
 
@@ -252,7 +252,7 @@ sql += '\n';
 sql += `-- AIPromptTemplates\n`;
 for (let i = 1; i <= ROW_COUNT; i++) {
     let id = generateGuid(i, PROMPT_PREFIX);
-    sql += `INSERT INTO AIPromptTemplates (Id, Name, SystemPrompt, UserPromptTemplate, Description, IsActive, CreatedAt, UpdatedAt) VALUES ('${id}', 'Prompt ${i}', 'Sys prompt', 'User prompt', 'Desc', 1, GETDATE(), GETDATE());\n`;
+    sql += `INSERT INTO AIPromptTemplates (Id, Code, TemplateContent, IsActive) VALUES ('${id}', 'PROMPT_${i}', 'Template content ${i}', 1);\n`;
 }
 sql += '\n';
 
@@ -261,7 +261,7 @@ sql += `-- AITokenUsages\n`;
 for (let i = 1; i <= ROW_COUNT; i++) {
     let id = generateGuid(i, USAGE_PREFIX);
     let uid = generateGuid(i, USERS_PREFIX);
-    sql += `INSERT INTO AITokenUsages (Id, UserId, Feature, PromptTokens, CompletionTokens, TotalTokens, ModelName, RequestTime, ProcessingTimeMs) VALUES ('${id}', '${uid}', 'Feature ${i}', 10, 20, 30, 'Model', GETDATE(), 1000);\n`;
+    sql += `INSERT INTO AITokenUsages (Id, UserId, FeatureCode, TokensUsed, CreatedAt) VALUES ('${id}', '${uid}', 'FEATURE_${i}', 30, GETDATE());\n`;
 }
 sql += '\n';
 
@@ -270,7 +270,7 @@ sql += `-- AIFeedbacks\n`;
 for (let i = 1; i <= ROW_COUNT; i++) {
     let id = generateGuid(i, FEED_PREFIX);
     let uid = generateGuid(i, USERS_PREFIX);
-    sql += `INSERT INTO AIFeedbacks (Id, UserId, Feature, IsHelpful, FeedbackText, RequestPayload, ResponsePayload, CreatedAt) VALUES ('${id}', '${uid}', 'Feature ${i}', 1, 'Helpful', '{}', '{}', GETDATE());\n`;
+    sql += `INSERT INTO AIFeedbacks (Id, UserId, PromptContent, AIResponse, Rating, CreatedAt) VALUES ('${id}', '${uid}', 'Prompt content ${i}', 'AI response ${i}', 5, GETDATE());\n`;
 }
 sql += '\n';
 
@@ -279,7 +279,7 @@ sql += `-- AITrainingDatasets\n`;
 for (let i = 1; i <= ROW_COUNT; i++) {
     let id = generateGuid(i, DATASET_PREFIX);
     let uid = generateGuid(i, USERS_PREFIX);
-    sql += `INSERT INTO AITrainingDatasets (Id, DataType, OriginalContent, ImprovedContent, Status, CreatorId, CreatedAt, UpdatedAt) VALUES ('${id}', 0, 'Origin', 'Improved', 0, '${uid}', GETDATE(), GETDATE());\n`;
+    sql += `INSERT INTO AITrainingDatasets (Id, Category, InputData, OutputData, IsApproved, CreatorId, CreatedAt) VALUES ('${id}', 'Category ${i}', 'Input ${i}', 'Output ${i}', 1, '${uid}', GETDATE());\n`;
 }
 sql += '\n';
 
@@ -287,7 +287,7 @@ sql += '\n';
 sql += `-- TaskVectorEmbeddings\n`;
 for (let i = 1; i <= ROW_COUNT; i++) {
     let tid = generateGuid(i, TASK_PREFIX);
-    sql += `INSERT INTO TaskVectorEmbeddings (WorkTaskId, VectorData, ModelVersion, LastUpdated) VALUES ('${tid}', '[]', 'v1', GETDATE());\n`;
+    sql += `INSERT INTO TaskVectorEmbeddings (WorkTaskId, VectorData, LastCalculatedAt) VALUES ('${tid}', '[]', GETDATE());\n`;
 }
 sql += '\n';
 
@@ -297,7 +297,7 @@ for (let i = 1; i <= ROW_COUNT; i++) {
     let id = generateGuid(i, TIME_PREFIX);
     let tid = generateGuid(i, TASK_PREFIX);
     let uid = generateGuid(i, USERS_PREFIX);
-    sql += `INSERT INTO TimeLogs (Id, WorkTaskId, UserId, TimeSpent, Description, LogDate, CreatedAt, UpdatedAt) VALUES ('${id}', '${tid}', '${uid}', 2, 'Log ${i}', GETDATE(), GETDATE(), GETDATE());\n`;
+    sql += `INSERT INTO TimeLogs (Id, WorkTaskId, UserId, Hours, WorkType, Note, LoggedAt) VALUES ('${id}', '${tid}', '${uid}', 2, 'Dev', 'Note ${i}', GETDATE());\n`;
 }
 sql += '\n';
 
