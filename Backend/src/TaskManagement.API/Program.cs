@@ -77,7 +77,7 @@ using (var scope = app.Services.CreateScope())
         await context.Database.EnsureDeletedAsync();
         await context.Database.EnsureCreatedAsync();
         // await context.Database.MigrateAsync();
-        await DatabaseSeeder.SeedAsync(context);
+        // await DatabaseSeeder.SeedAsync(context); removed
     }
     catch (Exception ex)
     {

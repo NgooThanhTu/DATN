@@ -18,7 +18,7 @@ namespace TaskManagement.API.Extensions
             // services.AddScoped<IProjectMemberService, ProjectMemberService>(); removed
             // services.AddScoped<IWorkTaskService, WorkTaskService>(); removed
             // services.AddScoped<IWorkTaskNotificationService, TaskManagement.API.Services.WorkTaskNotificationService>(); removed because it was deleted
-            services.AddScoped<IFileService, FileService>();
+            // services.AddScoped<IFileService, FileService>(); removed
 
             // Cấu hình JWT Authentication
             var jwtConfig = configuration.GetSection("Jwt");
