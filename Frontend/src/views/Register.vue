@@ -18,28 +18,30 @@
         <h1 class="auth-title">Tạo Tài Khoản</h1>
         <p class="auth-subtitle">Bắt đầu quản lý dự án và công việc của bạn với SprintA.</p>
         
-        <el-button plain class="social-btn full-width">
-          <img :src="googleIcon" alt="Google" class="social-icon" /> Tiếp tục với Google
-        </el-button>
+        <GoogleLogin :callback="handleGoogleLogin">
+          <el-button plain class="social-btn full-width">
+            <img :src="googleIcon" alt="Google" class="social-icon" /> Tiếp tục với Google
+          </el-button>
+        </GoogleLogin>
         
         <div class="divider">
           <span>hoặc</span>
         </div>
         
-        <el-form class="auth-form" @submit.prevent="handleRegister" label-position="top">
-          <el-form-item label="Họ và Tên">
+        <el-form ref="formRef" :model="form" :rules="rules" class="auth-form" @submit.prevent="handleRegister" label-position="top">
+          <el-form-item label="Họ và Tên" prop="name">
             <el-input v-model="form.name" placeholder="John Doe" size="large" />
           </el-form-item>
           
-          <el-form-item label="Địa chỉ Email">
+          <el-form-item label="Địa chỉ Email" prop="email">
             <el-input v-model="form.email" placeholder="name@company.com" size="large" />
           </el-form-item>
           
-          <el-form-item label="Mật khẩu">
+          <el-form-item label="Mật khẩu" prop="password">
             <el-input v-model="form.password" type="password" placeholder="••••••••" size="large" show-password />
           </el-form-item>
           
-          <el-form-item label="Xác nhận Mật khẩu">
+          <el-form-item label="Xác nhận Mật khẩu" prop="confirmPassword">
             <el-input v-model="form.confirmPassword" type="password" placeholder="••••••••" size="large" show-password />
           </el-form-item>
           
@@ -68,6 +70,7 @@ import { ElMessage } from 'element-plus'
 
 const router = useRouter()
 const isLoading = ref(false)
+const formRef = ref(null)
 
 const form = reactive({
   name: '',
@@ -76,27 +79,86 @@ const form = reactive({
   confirmPassword: ''
 })
 
-const handleRegister = async () => {
-  if (form.password !== form.confirmPassword) {
-    ElMessage.error('Mật khẩu không khớp!')
-    return
-  }
-
-  isLoading.value = true;
-  try {
-    const payload = {
-      fullName: form.name,
-      email: form.email,
-      password: form.password
+const validatePass = (rule, value, callback) => {
+  if (value === '') {
+    callback(new Error('Vui lòng nhập mật khẩu'))
+  } else if (!/^(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{6,}$/.test(value)) {
+    callback(new Error('Mật khẩu cần ít nhất 6 ký tự, 1 chữ hoa, 1 số, 1 ký tự đặc biệt'))
+  } else {
+    if (form.confirmPassword !== '') {
+      if (!formRef.value) return
+      formRef.value.validateField('confirmPassword', () => null)
     }
-    const response = await axiosClient.post('/auth/register', payload);
-    ElMessage.success(response.data.message || 'Đăng ký thành công!');
-    router.push('/login');
+    callback()
+  }
+}
+
+const validatePass2 = (rule, value, callback) => {
+  if (value === '') {
+    callback(new Error('Vui lòng nhập lại mật khẩu'))
+  } else if (value !== form.password) {
+    callback(new Error('Mật khẩu không khớp!'))
+  } else {
+    callback()
+  }
+}
+
+const rules = reactive({
+  name: [{ required: true, message: 'Vui lòng nhập họ tên', trigger: 'blur' }],
+  email: [
+    { required: true, message: 'Vui lòng nhập email', trigger: 'blur' },
+    { type: 'email', message: 'Email không hợp lệ', trigger: ['blur', 'change'] }
+  ],
+  password: [{ validator: validatePass, trigger: 'blur' }],
+  confirmPassword: [{ validator: validatePass2, trigger: 'blur' }]
+})
+
+const handleRegister = async () => {
+  if (!formRef.value) return;
+  await formRef.value.validate(async (valid) => {
+    if (valid) {
+      isLoading.value = true;
+      try {
+        const payload = {
+          fullName: form.name,
+          email: form.email,
+          password: form.password
+        }
+        const response = await axiosClient.post('/auth/register', payload);
+        ElMessage.success(response.data.message || 'Đăng ký thành công!');
+        router.push('/login');
+      } catch (error) {
+        ElMessage.error(error.response?.data?.message || 'Có lỗi xảy ra khi đăng ký.')
+        console.error('Register error:', error)
+      } finally {
+        isLoading.value = false;
+      }
+    }
+  });
+}
+
+const handleGoogleLogin = async (response) => {
+  isLoading.value = true
+  try {
+    const res = await axiosClient.post('/auth/google-login', {
+      credential: response.credential
+    })
+    
+    const { accessToken, fullName, email, systemRoles, id } = res.data.data
+    
+    localStorage.setItem('accessToken', accessToken)
+    localStorage.setItem('user', JSON.stringify({ id, fullName, email, systemRoles }))
+    
+    ElMessage.success('Đăng ký bằng Google thành công!')
+    
+    const redirect = router.currentRoute.value.query.redirect
+    router.push(redirect || '/dashboard')
   } catch (error) {
-    ElMessage.error(error.response?.data?.message || 'Có lỗi xảy ra khi đăng ký.')
-    console.error('Register error:', error)
+    console.error('Google register error:', error)
+    const errorMsg = error.response?.data?.message || 'Không thể xác thực với Google'
+    ElMessage.error(errorMsg)
   } finally {
-    isLoading.value = false;
+    isLoading.value = false
   }
 }
 </script>

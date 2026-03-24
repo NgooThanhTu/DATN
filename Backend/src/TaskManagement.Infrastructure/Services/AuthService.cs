@@ -5,7 +5,7 @@ using TaskManagement.Infrastructure.Data;
 using TaskManagement.Domain.Entities;
 using System.Security.Cryptography;
 using System.Text;
-
+using Google.Apis.Auth;
 namespace TaskManagement.Infrastructure.Services
 {
     public class AuthService : IAuthService
@@ -37,6 +37,66 @@ namespace TaskManagement.Infrastructure.Services
             var refreshToken = _jwtService.GenerateRefreshToken();
 
             // Update user tokens
+            user.RefreshToken = refreshToken;
+            user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
+            
+            await _context.SaveChangesAsync();
+
+            var response = new AuthResponseDto
+            {
+                AccessToken = accessToken,
+                Id = user.Id,
+                Email = user.Email,
+                FullName = user.FullName,
+                SystemRoles = roles.ToArray()
+            };
+
+            return (response, refreshToken);
+        }
+
+        public async Task<(AuthResponseDto response, string refreshToken)> GoogleLoginAsync(GoogleLoginRequestDto request)
+        {
+            var payload = await GoogleJsonWebSignature.ValidateAsync(request.Credential);
+            
+            var user = await _context.Users
+                .Include(u => u.UserRoles)
+                .ThenInclude(ur => ur.Role)
+                .FirstOrDefaultAsync(u => u.Email == payload.Email && !u.IsDeleted);
+
+            if (user == null)
+            {
+                user = new User
+                {
+                    Id = Guid.NewGuid(),
+                    Email = payload.Email,
+                    FullName = payload.Name,
+                    PasswordHash = string.Empty, // Empty or random hash since they login via Google
+                    CreatedAt = DateTime.UtcNow,
+                    IsDeleted = false
+                };
+                
+                _context.Users.Add(user);
+                
+                var defaultRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == "Developer" || r.Name == "DEV");
+                if (defaultRole != null)
+                {
+                    _context.UserRoles.Add(new UserRole
+                    {
+                        UserId = user.Id,
+                        RoleId = defaultRole.Id
+                    });
+                     // Assign for instant token generation
+                    user.UserRoles = new List<UserRole> { new UserRole { Role = defaultRole } };
+                }
+                
+                await _context.SaveChangesAsync();
+            }
+
+            var roles = user.UserRoles?.Select(ur => ur.Role.Name).ToList() ?? new List<string>();
+
+            var accessToken = _jwtService.GenerateAccessToken(user, roles);
+            var refreshToken = _jwtService.GenerateRefreshToken();
+
             user.RefreshToken = refreshToken;
             user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
             
@@ -124,6 +184,18 @@ namespace TaskManagement.Infrastructure.Services
             };
 
             _context.Users.Add(newUser);
+
+            // Assign default role (e.g. Developer)
+            var defaultRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == "Developer" || r.Name == "DEV");
+            if (defaultRole != null)
+            {
+                _context.UserRoles.Add(new UserRole
+                {
+                    UserId = newUser.Id,
+                    RoleId = defaultRole.Id
+                });
+            }
+
             await _context.SaveChangesAsync();
         }
     }
