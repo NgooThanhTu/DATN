@@ -15,24 +15,9 @@
 
     <div class="auth-container">
       <div class="auth-card">
-        <h1 class="auth-title">Tạo Tài Khoản</h1>
-        <p class="auth-subtitle">Bắt đầu quản lý dự án và công việc của bạn với SprintA.</p>
-        
-        <el-button plain class="social-btn full-width">
-          <img :src="googleIcon" alt="Google" class="social-icon" /> Tiếp tục với Google
-        </el-button>
-        
-        <div class="divider">
-          <span>hoặc</span>
-        </div>
-        
-        <el-form class="auth-form" @submit.prevent="handleRegister" label-position="top">
-          <el-form-item label="Họ và Tên">
-            <el-input v-model="form.name" placeholder="John Doe" size="large" />
-          </el-form-item>
-          
+        <el-form v-if="step === 1" class="auth-form" @submit.prevent="handleNextStep" label-position="top">
           <el-form-item label="Địa chỉ Email">
-            <el-input v-model="form.email" placeholder="name@company.com" size="large" />
+            <el-input v-model="form.email" placeholder="name@email.com" size="large" />
           </el-form-item>
           
           <el-form-item label="Mật khẩu">
@@ -43,10 +28,25 @@
             <el-input v-model="form.confirmPassword" type="password" placeholder="••••••••" size="large" show-password />
           </el-form-item>
           
-          <el-button type="primary" native-type="submit" class="auth-btn" size="large">Tạo Tài Khoản</el-button>
+          <el-button type="primary" native-type="submit" class="auth-btn" size="large">Gửi mã OTP</el-button>
           
           <p class="auth-footer-text">
             Đã có tài khoản? <router-link to="/login">Đăng nhập</router-link>
+          </p>
+        </el-form>
+
+        <el-form v-else class="auth-form" @submit.prevent="handleRegister" label-position="top">
+          <div class="otp-instruction">
+            Chúng tôi đã gửi mã xác thực tới <strong>{{ form.email }}</strong>. Vui lòng kiểm tra hộp thư của bạn.
+          </div>
+          <el-form-item label="Mã xác thực OTP">
+            <el-input v-model="form.otp" placeholder="123456" size="large" maxlength="6" class="otp-input" />
+          </el-form-item>
+          
+          <el-button type="primary" native-type="submit" class="auth-btn" size="large">Xác nhận đăng ký</el-button>
+          
+          <p class="auth-footer-text">
+            Không nhận được mã? <a href="#" @click.prevent="step = 1">Quay lại</a> hoặc <a href="#">Gửi lại</a>
           </p>
         </el-form>
       </div>
@@ -59,19 +59,25 @@
 </template>
 
 <script setup>
-import { reactive } from 'vue'
+import { ref, reactive } from 'vue'
 import logoImg from '../assets/logo_QLCV.png'
-import googleIcon from '../assets/Icongoogle.png'
 
+const step = ref(1)
 const form = reactive({
-  name: '',
   email: '',
   password: '',
-  confirmPassword: ''
+  confirmPassword: '',
+  otp: ''
 })
 
+const handleNextStep = () => {
+  if (form.email && form.password) {
+    step.value = 2
+  }
+}
+
 const handleRegister = () => {
-  console.log('Register attempt:', form)
+  console.log('Register attempt with OTP:', form)
 }
 </script>
 
@@ -186,6 +192,24 @@ const handleRegister = () => {
 .auth-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 20px rgba(0, 97, 255, 0.3);
+}
+
+.otp-instruction {
+  text-align: center;
+  font-size: 14px;
+  color: #64748b;
+  margin-bottom: 24px;
+  background: #f1f5f9;
+  padding: 12px;
+  border-radius: 8px;
+  line-height: 1.6;
+}
+
+.otp-input :deep(input) {
+  text-align: center;
+  letter-spacing: 8px;
+  font-size: 20px;
+  font-weight: 700;
 }
 
 @media (max-width: 640px) {

@@ -194,7 +194,7 @@
         <ul class="side-menu">
           <li @click="goToDashboard"><i class="fa-solid fa-border-all"></i> Dành cho bạn</li>
           <li class="active"><i class="fa-regular fa-folder-open"></i> Không gian</li>
-          <li><i class="fa-regular fa-clock"></i> Gần đây</li>
+          <li @click="goToDashboard"><i class="fa-regular fa-clock"></i> Gần đây</li>
           <li class="ai-item" @click="goToAI"><i class="fa-solid fa-robot"></i> Trợ lý AI</li>
           <li><i class="fa-solid fa-ellipsis"></i> Thêm</li>
         </ul>
@@ -203,7 +203,61 @@
       <main class="content-area">
         <div class="content-wrapper">
           <div class="page-header">
-            <h1 class="page-title">Bảng điều hướng dự án</h1>
+            <div class="header-breadcrumbs">Spaces</div>
+            <div class="header-main-title">
+              <div class="project-info-left">
+                <div class="project-brand-icon">
+                  <div class="inner-icon">
+                    <div class="line header"></div>
+                    <div class="line long"></div>
+                    <div class="line mid"></div>
+                  </div>
+                </div>
+                <h1 class="page-title">My Team</h1>
+                <div class="project-info-right">
+                  <div class="users-icon-box" title="Thành viên" @click="showTeamsDialog = true">
+                    <i class="fa-solid fa-users"></i>
+                  </div>
+                  <div class="more-icon-box" title="Thêm tùy chọn">
+                  <el-dropdown trigger="click" placement="bottom-start" popper-class="space-settings-dropdown">
+                    <i class="fa-solid fa-ellipsis"></i>
+                    <template #dropdown>
+                      <el-dropdown-menu>
+                        <el-dropdown-item><i class="fa-regular fa-star"></i> Add to starred</el-dropdown-item>
+                        <el-dropdown-item><i class="fa-regular fa-user-plus"></i> Add people</el-dropdown-item>
+                        <el-dropdown-item class="flex-between">
+                          <span><i class="fa-regular fa-clone"></i> Save as template</span>
+                          <span class="enterprise-badge">ENTERPRISE</span>
+                        </el-dropdown-item>
+                        <el-dropdown-item class="flex-between">
+                          <span><i class="fa-solid fa-mountain-sun"></i> Set space background</span>
+                          <i class="fa-solid fa-chevron-right sub-arrow"></i>
+                        </el-dropdown-item>
+                        <el-dropdown-item><i class="fa-solid fa-gear"></i> Space settings</el-dropdown-item>
+                        
+                        <div class="dropdown-divider"></div>
+                        
+                        <el-dropdown-item><i class="fa-solid fa-box-archive"></i> Archive space</el-dropdown-item>
+                        <el-dropdown-item class="danger-item"><i class="fa-solid fa-trash-can"></i> Delete space</el-dropdown-item>
+                        
+                        <div class="dropdown-divider"></div>
+
+                        <el-dropdown-item class="info-item">
+                          <div class="info-item-content">
+                            <i class="fa-solid fa-rocket info-icon"></i>
+                            <div class="info-text">
+                              <div class="primary">Software space</div>
+                              <div class="secondary">Team-managed</div>
+                            </div>
+                          </div>
+                        </el-dropdown-item>
+                      </el-dropdown-menu>
+                    </template>
+                  </el-dropdown>
+                </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- Tabs -->
@@ -840,6 +894,62 @@
         </div>
       </main>
 
+      <!-- Link Contributing Teams Dialog -->
+      <el-dialog
+        v-model="showTeamsDialog"
+        width="480px"
+        :show-close="false"
+        class="jira-dark-dialog teams-dialog"
+      >
+        <div class="teams-dialog-header">
+          <div class="header-illustration">
+            <div class="team-banner">
+              <div class="team-tag">
+                <div class="tag-icon"><i class="fa-solid fa-users"></i></div>
+                <span>Team Awesome</span>
+              </div>
+              <div class="team-avatars">
+                <div class="avatar-ring av-1"><img src="https://i.pravatar.cc/32?img=1" /></div>
+                <div class="avatar-ring av-2"><img src="https://i.pravatar.cc/32?img=2" /></div>
+                <div class="avatar-ring av-3"><img src="https://i.pravatar.cc/32?img=3" /></div>
+                <div class="avatar-ring av-4"><img src="https://i.pravatar.cc/32?img=4" /></div>
+              </div>
+            </div>
+            <div class="mini-cards">
+              <div class="m-card c-1"><div class="c-icon blue"><i class="fa-brands fa-atlassian"></i></div><div class="c-line"></div></div>
+              <div class="m-card c-2"><div class="c-icon purple"><i class="fa-solid fa-rocket"></i></div><div class="c-line"></div></div>
+              <div class="m-card c-3"><div class="c-icon gray"><i class="fa-solid fa-gear"></i></div><div class="c-line"></div></div>
+            </div>
+            <div class="sparkles">
+              <i class="fa-solid fa-star sp-1"></i>
+              <i class="fa-solid fa-star sp-2"></i>
+              <i class="fa-solid fa-plus sp-3"></i>
+            </div>
+          </div>
+        </div>
+        
+        <div class="teams-dialog-body">
+          <h3 class="dialog-main-title">Link contributing teams</h3>
+          <p class="dialog-subtitle">Add the teams that work in this space, so everyone knows who to go to for help.</p>
+          
+          <div class="search-teams-wrapper">
+            <div class="search-teams-box">
+              <i class="fa-solid fa-users-viewfinder"></i>
+              <input type="text" placeholder="Search and add teams" />
+            </div>
+          </div>
+        </div>
+        
+        <template #footer>
+          <div class="dialog-footer">
+            <el-button @click="showTeamsDialog = false" text class="cancel-btn">Cancel</el-button>
+            <el-button type="primary" @click="showTeamsDialog = false" class="save-btn">Save</el-button>
+          </div>
+        </template>
+      </el-dialog>
+
+
+
       <!-- Right AI Sidebar Popup -->
       <transition name="slide-right">
         <aside class="ai-sidebar" v-if="aiVisible">
@@ -907,7 +1017,13 @@ import NotificationsDropdown from '../components/NotificationsDropdown.vue'
 import UserDropdown from '../components/UserDropdown.vue';
 
 const searchQuery = ref('')
-const aiVisible = ref(true)
+const aiVisible = ref(false)
+const showTeamsDialog = ref(false)
+
+const toggleAI = () => {
+  aiVisible.value = !aiVisible.value
+}
+
 const currentTab = ref('list')
 const showTaskModal = ref(false)
 const selectedTask = ref(null)
@@ -928,9 +1044,6 @@ const goToAI = () => {
 
 const sidebarVisible = ref(false)
 
-const toggleAI = () => {
-  aiVisible.value = !aiVisible.value
-}
 
 // Dữ liệu cho tab LIST
 const taskGroups = ref([
@@ -1016,12 +1129,6 @@ const taskGroups = ref([
 .search-input-mock:focus-within {
   background-color: #2c333a;
   border-color: #579dff;
-}
-
-.search-input-mock i {
-  color: #8c9bab;
-  font-size: 14px;
-  margin-right: 8px;
 }
 
 .search-input-mock input {
@@ -1129,6 +1236,274 @@ const taskGroups = ref([
 }
 .side-menu li:hover { background-color: #1e293b; color: white; }
 .side-menu li.active { background-color: #1e3a8a; color: #60a5fa; }
+
+.header-breadcrumbs {
+  font-size: 13px;
+  color: #8c8c8c;
+  font-weight: 500;
+  text-decoration: underline;
+  margin-bottom: 2px;
+  cursor: pointer;
+}
+
+.header-main-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.project-info-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.project-brand-icon {
+  width: 32px;
+  height: 32px;
+  background: #ff5722; /* Vibrant orange-red */
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.inner-icon {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 20px;
+  padding: 4px;
+}
+
+.inner-icon .line {
+  height: 2px;
+  background: white;
+  border-radius: 1px;
+}
+
+.inner-icon .line.header { height: 3px; margin-bottom: 2px; opacity: 0.5; }
+.inner-icon .line.long { width: 100%; }
+.inner-icon .line.mid { width: 70%; }
+.inner-icon .line.short { width: 40%; }
+
+.page-title {
+  font-size: 28px !important;
+  color: #f1f5f9;
+  font-weight: 700 !important;
+  margin: 0 !important;
+  letter-spacing: -0.5px;
+}
+
+.project-info-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  color: #8c8c8c;
+}
+
+.users-icon-box {
+  width: 36px;
+  height: 36px;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #cbd5e1;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.users-icon-box:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: #475569;
+}
+
+.more-icon-box .fa-ellipsis {
+  font-size: 20px;
+  cursor: pointer;
+  color: #8c8c8c;
+  transition: color 0.1s;
+}
+
+.more-icon-box:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.more-icon-box:hover .fa-ellipsis {
+  color: white;
+}
+
+/* Force Dropdown to be Dark Mode and Sync with System Colors */
+:global(.el-dropdown__popper.space-settings-dropdown) {
+  --el-dropdown-menu-bg-color: #1e2430 !important;
+  background-color: #1e2430 !important;
+  border: 1px solid #334155 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.8) !important;
+  padding: 4px 0 !important;
+}
+
+:global(.space-settings-dropdown .el-dropdown-menu) {
+  background-color: #1e2430 !important;
+  padding: 4px 0 !important;
+  border: none !important;
+}
+
+:global(.space-settings-dropdown .el-dropdown-menu__item) {
+  color: #cbd5e1 !important;
+  font-size: 14px !important;
+  padding: 10px 16px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  transition: all 0.2s !important;
+}
+
+:global(.space-settings-dropdown .el-dropdown-menu__item i) {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+  color: #94a3b8;
+}
+
+:global(.space-settings-dropdown .el-dropdown-menu__item:hover) {
+  background-color: #2c333a !important;
+  color: white !important;
+}
+
+:global(.space-settings-dropdown .el-popper__arrow::before) {
+  background-color: #1e2430 !important;
+  border: 1px solid #334155 !important;
+}
+
+:global(.space-settings-dropdown .flex-between) {
+  justify-content: space-between !important;
+  width: 280px;
+}
+
+:global(.space-settings-dropdown .enterprise-badge) {
+  font-size: 10px;
+  font-weight: 800;
+  color: #a855f7;
+  border: 1px solid #a855f7;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+:global(.space-settings-dropdown .dropdown-divider) {
+  height: 1px;
+  background-color: #334155;
+  margin: 6px 0;
+}
+
+:global(.space-settings-dropdown .danger-item) {
+  color: #ff4d4f !important;
+}
+:global(.space-settings-dropdown .danger-item i) {
+  color: #ff4d4f !important;
+}
+
+:global(.space-settings-dropdown .info-item) {
+  padding: 12px 16px !important;
+}
+
+:global(.space-settings-dropdown .info-item-content) {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+:global(.space-settings-dropdown .info-icon) {
+  color: #3b82f6 !important;
+  font-size: 18px !important;
+}
+
+:global(.space-settings-dropdown .info-text .primary) {
+  font-weight: 600;
+  color: #f1f5f9;
+  font-size: 13px;
+}
+:global(.space-settings-dropdown .info-text .secondary) {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.space-item-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.space-brand-icon {
+  width: 24px;
+  height: 24px;
+  background: #ff5733;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.inner-icon {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 14px;
+}
+
+.inner-icon .line {
+  height: 2px;
+  background: white;
+  border-radius: 1px;
+  opacity: 0.9;
+}
+
+.inner-icon .line.long { width: 100%; }
+.inner-icon .line.mid { width: 70%; }
+.inner-icon .line.short { width: 40%; }
+
+.space-name {
+  font-weight: 700;
+  font-size: 16px;
+  color: #f1f5f9;
+}
+
+.space-item-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #8c8c8c;
+}
+
+.users-icon-box {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.space-item-right .fa-ellipsis {
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.space-item-right .fa-ellipsis:hover {
+  color: white;
+}
 
 .sub-space-item {
   padding: 12px !important;
@@ -1425,7 +1800,21 @@ const taskGroups = ref([
 
 .ai-content { flex: 1; padding: 24px 20px; overflow-y: auto; }
 .quick-actions-title { font-size: 10px; font-weight: 600; color: #64748b; margin-bottom: 12px; letter-spacing: 0.5px;}
+.quick-actions {
+  /* Dynamically change chips based on tab */
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 32px;
+}
 .quick-actions-col { display: flex; flex-direction: column; gap: 8px; margin-bottom: 32px; }
+.ai-chip {
+  background-color: transparent; border: 1px solid #334155; color: #cbd5e1;
+  padding: 6px 12px; border-radius: 20px; font-size: 12px; cursor: pointer;
+  transition: all 0.2s;
+}
+.ai-chip:hover { background-color: #1e293b; color: white; border-color: #475569; }
+
 .action-btn {
   background-color: transparent; border: 1px solid #334155; color: #cbd5e1;
   padding: 10px 16px; border-radius: 8px; font-size: 12px; cursor: pointer;
@@ -2903,5 +3292,197 @@ const taskGroups = ref([
 
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
+/* Teams Dialog Styling */
+:global(.jira-dark-dialog.teams-dialog) {
+  background-color: #2c333a !important;
+  border-radius: 8px !important;
+  border: 1px solid #444c54 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+:global(.teams-dialog .el-dialog__header) {
+  display: none !important;
+}
+
+:global(.teams-dialog .el-dialog__body) {
+  padding: 0 !important;
+}
+
+.teams-dialog-header {
+  height: 180px;
+  background-color: #1d2125;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.header-illustration {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding-top: 20px;
+}
+
+.team-banner {
+  background: #161a1d;
+  border-radius: 12px;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 40px;
+  border: 1px solid #333;
+  box-shadow: 0 8px 16px rgba(0,0,0,0.4);
+  z-index: 2;
+  position: relative;
+}
+
+.team-tag {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #f1f5f9;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.tag-icon {
+  width: 28px;
+  height: 28px;
+  background: #84cc16; 
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.team-avatars {
+  display: flex;
+  margin-left: -20px;
+}
+
+.avatar-ring {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid #161a1d;
+  overflow: hidden;
+  margin-left: -8px;
+  transition: transform 0.2s;
+}
+.avatar-ring img { width: 100%; height: 100%; object-fit: cover; }
+.av-1 { border-color: #c084fc; }
+.av-2 { border-color: #3b82f6; }
+.av-3 { border-color: #84cc16; }
+.av-4 { border-color: #f59e0b; }
+
+.mini-cards {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+  opacity: 0.6;
+}
+
+.m-card {
+  background: #161a1d;
+  border-radius: 8px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100px;
+  border: 1px solid #333;
+}
+
+.m-card .c-icon { font-size: 14px; }
+.m-card .c-icon.blue { color: #3b82f6; }
+.m-card .c-icon.purple { color: #a855f7; }
+.m-card .c-icon.gray { color: #64748b; }
+
+.m-card .c-line {
+  height: 2px;
+  flex: 1;
+  background: #333;
+  border-radius: 1px;
+}
+
+.sparkles {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+}
+.sparkles i { position: absolute; color: #fff; opacity: 0.4; }
+.sp-1 { top: 20%; right: 20%; font-size: 12px; }
+.sp-2 { top: 15%; right: 25%; font-size: 8px; }
+.sp-3 { top: 30%; right: 15%; font-size: 10px; }
+
+.teams-dialog-body {
+  padding: 24px 32px;
+}
+
+.dialog-main-title {
+  font-size: 20px !important;
+  color: #f1f5f9 !important;
+  margin-bottom: 8px !important;
+  font-weight: 600 !important;
+}
+
+.dialog-subtitle {
+  color: #94a3b8 !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+  margin-bottom: 24px !important;
+}
+
+.search-teams-box {
+  background-color: #22272b;
+  border: 2px solid #334155;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  gap: 12px;
+  transition: border-color 0.2s;
+}
+
+.search-teams-box:focus-within {
+  border-color: #579dff;
+}
+
+.search-teams-box i { color: #8c9bab; font-size: 16px; }
+.search-teams-box input {
+  background: transparent;
+  border: none;
+  color: white;
+  flex: 1;
+  font-size: 14px;
+  outline: none;
+}
+
+.dialog-footer {
+  padding: 0 32px 32px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.cancel-btn { color: #cbd5e1 !important; font-weight: 600; }
+.cancel-btn:hover { color: white !important; }
+
+.save-btn {
+  background-color: #579dff !important;
+  color: #1d2125 !important;
+  font-weight: 600 !important;
+  border: none !important;
+  padding: 8px 24px !important;
+}
+.save-btn:hover { background-color: #85b8ff !important; }
 </style>
 

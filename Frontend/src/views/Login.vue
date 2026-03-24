@@ -20,7 +20,7 @@
         
         <el-form class="auth-form" @submit.prevent="handleLogin" label-position="top">
           <el-form-item label="Email">
-            <el-input v-model="form.email" placeholder="name@company.com" size="large" />
+            <el-input v-model="form.email" placeholder="name@email.com" size="large" />
           </el-form-item>
           
           <el-form-item class="password-item">
@@ -188,6 +188,11 @@ const handleLogin = () => {
 .password-label {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+:deep(.password-item .el-form-item__label) {
   width: 100%;
 }
 

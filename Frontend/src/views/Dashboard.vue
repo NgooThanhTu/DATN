@@ -40,11 +40,7 @@
     <div class="main-body">
       <!-- Sidebar -->
       <aside class="sidebar" :class="{ 'mobile-show': sidebarVisible }">
-        <div class="sidebar-header mobile-only">
-          <button class="close-sidebar" @click="toggleSidebar">
-            <i class="fa-solid fa-xmark"></i>
-          </button>
-        </div>
+
         <ul class="side-menu">
           <li class="active"><i class="fa-solid fa-border-all"></i> Dành cho bạn</li>
           <li @click="goToSpace('my-team')"><i class="fa-regular fa-folder-open"></i> Không gian</li>
@@ -291,7 +287,10 @@ const tasks = ref([])
 .top-search-create {
   display: flex;
   align-items: center;
-  gap: 8px; 
+  gap: 8px;
+  width: 100%;
+  max-width: 1000px;
+  justify-content: center;
 }
 
 .search-input-mock {
@@ -301,9 +300,9 @@ const tasks = ref([])
   border: 1px solid #738496; 
   border-radius: 4px;
   padding: 0 12px;
-  width: 100%;
-  max-width: 550px;
-  height: 32px;
+  flex: 1;
+  max-width: 900px;
+  height: 38px;
   transition: background-color 0.2s, border-color 0.2s;
 }
 
@@ -334,15 +333,17 @@ const tasks = ref([])
 .btn-create-jira {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  gap: 8px;
   background-color: #579dff; 
   color: #1d2125;
   border: none;
   border-radius: 4px;
-  padding: 0 16px;
-  height: 32px;
+  padding: 0 20px;
+  height: 38px;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
   transition: background-color 0.2s;
 }
