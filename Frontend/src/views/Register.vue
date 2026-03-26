@@ -15,7 +15,23 @@
 
     <div class="auth-container">
       <div class="auth-card">
-        <el-form v-if="step === 1" class="auth-form" @submit.prevent="handleNextStep" label-position="top">
+        <h1 class="auth-title">{{ step === 1 ? 'Tạo tài khoản mới' : 'Xác thực Email' }}</h1>
+        <p class="auth-subtitle">
+          {{ step === 1 ? 'Bắt đầu hành trình quản lý công việc hiệu quả cùng SprintA.' : 'Nhập mã xác thực đã được gửi đến email của bạn.' }}
+        </p>
+
+        <!-- Step 1: Registration Information -->
+        <el-form 
+          v-if="step === 1" 
+          ref="formRef"
+          :model="form"
+          class="auth-form" 
+          label-position="top"
+        >
+          <el-form-item label="Họ và tên">
+            <el-input v-model="form.name" placeholder="Nguyễn Văn A" size="large" />
+          </el-form-item>
+
           <el-form-item label="Địa chỉ Email">
             <el-input v-model="form.email" placeholder="name@email.com" size="large" />
           </el-form-item>
@@ -28,13 +44,16 @@
             <el-input v-model="form.confirmPassword" type="password" placeholder="••••••••" size="large" show-password />
           </el-form-item>
           
-          <el-button type="primary" native-type="submit" class="auth-btn" size="large">Gửi mã OTP</el-button>
+          <el-button type="primary" class="auth-btn" size="large" @click="handleNextStep">
+            Gửi mã OTP
+          </el-button>
           
           <p class="auth-footer-text">
             Đã có tài khoản? <router-link to="/login">Đăng nhập</router-link>
           </p>
         </el-form>
 
+        <!-- Step 2: OTP Verification -->
         <el-form v-else class="auth-form" @submit.prevent="handleRegister" label-position="top">
           <div class="otp-instruction">
             Chúng tôi đã gửi mã xác thực tới <strong>{{ form.email }}</strong>. Vui lòng kiểm tra hộp thư của bạn.
@@ -43,7 +62,9 @@
             <el-input v-model="form.otp" placeholder="123456" size="large" maxlength="6" class="otp-input" />
           </el-form-item>
           
-          <el-button type="primary" native-type="submit" class="auth-btn" size="large">Xác nhận đăng ký</el-button>
+          <el-button type="primary" native-type="submit" class="auth-btn" size="large">
+            Tạo Tài Khoản
+          </el-button>
           
           <p class="auth-footer-text">
             Không nhận được mã? <a href="#" @click.prevent="step = 1">Quay lại</a> hoặc <a href="#">Gửi lại</a>
@@ -61,9 +82,13 @@
 <script setup>
 import { ref, reactive } from 'vue'
 import logoImg from '../assets/logo_QLCV.png'
+import { ElMessage } from 'element-plus'
 
 const step = ref(1)
+const formRef = ref(null)
+
 const form = reactive({
+  name: '',
   email: '',
   password: '',
   confirmPassword: '',
@@ -71,13 +96,35 @@ const form = reactive({
 })
 
 const handleNextStep = () => {
-  if (form.email && form.password) {
-    step.value = 2
+  if (!form.name || !form.email || !form.password) {
+    ElMessage.warning('Vui lòng điền đầy đủ thông tin')
+    return
   }
+  if (form.password !== form.confirmPassword) {
+    ElMessage.error('Mật khẩu xác nhận không khớp')
+    return
+  }
+  
+  console.log('Sending OTP to:', form.email)
+  // Thực tế sẽ gọi API gửi OTP ở đây
+  step.value = 2
 }
 
 const handleRegister = () => {
-  console.log('Register attempt with OTP:', form)
+  if (!form.otp || form.otp.length < 6) {
+    ElMessage.warning('Vui lòng nhập mã OTP hợp lệ')
+    return
+  }
+
+  console.log('Registering user:', {
+    fullName: form.name,
+    email: form.email,
+    password: form.password,
+    otp: form.otp
+  })
+  
+  ElMessage.success('Đăng ký tài khoản thành công!')
+  // Chuyển hướng sau khi đăng ký
 }
 </script>
 
