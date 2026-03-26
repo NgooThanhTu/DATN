@@ -18,6 +18,7 @@
         <el-form v-if="step === 1" class="auth-form" @submit.prevent="handleNextStep" label-position="top">
           <el-form-item label="Địa chỉ Email">
             <el-input v-model="form.email" placeholder="name@email.com" size="large" />
+            </el-form-item>
         <h1 class="auth-title">Tạo Tài Khoản</h1>
         <p class="auth-subtitle">Bắt đầu quản lý dự án và công việc của bạn với SprintA.</p>
         
@@ -35,6 +36,7 @@
         <div class="divider">
           <span>hoặc</span>
         </div>
+        </el-form>
         
         <el-form ref="formRef" :model="form" :rules="rules" class="auth-form" @submit.prevent="handleRegister" label-position="top">
           <el-form-item label="Họ và Tên" prop="name">
@@ -87,10 +89,8 @@
 <script setup>
 import { ref, reactive } from 'vue'
 import logoImg from '../assets/logo_QLCV.png'
-import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import axiosClient from '../api/axiosClient'
-import logoImg from '../assets/logo_QLCV.png'
 import googleIcon from '../assets/Icongoogle.png'
 import githubIcon from '../assets/Icongithub.png'
 import { ElMessage } from 'element-plus'
@@ -115,6 +115,7 @@ const handleNextStep = () => {
 
 const handleRegister = () => {
   console.log('Register attempt with OTP:', form)
+}
 const validatePass = (rule, value, callback) => {
   if (value === '') {
     callback(new Error('Vui lòng nhập mật khẩu'))
