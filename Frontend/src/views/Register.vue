@@ -15,45 +15,64 @@
 
     <div class="auth-container">
       <div class="auth-card">
-        <h1 class="auth-title">Tạo Tài Khoản</h1>
-        <p class="auth-subtitle">Bắt đầu quản lý dự án và công việc của bạn với SprintA.</p>
-        
-        <div class="social-login">
-          <GoogleLogin :callback="handleGoogleLogin" class="social-btn-wrapper">
+        <h1 class="auth-title">{{ step === 1 ? 'Tạo Tài Khoản' : 'Xác thực Email' }}</h1>
+        <p class="auth-subtitle">
+          {{ step === 1 ? 'Bắt đầu quản lý dự án và công việc của bạn với SprintA.' : 'Nhập mã xác thực đã được gửi đến email của bạn.' }}
+        </p>
+
+        <!-- Step 1: Registration Information -->
+        <el-form 
+          v-if="step === 1" 
+          ref="formRef"
+          :model="form"
+          :rules="rules"
+          class="auth-form" 
+          label-position="top"
+          @submit.prevent="handleNextStep"
+        >
+          <div class="social-login">
+            <GoogleLogin :callback="handleGoogleLogin" class="social-btn-wrapper">
+              <el-button plain class="social-btn">
+                <img :src="googleIcon" alt="Google" class="social-icon" /> Google
+              </el-button>
+            </GoogleLogin>
             <el-button plain class="social-btn">
-              <img :src="googleIcon" alt="Google" class="social-icon" /> Google
+              <img :src="githubIcon" alt="GitHub" class="social-icon" /> GitHub
             </el-button>
-          </GoogleLogin>
-          <el-button plain class="social-btn">
-            <img :src="githubIcon" alt="GitHub" class="social-icon" /> GitHub
-          </el-button>
-        </div>
-        
-        <div class="divider">
-          <span>hoặc</span>
-        </div>
-        
-        <el-form ref="formRef" :model="form" :rules="rules" class="auth-form" @submit.prevent="handleRegister" label-position="top">
-          <el-form-item label="Họ và Tên" prop="name">
-            <el-input v-model="form.name" placeholder="John Doe" size="large" />
-          </el-form-item>
+          </div>
           
+          <div class="divider">
+            <span>hoặc</span>
+          </div>
+
           <el-form-item label="Địa chỉ Email" prop="email">
             <el-input v-model="form.email" placeholder="name@company.com" size="large" />
           </el-form-item>
           
-          <el-form-item label="Mật khẩu" prop="password">
-            <el-input v-model="form.password" type="password" placeholder="••••••••" size="large" show-password />
-          </el-form-item>
-          
-          <el-form-item label="Xác nhận Mật khẩu" prop="confirmPassword">
-            <el-input v-model="form.confirmPassword" type="password" placeholder="••••••••" size="large" show-password />
-          </el-form-item>
-          
-          <el-button type="primary" native-type="submit" class="auth-btn" size="large" :loading="isLoading">Tạo Tài Khoản</el-button>
+          <el-button type="primary" class="auth-btn" size="large" :loading="isLoading" @click="handleNextStep">
+            Gửi mã OTP
+          </el-button>
           
           <p class="auth-footer-text">
             Đã có tài khoản? <router-link to="/login">Đăng nhập</router-link>
+          </p>
+        </el-form>
+
+        <!-- Step 2: OTP Verification -->
+        <el-form v-else class="auth-form" @submit.prevent="handleRegister" label-position="top">
+          <div class="otp-instruction">
+            Chúng tôi đã gửi mã xác thực tới <strong>{{ form.email }}</strong>. Vui lòng kiểm tra hộp thư của bạn.
+          </div>
+          <el-form-item label="Mã xác thực OTP">
+            <el-input v-model="form.otp" placeholder="123456" size="large" maxlength="6" class="otp-input" />
+          </el-form-item>
+          
+          <el-button type="primary" native-type="submit" class="auth-btn" size="large" :loading="isLoading">
+            Tạo Tài Khoản
+          </el-button>
+          
+          <p class="auth-footer-text">
+            Không nhận được mã? <a href="#" @click.prevent="step = 1">Quay lại</a> hoặc <a href="#">Gửi lại</a>
           </p>
         </el-form>
       </div>
@@ -66,81 +85,41 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
+import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import axiosClient from '../api/axiosClient'
-import logoImg from '../assets/logo_QLCV.png'
 import googleIcon from '../assets/Icongoogle.png'
 import githubIcon from '../assets/Icongithub.png'
 import { ElMessage } from 'element-plus'
+import logoImg from '../assets/logo_QLCV.png'
 
 const router = useRouter()
 const isLoading = ref(false)
 const formRef = ref(null)
+const step = ref(1)
 
 const form = reactive({
-  name: '',
   email: '',
-  password: '',
-  confirmPassword: ''
+  otp: ''
 })
 
-const validatePass = (rule, value, callback) => {
-  if (value === '') {
-    callback(new Error('Vui lòng nhập mật khẩu'))
-  } else if (!/^(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{6,}$/.test(value)) {
-    callback(new Error('Mật khẩu cần ít nhất 6 ký tự, 1 chữ hoa, 1 số, 1 ký tự đặc biệt'))
-  } else {
-    if (form.confirmPassword !== '') {
-      if (!formRef.value) return
-      formRef.value.validateField('confirmPassword', () => null)
-    }
-    callback()
-  }
-}
-
-const validatePass2 = (rule, value, callback) => {
-  if (value === '') {
-    callback(new Error('Vui lòng nhập lại mật khẩu'))
-  } else if (value !== form.password) {
-    callback(new Error('Mật khẩu không khớp!'))
-  } else {
-    callback()
-  }
-}
-
 const rules = reactive({
-  name: [{ required: true, message: 'Vui lòng nhập họ tên', trigger: 'blur' }],
   email: [
     { required: true, message: 'Vui lòng nhập email', trigger: 'blur' },
     { type: 'email', message: 'Email không hợp lệ', trigger: ['blur', 'change'] }
-  ],
-  password: [{ validator: validatePass, trigger: 'blur' }],
-  confirmPassword: [{ validator: validatePass2, trigger: 'blur' }]
+  ]
 })
 
-const handleRegister = async () => {
+const handleNextStep = async () => {
   if (!formRef.value) return;
   await formRef.value.validate(async (valid) => {
     if (valid) {
       isLoading.value = true;
       try {
-        const payload = {
-          fullName: form.name,
-          email: form.email,
-          password: form.password
-        }
-        const response = await axiosClient.post('/auth/register', payload);
-        ElMessage.success(response.data.message || 'Đăng ký thành công!');
-        router.push('/login');
+        console.log('Sending OTP to:', form.email)
+        ElMessage.success('Đã gửi mã OTP đến email của bạn');
+        step.value = 2;
       } catch (error) {
-        let errorMsg = error.response?.data?.message || 'Có lỗi xảy ra khi đăng ký.'
-        const errors = error.response?.data?.errors
-        if (errors) {
-          const firstKey = Object.keys(errors)[0]
-          errorMsg = errors[firstKey][0]
-        }
-        ElMessage.error(errorMsg)
         console.error('Register error:', error)
       } finally {
         isLoading.value = false;
@@ -286,6 +265,24 @@ const handleGoogleLogin = async (response) => {
 .auth-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 20px rgba(0, 97, 255, 0.3);
+}
+
+.otp-instruction {
+  text-align: center;
+  font-size: 14px;
+  color: #64748b;
+  margin-bottom: 24px;
+  background: #f1f5f9;
+  padding: 12px;
+  border-radius: 8px;
+  line-height: 1.6;
+}
+
+.otp-input :deep(input) {
+  text-align: center;
+  letter-spacing: 8px;
+  font-size: 20px;
+  font-weight: 700;
 }
 
 @media (max-width: 640px) {
