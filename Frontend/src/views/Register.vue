@@ -15,9 +15,9 @@
 
     <div class="auth-container">
       <div class="auth-card">
-        <h1 class="auth-title">{{ step === 1 ? 'Tạo tài khoản mới' : 'Xác thực Email' }}</h1>
+        <h1 class="auth-title">{{ step === 1 ? 'Tạo Tài Khoản' : 'Xác thực Email' }}</h1>
         <p class="auth-subtitle">
-          {{ step === 1 ? 'Bắt đầu hành trình quản lý công việc hiệu quả cùng SprintA.' : 'Nhập mã xác thực đã được gửi đến email của bạn.' }}
+          {{ step === 1 ? 'Bắt đầu quản lý dự án và công việc của bạn với SprintA.' : 'Nhập mã xác thực đã được gửi đến email của bạn.' }}
         </p>
 
         <!-- Step 1: Registration Information -->
@@ -25,14 +25,31 @@
           v-if="step === 1" 
           ref="formRef"
           :model="form"
+          :rules="rules"
           class="auth-form" 
           label-position="top"
+          @submit.prevent="handleNextStep"
         >
-          <el-form-item label="Địa chỉ Email">
-            <el-input v-model="form.email" placeholder="name@email.com" size="large" />
+          <div class="social-login">
+            <GoogleLogin :callback="handleGoogleLogin" class="social-btn-wrapper">
+              <el-button plain class="social-btn">
+                <img :src="googleIcon" alt="Google" class="social-icon" /> Google
+              </el-button>
+            </GoogleLogin>
+            <el-button plain class="social-btn">
+              <img :src="githubIcon" alt="GitHub" class="social-icon" /> GitHub
+            </el-button>
+          </div>
+          
+          <div class="divider">
+            <span>hoặc</span>
+          </div>
+
+          <el-form-item label="Địa chỉ Email" prop="email">
+            <el-input v-model="form.email" placeholder="name@company.com" size="large" />
           </el-form-item>
           
-          <el-button type="primary" class="auth-btn" size="large" @click="handleNextStep">
+          <el-button type="primary" class="auth-btn" size="large" :loading="isLoading" @click="handleNextStep">
             Gửi mã OTP
           </el-button>
           
@@ -50,7 +67,7 @@
             <el-input v-model="form.otp" placeholder="123456" size="large" maxlength="6" class="otp-input" />
           </el-form-item>
           
-          <el-button type="primary" native-type="submit" class="auth-btn" size="large">
+          <el-button type="primary" native-type="submit" class="auth-btn" size="large" :loading="isLoading">
             Tạo Tài Khoản
           </el-button>
           
@@ -69,48 +86,71 @@
 
 <script setup>
 import { ref, reactive } from 'vue'
-import logoImg from '../assets/logo_QLCV.png'
+import { useRouter } from 'vue-router'
+import axiosClient from '../api/axiosClient'
+import googleIcon from '../assets/Icongoogle.png'
+import githubIcon from '../assets/Icongithub.png'
 import { ElMessage } from 'element-plus'
+import logoImg from '../assets/logo_QLCV.png'
 
-const step = ref(1)
+const router = useRouter()
+const isLoading = ref(false)
 const formRef = ref(null)
+const step = ref(1)
 
 const form = reactive({
   email: '',
   otp: ''
 })
 
-const handleNextStep = () => {
-  if (!form.email) {
-    ElMessage.warning('Vui lòng nhập địa chỉ email')
-    return
-  }
-  
-  // Kiểm tra định dạng email cơ bản
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  if (!emailRegex.test(form.email)) {
-    ElMessage.error('Định dạng email không hợp lệ')
-    return
-  }
+const rules = reactive({
+  email: [
+    { required: true, message: 'Vui lòng nhập email', trigger: 'blur' },
+    { type: 'email', message: 'Email không hợp lệ', trigger: ['blur', 'change'] }
+  ]
+})
 
-  console.log('Sending OTP to:', form.email)
-  // Thực tế sẽ gọi API gửi OTP ở đây
-  step.value = 2
+const handleNextStep = async () => {
+  if (!formRef.value) return;
+  await formRef.value.validate(async (valid) => {
+    if (valid) {
+      isLoading.value = true;
+      try {
+        console.log('Sending OTP to:', form.email)
+        ElMessage.success('Đã gửi mã OTP đến email của bạn');
+        step.value = 2;
+      } catch (error) {
+        console.error('Register error:', error)
+      } finally {
+        isLoading.value = false;
+      }
+    }
+  });
 }
 
-const handleRegister = () => {
-  if (!form.otp || form.otp.length < 6) {
-    ElMessage.warning('Vui lòng nhập mã OTP hợp lệ')
-    return
+const handleGoogleLogin = async (response) => {
+  isLoading.value = true
+  try {
+    const res = await axiosClient.post('/auth/google-login', {
+      credential: response.credential
+    })
+    
+    const { accessToken, fullName, email, systemRoles, id } = res.data.data
+    
+    localStorage.setItem('accessToken', accessToken)
+    localStorage.setItem('user', JSON.stringify({ id, fullName, email, systemRoles }))
+    
+    ElMessage.success('Đăng ký bằng Google thành công!')
+    
+    const redirect = router.currentRoute.value.query.redirect
+    router.push(redirect || '/dashboard')
+  } catch (error) {
+    console.error('Google register error:', error)
+    const errorMsg = error.response?.data?.message || 'Không thể xác thực với Google'
+    ElMessage.error(errorMsg)
+  } finally {
+    isLoading.value = false
   }
-
-  console.log('Registering user:', {
-    email: form.email,
-    otp: form.otp
-  })
-  
-  ElMessage.success('Đăng ký tài khoản thành công!')
-  // Chuyển hướng sau khi đăng ký
 }
 </script>
 
@@ -261,8 +301,29 @@ const handleRegister = () => {
   }
 }
 
-.social-btn.full-width {
+.social-login {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+@media (max-width: 640px) {
+  .social-login {
+    flex-direction: column;
+  }
+}
+
+:deep(.social-btn-wrapper) {
+  flex: 1;
+  display: flex;
+}
+
+:deep(.social-btn-wrapper > *) {
   width: 100%;
+}
+
+.social-btn {
+  flex: 1;
   height: 44px;
   border-radius: 10px;
   font-weight: 500;

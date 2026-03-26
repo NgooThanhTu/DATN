@@ -43,16 +43,28 @@
             <el-checkbox v-model="form.remember">Ghi nhớ đăng nhập</el-checkbox>
           </div>
           
-          <el-button type="primary" native-type="submit" class="auth-btn" size="large">Đăng nhập</el-button>
+          <el-button 
+            type="primary" 
+            native-type="submit" 
+            class="auth-btn" 
+            size="large"
+            :loading="isLoading"
+          >
+            Đăng nhập
+          </el-button>
+
+
           
           <div class="divider">
             <span>HOẶC TIẾP TỤC VỚI</span>
           </div>
           
           <div class="social-login">
-            <el-button plain class="social-btn">
-              <img :src="googleIcon" alt="Google" class="social-icon" /> Google
-            </el-button>
+            <GoogleLogin :callback="handleGoogleLogin" class="social-btn-wrapper">
+              <el-button plain class="social-btn">
+                <img :src="googleIcon" alt="Google" class="social-icon" /> Google
+              </el-button>
+            </GoogleLogin>
             <el-button plain class="social-btn">
               <img :src="githubIcon" alt="GitHub" class="social-icon" /> GitHub
             </el-button>
@@ -72,12 +84,13 @@
 </template>
 
 <script setup>
-import { reactive } from 'vue'
+import { reactive, ref } from 'vue'
 import logoImg from '../assets/logo_QLCV.png'
 import googleIcon from '../assets/Icongoogle.png'
 import githubIcon from '../assets/Icongithub.png'
-
 import { useRouter } from 'vue-router'
+import axiosClient from '../api/axiosClient'
+import { ElMessage } from 'element-plus'
 
 const form = reactive({
   email: '',
@@ -87,9 +100,71 @@ const form = reactive({
 
 const router = useRouter()
 
-const handleLogin = () => {
-  console.log('Login attempt:', form)
-  router.push('/dashboard')
+const isLoading = ref(false)
+
+
+
+const handleLogin = async () => {
+  if (!form.email || !form.password) {
+    ElMessage.warning('Vui lòng nhập đầy đủ email và mật khẩu')
+    return
+  }
+
+  isLoading.value = true
+  try {
+    const response = await axiosClient.post('/auth/login', {
+      email: form.email,
+      password: form.password
+    })
+
+    const { accessToken, fullName, email, systemRoles, id } = response.data.data
+    
+    // Store in localStorage
+    localStorage.setItem('accessToken', accessToken)
+    localStorage.setItem('user', JSON.stringify({ id, fullName, email, systemRoles }))
+    
+    ElMessage.success('Đăng nhập thành công!')
+    
+    // Check if there's a redirect query param
+    const redirect = router.currentRoute.value.query.redirect
+    router.push(redirect || '/dashboard')
+  } catch (error) {
+    console.error('Login error:', error)
+    let errorMsg = error.response?.data?.message || 'Email hoặc mật khẩu không chính xác'
+    const errors = error.response?.data?.errors
+    if (errors) {
+      const firstKey = Object.keys(errors)[0]
+      errorMsg = errors[firstKey][0]
+    }
+    ElMessage.error(errorMsg)
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const handleGoogleLogin = async (response) => {
+  isLoading.value = true
+  try {
+    const res = await axiosClient.post('/auth/google-login', {
+      credential: response.credential
+    })
+    
+    const { accessToken, fullName, email, systemRoles, id } = res.data.data
+    
+    localStorage.setItem('accessToken', accessToken)
+    localStorage.setItem('user', JSON.stringify({ id, fullName, email, systemRoles }))
+    
+    ElMessage.success('Đăng nhập bằng Google thành công!')
+    
+    const redirect = router.currentRoute.value.query.redirect
+    router.push(redirect || '/dashboard')
+  } catch (error) {
+    console.error('Google login error:', error)
+    const errorMsg = error.response?.data?.message || 'Không thể đăng nhập bằng Google'
+    ElMessage.error(errorMsg)
+  } finally {
+    isLoading.value = false
+  }
 }
 </script>
 
@@ -225,6 +300,22 @@ const handleLogin = () => {
   box-shadow: 0 8px 20px rgba(0, 97, 255, 0.3);
 }
 
+.demo-btn {
+  width: 100%;
+  margin-top: 12px;
+  height: 48px;
+  border-radius: 12px;
+  font-weight: 600;
+  border: 1px dashed #cbd5e1;
+  color: #475569;
+}
+
+.demo-btn:hover {
+  background-color: #f1f5f9;
+  border-color: #94a3b8;
+  color: #1e293b;
+}
+
 .divider {
   display: flex;
   align-items: center;
@@ -252,6 +343,15 @@ const handleLogin = () => {
   display: flex;
   gap: 16px;
   margin-bottom: 32px;
+}
+
+:deep(.social-btn-wrapper) {
+  flex: 1;
+  display: flex;
+}
+
+:deep(.social-btn-wrapper > *) {
+  width: 100%;
 }
 
 @media (max-width: 640px) {
