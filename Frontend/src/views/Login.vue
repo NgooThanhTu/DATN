@@ -52,28 +52,28 @@
           >
             Đăng nhập
           </el-button>
-
-
-          
-          <div class="divider">
-            <span>HOẶC TIẾP TỤC VỚI</span>
-          </div>
-          
-          <div class="social-login">
-            <GoogleLogin :callback="handleGoogleLogin" class="social-btn-wrapper">
-              <el-button plain class="social-btn">
-                <img :src="googleIcon" alt="Google" class="social-icon" /> Google
-              </el-button>
-            </GoogleLogin>
-            <el-button plain class="social-btn">
-              <img :src="githubIcon" alt="GitHub" class="social-icon" /> GitHub
-            </el-button>
-          </div>
-          
-          <p class="auth-footer-text">
-            Chưa có tài khoản? <router-link to="/register">Đăng ký</router-link>
-          </p>
         </el-form>
+
+        <div class="divider">
+          <span>HOẶC TIẾP TỤC VỚI</span>
+        </div>
+        
+        <div class="social-login">
+          <!-- Sử dụng slot custom để thiết kế nút Google GIỐNG HỆT nút GitHub -->
+          <GoogleLogin :callback="handleGoogleLogin" class="social-btn-wrapper">
+            <el-button native-type="button" class="social-btn google-btn">
+              <img :src="googleIcon" alt="Google" class="social-icon" /> Google
+            </el-button>
+          </GoogleLogin>
+          
+          <el-button native-type="button" class="social-btn github-btn" @click="handleGitHubLogin">
+            <img :src="githubIcon" alt="GitHub" class="social-icon" /> GitHub
+          </el-button>
+        </div>
+        
+        <p class="auth-footer-text">
+          Chưa có tài khoản? <router-link to="/register">Đăng ký</router-link>
+        </p>
       </div>
     </div>
     
@@ -143,10 +143,13 @@ const handleLogin = async () => {
 }
 
 const handleGoogleLogin = async (response) => {
+  console.log('Google Response:', response) // Debug log 
   isLoading.value = true
   try {
+    // Đảm bảo truyền đúng key credential (in hoa thường để backend nhận được)
     const res = await axiosClient.post('/auth/google-login', {
-      credential: response.credential
+      Credential: response.credential || response.access_token,
+      credential: response.credential || response.access_token
     })
     
     const { accessToken, fullName, email, systemRoles, id } = res.data.data
@@ -165,6 +168,14 @@ const handleGoogleLogin = async (response) => {
   } finally {
     isLoading.value = false
   }
+}
+
+const handleGitHubLogin = () => {
+  const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID || 'Ov23liYQdySKrDme697t'
+  const redirectUri = window.location.origin + '/auth/github/callback'
+  const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=user:email`
+  
+  window.location.href = githubAuthUrl
 }
 </script>
 
@@ -367,14 +378,37 @@ const handleGoogleLogin = async (response) => {
 
 .social-btn {
   flex: 1;
-  height: 44px;
+  height: 48px;
   border-radius: 10px;
   font-weight: 500;
+  font-size: 15px;
   color: #334155;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 10px;
+}
+
+.google-btn {
+  background-color: #ffffff;
+  border: 1px solid #60a5fa; /* Viền xanh dương nhạt như ảnh */
+}
+
+.google-btn:hover {
+  background-color: #eff6ff;
+  border-color: #3b82f6;
+  color: #1e3a8a;
+}
+
+.github-btn {
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1; /* Viền xám nhạt như ảnh */
+}
+
+.github-btn:hover {
+  background-color: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
 }
 
 .social-icon {

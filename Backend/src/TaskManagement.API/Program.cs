@@ -74,8 +74,9 @@ using (var scope = app.Services.CreateScope())
     var context = services.GetRequiredService<ApplicationDbContext>();
     try 
     {
-        await context.Database.EnsureDeletedAsync();
-        await context.Database.EnsureCreatedAsync();
+        // QUAN TRỌNG: Không xóa DB mỗi lần khởi động
+        // await context.Database.EnsureDeletedAsync();
+        // await context.Database.EnsureCreatedAsync();
         // await context.Database.MigrateAsync();
         // await DatabaseSeeder.SeedAsync(context); removed
     }

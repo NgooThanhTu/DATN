@@ -6,6 +6,7 @@ namespace TaskManagement.Application.Interfaces
     {
         Task<(AuthResponseDto response, string refreshToken)> LoginAsync(LoginRequestDto request);
         Task<(AuthResponseDto response, string refreshToken)> GoogleLoginAsync(GoogleLoginRequestDto request);
+        Task<(AuthResponseDto response, string refreshToken)> GitHubLoginAsync(GitHubLoginRequestDto request);
         Task RegisterAsync(RegisterRequestDto request);
         Task<(string newAccessToken, string newRefreshToken)> RefreshTokenAsync(string accessToken, string refreshToken);
         Task RevokeTokenAsync(Guid userId);
