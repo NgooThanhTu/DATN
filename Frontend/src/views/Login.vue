@@ -60,7 +60,7 @@
         
         <div class="social-login">
           <!-- Sử dụng slot custom để thiết kế nút Google GIỐNG HỆT nút GitHub -->
-          <GoogleLogin :callback="handleGoogleLogin" class="social-btn-wrapper">
+          <GoogleLogin :callback="handleGoogleLogin" popup-type="TOKEN" class="social-btn-wrapper">
             <el-button native-type="button" class="social-btn google-btn">
               <img :src="googleIcon" alt="Google" class="social-icon" /> Google
             </el-button>
@@ -146,10 +146,14 @@ const handleGoogleLogin = async (response) => {
   console.log('Google Response:', response) // Debug log 
   isLoading.value = true
   try {
-    // Đảm bảo truyền đúng key credential (in hoa thường để backend nhận được)
+    const token = response.access_token || response.credential
+    if (!token) {
+      ElMessage.error('Không nhận được token từ Google. Vui lòng thử lại.')
+      isLoading.value = false
+      return
+    }
     const res = await axiosClient.post('/auth/google-login', {
-      Credential: response.credential || response.access_token,
-      credential: response.credential || response.access_token
+      Credential: token
     })
     
     const { accessToken, fullName, email, systemRoles, id } = res.data.data
