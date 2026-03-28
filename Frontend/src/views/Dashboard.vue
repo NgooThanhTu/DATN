@@ -42,11 +42,52 @@
       <aside class="sidebar" :class="{ 'mobile-show': sidebarVisible }">
 
         <ul class="side-menu">
+          <!-- Dynamic Main Sidebar Items -->
           <li class="active"><i class="fa-solid fa-border-all"></i> Dành cho bạn</li>
-          <li @click="goToDefaultSpace"><i class="fa-regular fa-folder-open"></i> Không gian</li>
-          <li><i class="fa-regular fa-clock"></i> Gần đây</li>
-          <li class="ai-item" @click="goToAI"><i class="fa-solid fa-robot"></i> Trợ lý AI</li>
-          <li><i class="fa-solid fa-ellipsis"></i> Thêm</li>
+          <li v-if="sidebarPreferences.spaces" @click="goToDefaultSpace"><i class="fa-regular fa-folder-open"></i> Không gian</li>
+          <li v-if="sidebarPreferences.recent"><i class="fa-regular fa-clock"></i> Gần đây</li>
+          <li v-if="sidebarPreferences.ai" class="ai-item" @click="goToAI"><i class="fa-solid fa-robot"></i> Trợ lý AI</li>
+          
+          <!-- More Dropdown -->
+          <li class="more-dropdown-wrapper" style="padding: 0; background: transparent !important; margin-bottom: 4px;">
+            <el-dropdown trigger="click" placement="bottom-start" popper-class="custom-sidebar-dropdown" style="width: 100%;">
+              <div class="sidebar-more-trigger">
+                <i class="fa-solid fa-ellipsis"></i> Thêm
+              </div>
+              <template #dropdown>
+                <el-dropdown-menu class="jira-more-menu" style="background-color: #282e33; border: 1px solid #333c43; border-radius: 4px; padding: 4px 0; width: 200px;">
+                  <!-- Unselected items mapped to Dropdown -->
+                  <el-dropdown-item v-if="!sidebarPreferences.spaces">
+                    <div @click="goToDefaultSpace" style="display: flex; align-items: center; gap: 12px; color: #b3bac5; font-size: 14px; padding: 4px 8px; width: 100%;">
+                      <i class="fa-regular fa-folder-open"></i>
+                      <span>Không gian</span>
+                    </div>
+                  </el-dropdown-item>
+                  <el-dropdown-item v-if="!sidebarPreferences.recent">
+                    <div style="display: flex; align-items: center; gap: 12px; color: #b3bac5; font-size: 14px; padding: 4px 8px; width: 100%;">
+                      <i class="fa-regular fa-clock"></i>
+                      <span>Gần đây</span>
+                    </div>
+                  </el-dropdown-item>
+                  <el-dropdown-item v-if="!sidebarPreferences.ai">
+                    <div @click="goToAI" style="display: flex; align-items: center; gap: 12px; color: #b3bac5; font-size: 14px; padding: 4px 8px; width: 100%;">
+                      <i class="fa-solid fa-robot"></i>
+                      <span>Trợ lý AI</span>
+                    </div>
+                  </el-dropdown-item>
+
+                  <el-dropdown-item v-if="!sidebarPreferences.spaces || !sidebarPreferences.recent || !sidebarPreferences.ai" divided></el-dropdown-item>
+
+                  <el-dropdown-item>
+                    <div @click="showCustomizeModal = true" style="display: flex; align-items: center; gap: 12px; color: #b3bac5; font-size: 14px; padding: 4px 8px; width: 100%;">
+                      <i class="fa-solid fa-sliders"></i>
+                      <span>Customize sidebar</span>
+                    </div>
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </li>
         </ul>
       </aside>
 
@@ -166,6 +207,9 @@
           </div>
         </aside>
       </transition>
+      
+      <!-- Customize Sidebar Modal -->
+      <CustomizeSidebarModal :visible="showCustomizeModal" @update:visible="showCustomizeModal = $event" @saved="handleSidebarSaved" />
     </div>
   </div>
 </template>
@@ -179,15 +223,46 @@ import HelpDropdown from '../components/HelpDropdown.vue'
 import SettingsDropdown from '../components/SettingsDropdown.vue'
 import NotificationsDropdown from '../components/NotificationsDropdown.vue'
 import UserDropdown from '../components/UserDropdown.vue'
+import CustomizeSidebarModal from '../components/CustomizeSidebarModal.vue'
 import axiosClient from '../api/axiosClient'
 import { ElMessage } from 'element-plus'
 
 const router = useRouter()
-
+const currentUser = JSON.parse(localStorage.getItem('user') || '{}')
 const sidebarVisible = ref(false)
 const aiVisible = ref(false)
 const searchQuery = ref('')
 const isLoading = ref(false)
+const showCustomizeModal = ref(false)
+
+const sidebarPreferences = ref({
+  recent: true,
+  spaces: true,
+  ai: true
+})
+
+onMounted(() => {
+  const saved = localStorage.getItem('sidebarPreferences')
+  if (saved) {
+    try {
+      Object.assign(sidebarPreferences.value, JSON.parse(saved))
+    } catch (e) {}
+  }
+  fetchSpaces()
+})
+
+const handleSidebarSaved = (prefs) => {
+  const newPrefs = { ...sidebarPreferences.value }
+  if (prefs && prefs.navItems) {
+    prefs.navItems.forEach(item => {
+      if (['recent', 'spaces', 'ai'].includes(item.id)) {
+        newPrefs[item.id] = item.checked
+      }
+    })
+  }
+  sidebarPreferences.value = newPrefs
+  localStorage.setItem('sidebarPreferences', JSON.stringify(newPrefs))
+}
 
 const toggleSidebar = () => {
   sidebarVisible.value = !sidebarVisible.value
@@ -470,6 +545,32 @@ onMounted(fetchSpaces)
 
 .side-menu li.active {
   background-color: #1e293b;
+  color: white;
+}
+
+.sidebar-more-trigger {
+  padding: 10px 12px;
+  border-radius: 6px;
+  color: #cbd5e1;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: all 0.2s;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.sidebar-more-trigger i {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+}
+
+.sidebar-more-trigger:hover {
+  background-color: #0f172a;
   color: white;
 }
 
@@ -945,5 +1046,24 @@ onMounted(fetchSpaces)
 .help-footer a:hover {
   color: white;
   text-decoration: underline;
+}
+</style>
+
+<style>
+.custom-sidebar-dropdown.el-popper {
+  background: #282e33 !important;
+  border: 1px solid #333c43 !important;
+  border-radius: 4px !important;
+}
+.custom-sidebar-dropdown .el-dropdown-menu__item {
+  background-color: transparent !important;
+}
+.custom-sidebar-dropdown .el-dropdown-menu__item:hover,
+.custom-sidebar-dropdown .el-dropdown-menu__item:focus {
+  background-color: #3b444b !important;
+}
+.custom-sidebar-dropdown .el-popper__arrow::before {
+  background: #282e33 !important;
+  border: 1px solid #333c43 !important;
 }
 </style>

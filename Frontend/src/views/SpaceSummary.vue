@@ -228,10 +228,47 @@
       <aside class="sidebar" :class="{ 'show': sidebarVisible }">
         <ul class="side-menu">
           <li @click="goToDashboard"><i class="fa-solid fa-border-all"></i> Dành cho bạn</li>
-          <li class="active"><i class="fa-regular fa-folder-open"></i> Không gian</li>
-          <li @click="goToDashboard"><i class="fa-regular fa-clock"></i> Gần đây</li>
-          <li class="ai-item" @click="goToAI"><i class="fa-solid fa-robot"></i> Trợ lý AI</li>
-          <li><i class="fa-solid fa-ellipsis"></i> Thêm</li>
+          <li v-if="sidebarPreferences.spaces" class="active"><i class="fa-regular fa-folder-open"></i> Không gian</li>
+          <li v-if="sidebarPreferences.recent" @click="goToDashboard"><i class="fa-regular fa-clock"></i> Gần đây</li>
+          <li v-if="sidebarPreferences.ai" class="ai-item" @click="goToAI"><i class="fa-solid fa-robot"></i> Trợ lý AI</li>
+          <li class="more-dropdown-wrapper" style="padding: 0; background: transparent !important; margin-bottom: 4px;">
+            <el-dropdown trigger="click" placement="bottom-start" popper-class="custom-sidebar-dropdown" style="width: 100%;">
+              <div class="sidebar-more-trigger">
+                <i class="fa-solid fa-ellipsis"></i> Thêm
+              </div>
+              <template #dropdown>
+                <el-dropdown-menu class="jira-more-menu" style="background-color: #282e33; border: 1px solid #333c43; border-radius: 4px; padding: 4px 0; width: 200px;">
+                  <el-dropdown-item v-if="!sidebarPreferences.spaces">
+                    <div style="display: flex; align-items: center; gap: 12px; color: #b3bac5; font-size: 14px; padding: 4px 8px; width: 100%;">
+                      <i class="fa-regular fa-folder-open"></i>
+                      <span>Không gian</span>
+                    </div>
+                  </el-dropdown-item>
+                  <el-dropdown-item v-if="!sidebarPreferences.recent">
+                    <div @click="goToDashboard" style="display: flex; align-items: center; gap: 12px; color: #b3bac5; font-size: 14px; padding: 4px 8px; width: 100%;">
+                      <i class="fa-regular fa-clock"></i>
+                      <span>Gần đây</span>
+                    </div>
+                  </el-dropdown-item>
+                  <el-dropdown-item v-if="!sidebarPreferences.ai">
+                    <div @click="goToAI" style="display: flex; align-items: center; gap: 12px; color: #b3bac5; font-size: 14px; padding: 4px 8px; width: 100%;">
+                      <i class="fa-solid fa-robot"></i>
+                      <span>Trợ lý AI</span>
+                    </div>
+                  </el-dropdown-item>
+
+                  <el-dropdown-item v-if="!sidebarPreferences.spaces || !sidebarPreferences.recent || !sidebarPreferences.ai" divided></el-dropdown-item>
+
+                  <el-dropdown-item>
+                    <div @click="showCustomizeModal = true" style="display: flex; align-items: center; gap: 12px; color: #b3bac5; font-size: 14px; padding: 4px 8px; width: 100%;">
+                      <i class="fa-solid fa-sliders"></i>
+                      <span>Customize sidebar</span>
+                    </div>
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </li>
         </ul>
       </aside>
 
@@ -1210,6 +1247,9 @@
         </template>
       </el-dialog>
     </div>
+    
+    <!-- Customize Sidebar Modal -->
+    <CustomizeSidebarModal :visible="showCustomizeModal" @update:visible="showCustomizeModal = $event" @saved="handleSidebarSaved" />
   </div>
 </template>
 
@@ -1221,12 +1261,13 @@ import logoImg from '../assets/logo_QLCV.png'
 import HelpDropdown from '../components/HelpDropdown.vue'
 import SettingsDropdown from '../components/SettingsDropdown.vue'
 import NotificationsDropdown from '../components/NotificationsDropdown.vue'
-import UserDropdown from '../components/UserDropdown.vue';
+import UserDropdown from '../components/UserDropdown.vue'
+import CustomizeSidebarModal from '../components/CustomizeSidebarModal.vue'
+import axiosClient from '../api/axiosClient'
 import draggable from 'vuedraggable'
 import * as echarts from 'echarts'
-import axiosClient from '@/api/axiosClient'
 import { signalRService } from '@/api/signalrService'
-import { ElNotification, ElMessageBox } from 'element-plus'
+import { ElNotification, ElMessageBox, ElMessage } from 'element-plus'
 
 const route = useRoute()
 const projectId = computed(() => route.params.id)
@@ -1234,6 +1275,7 @@ const projectId = computed(() => route.params.id)
 const searchQuery = ref('')
 const aiVisible = ref(false)
 const showTeamsDialog = ref(false)
+const sidebarVisible = ref(true)
 
 const toggleAI = () => {
   aiVisible.value = !aiVisible.value
@@ -1264,6 +1306,12 @@ const activeFilters = ref({
 const sortBy = ref(null) 
 const showCompleted = ref(true)
 const groupBy = ref('status') // 'status', 'priority'
+
+const sidebarPreferences = ref({
+  recent: true,
+  spaces: true,
+  ai: true
+})
 
 const filteredTasks = computed(() => {
   let result = [...tasks.value]
@@ -1303,6 +1351,7 @@ const filteredTasks = computed(() => {
 // Tasks state
 const tasks = ref([])
 const comments = ref([])
+const showCustomizeModal = ref(false)
 
 const taskGroups = computed(() => {
   const allTasks = filteredTasks.value
@@ -1346,7 +1395,6 @@ const taskGroups = computed(() => {
       }
     ]
   } else {
-    // ... (Keep existing priority grouping but use allTasks)
     const priorities = [
       { val: 1, text: 'URGENT', bg: '#ef4444' },
       { val: 2, text: 'HIGH', bg: '#f97316' },
@@ -1476,11 +1524,6 @@ const goToAI = () => {
   router.push('/ai-assistant')
 }
 
-const sidebarVisible = ref(false)
-
-
-// Fetch tasks
-
 // Fetch tasks
 const fetchTasks = async () => {
   try {
@@ -1590,13 +1633,18 @@ const handleCommentAdded = (taskId, comment) => {
 
 const handleFileUploaded = (taskId, attachment) => {
   if (selectedTask.value && selectedTask.value.id === taskId) {
-    // If we have an attachments list, push it there. 
-    // For now, just notifying or refreshing might be enough if the UI doesn't have a list ref.
     ElNotification({ title: 'Tệp mới', message: `Đã tải lên: ${attachment.fileName}`, type: 'info' })
   }
 }
 
 onMounted(async () => {
+  const saved = localStorage.getItem('sidebarPreferences')
+  if (saved) {
+    try {
+      Object.assign(sidebarPreferences.value, JSON.parse(saved))
+    } catch (e) {}
+  }
+
   await fetchTasks()
   if (projectId.value) {
     await signalRService.startConnection(projectId.value)
@@ -1620,8 +1668,6 @@ const moveTask = async (taskId, newStatusId, rowVersion, statusName) => {
       statusName: statusName,
       rowVersion: rowVersion
     })
-    // The SignalR hub will broadcast TaskMoved, but we can also fetchTasks() to be safe
-    // fetchTasks() is called inside handleTaskMoved via SignalR
   } catch (error) {
     if (error.response?.status === 409) {
       ElNotification({ title: 'Conflict', message: 'Task was moved by someone else. Refreshing...', type: 'warning' })
@@ -4393,5 +4439,49 @@ const formatDate = (dateStr) => {
   font-size: 10px;
   font-weight: bold;
 }
+
+.sidebar-more-trigger {
+  padding: 10px 12px;
+  border-radius: 6px;
+  color: #cbd5e1;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: all 0.2s;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.sidebar-more-trigger i {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+}
+
+.sidebar-more-trigger:hover {
+  background-color: #1e293b;
+  color: white;
+}
 </style>
 
+<style>
+.custom-sidebar-dropdown.el-popper {
+  background: #282e33 !important;
+  border: 1px solid #333c43 !important;
+  border-radius: 4px !important;
+}
+.custom-sidebar-dropdown .el-dropdown-menu__item {
+  background-color: transparent !important;
+}
+.custom-sidebar-dropdown .el-dropdown-menu__item:hover,
+.custom-sidebar-dropdown .el-dropdown-menu__item:focus {
+  background-color: #3b444b !important;
+}
+.custom-sidebar-dropdown .el-popper__arrow::before {
+  background: #282e33 !important;
+  border: 1px solid #333c43 !important;
+}
+</style>
