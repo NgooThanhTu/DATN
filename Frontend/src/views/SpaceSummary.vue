@@ -228,8 +228,8 @@
       <aside class="sidebar" :class="{ 'show': sidebarVisible }">
         <ul class="side-menu">
           <li @click="goToDashboard"><i class="fa-solid fa-border-all"></i> Dành cho bạn</li>
-          <li v-if="sidebarPreferences.spaces" class="active"><i class="fa-regular fa-folder-open"></i> Không gian</li>
-          <li v-if="sidebarPreferences.recent" @click="goToDashboard"><i class="fa-regular fa-clock"></i> Gần đây</li>
+          <li v-if="sidebarPreferences.spaces" class="active"><i class="fa-solid fa-folder-open"></i> Không gian</li>
+          <li v-if="sidebarPreferences.recent" @click="goToDashboard"><i class="fa-solid fa-clock"></i> Gần đây</li>
           <li v-if="sidebarPreferences.ai" class="ai-item" @click="goToAI"><i class="fa-solid fa-robot"></i> Trợ lý AI</li>
           <li class="more-dropdown-wrapper" style="padding: 0; background: transparent !important; margin-bottom: 4px;">
             <el-dropdown trigger="click" placement="bottom-start" popper-class="custom-sidebar-dropdown" style="width: 100%;">
@@ -237,16 +237,16 @@
                 <i class="fa-solid fa-ellipsis"></i> Thêm
               </div>
               <template #dropdown>
-                <el-dropdown-menu class="jira-more-menu" style="background-color: #282e33; border: 1px solid #333c43; border-radius: 4px; padding: 4px 0; width: 200px;">
+                <el-dropdown-menu class="jira-more-menu" style="background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: 4px; padding: 4px 0; width: 200px;">
                   <el-dropdown-item v-if="!sidebarPreferences.spaces">
-                    <div style="display: flex; align-items: center; gap: 12px; color: #b3bac5; font-size: 14px; padding: 4px 8px; width: 100%;">
-                      <i class="fa-regular fa-folder-open"></i>
+                    <div style="display: flex; align-items: center; gap: 12px; color: var(--text-secondary); font-size: 14px; padding: 4px 8px; width: 100%;">
+                      <i class="fa-solid fa-folder-open"></i>
                       <span>Không gian</span>
                     </div>
                   </el-dropdown-item>
                   <el-dropdown-item v-if="!sidebarPreferences.recent">
-                    <div @click="goToDashboard" style="display: flex; align-items: center; gap: 12px; color: #b3bac5; font-size: 14px; padding: 4px 8px; width: 100%;">
-                      <i class="fa-regular fa-clock"></i>
+                    <div @click="goToDashboard" style="display: flex; align-items: center; gap: 12px; color: var(--text-secondary); font-size: 14px; padding: 4px 8px; width: 100%;">
+                      <i class="fa-solid fa-clock"></i>
                       <span>Gần đây</span>
                     </div>
                   </el-dropdown-item>
@@ -1863,15 +1863,15 @@ const formatDate = (dateStr) => {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background-color: #0c101a; 
-  color: #f1f5f9; 
+  background-color: var(--bg-layout); 
+  color: var(--text-primary); 
   overflow: hidden;
 }
 
 .top-nav {
   height: 56px;
-  background-color: #0c101a; 
-  border-bottom: 1px solid #1e293b;
+  background-color: var(--bg-nav); 
+  border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1906,8 +1906,8 @@ const formatDate = (dateStr) => {
 .search-input-mock {
   display: flex;
   align-items: center;
-  background-color: #22272b;
-  border: 1px solid #738496; 
+  background-color: var(--bg-layout);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   padding: 0 12px;
   width: 550px;
@@ -1916,14 +1916,14 @@ const formatDate = (dateStr) => {
 }
 
 .search-input-mock:focus-within {
-  background-color: #2c333a;
-  border-color: #579dff;
+  background-color: var(--hover-bg);
+  border-color: #3b82f6;
 }
 
 .search-input-mock input {
   background: transparent;
   border: none;
-  color: #f4f5f7;
+  color: var(--text-primary);
   font-size: 14px;
   width: 100%;
   outline: none;
@@ -1954,7 +1954,7 @@ const formatDate = (dateStr) => {
 }
 
 .nav-icon {
-  color: #94a3b8;
+  color: var(--text-secondary);
   font-size: 18px;
   cursor: pointer;
   width: 32px;
@@ -1964,8 +1964,8 @@ const formatDate = (dateStr) => {
   justify-content: center;
   border-radius: 50%;
 }
-.nav-icon:hover { background-color: #1e293b; color: white; }
-.nav-icon.active { color: #60a5fa; background-color: #1e293b; }
+.nav-icon:hover { background-color: var(--hover-bg); color: var(--text-primary); }
+.nav-icon.active { color: #3b82f6; background-color: var(--hover-bg); }
 
 .user-avatar {
   background: #fdbba7; 
@@ -1992,8 +1992,8 @@ const formatDate = (dateStr) => {
 
 .sidebar {
   width: 260px;
-  background-color: #0c101a; 
-  border-right: 1px solid #1e293b;
+  background-color: var(--bg-nav); 
+  border-right: 1px solid var(--border-color);
   padding: 24px 16px;
 }
 
@@ -2028,7 +2028,7 @@ const formatDate = (dateStr) => {
 
 .header-breadcrumbs {
   font-size: 13px;
-  color: #8c8c8c;
+  color: var(--text-secondary);
   font-weight: 500;
   text-decoration: underline;
   margin-bottom: 2px;
@@ -2082,7 +2082,7 @@ const formatDate = (dateStr) => {
 
 .page-title {
   font-size: 28px !important;
-  color: #f1f5f9;
+  color: var(--text-primary);
   font-weight: 700 !important;
   margin: 0 !important;
   letter-spacing: -0.5px;
@@ -2092,42 +2092,42 @@ const formatDate = (dateStr) => {
   display: flex;
   align-items: center;
   gap: 20px;
-  color: #8c8c8c;
+  color: var(--text-secondary);
 }
 
 .users-icon-box {
   width: 36px;
   height: 36px;
-  border: 1px solid #334155;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 16px;
-  background: rgba(255, 255, 255, 0.05);
-  color: #cbd5e1;
+  background: var(--bg-card);
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .users-icon-box:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: #475569;
+  background: var(--hover-bg);
+  border-color: var(--text-muted);
 }
 
 .more-icon-box .fa-ellipsis {
   font-size: 20px;
   cursor: pointer;
-  color: #8c8c8c;
+  color: var(--text-secondary);
   transition: color 0.1s;
 }
 
 .more-icon-box:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--hover-bg);
 }
 
 .more-icon-box:hover .fa-ellipsis {
-  color: white;
+  color: var(--text-primary);
 }
 
 /* Force Dropdown to be Dark Mode and Sync with System Colors */
@@ -2263,7 +2263,7 @@ const formatDate = (dateStr) => {
 .space-name {
   font-weight: 700;
   font-size: 16px;
-  color: #f1f5f9;
+  color: var(--text-primary);
 }
 
 .space-item-right {
@@ -2317,7 +2317,7 @@ const formatDate = (dateStr) => {
 ========================================== */
 .content-area {
   flex: 1;
-  background-color: #0f111a; 
+  background-color: var(--bg-content); 
   padding: 32px 40px;
   overflow-y: auto;
 }
@@ -2341,13 +2341,13 @@ const formatDate = (dateStr) => {
 
 .jira-tab {
   padding: 12px 0;
-  color: #94a3b8;
+  color: var(--text-secondary);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   position: relative;
 }
-.jira-tab:hover { color: #e2e8f0; }
+.jira-tab:hover { color: var(--text-primary); }
 .jira-tab.active { color: #579dff; font-weight: 600; }
 .jira-tab.active::after {
   content: ''; position: absolute; bottom: -1px; left: 0; right: 0;
@@ -2375,25 +2375,25 @@ const formatDate = (dateStr) => {
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
 }
 .widget {
-  background-color: #1e2430;
-  border: 1px solid #2d3748;
+  background-color: var(--bg-nav);
+  border: 1px solid var(--border-color);
   border-radius: 8px; padding: 16px;
   display: flex; align-items: center; gap: 16px;
 }
 .widget-icon { font-size: 20px; }
-.widget-number { font-size: 16px; font-weight: 600; color: #f8fafc; margin-bottom: 2px;}
-.widget-sub { font-size: 11px; color: #94a3b8; }
+.widget-number { font-size: 16px; font-weight: 600; color: var(--text-primary); margin-bottom: 2px;}
+.widget-sub { font-size: 11px; color: var(--text-secondary); }
 
 .charts-grid {
   display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
 }
 .chart-card {
-  background-color: #1e2430;
-  border: 1px solid #2d3748;
+  background-color: var(--bg-nav);
+  border: 1px solid var(--border-color);
   border-radius: 8px; padding: 20px;
 }
-.chart-header h4 { margin: 0 0 4px; font-size: 15px; color: #f8fafc; }
-.chart-header p { margin: 0; font-size: 12px; color: #94a3b8; }
+.chart-header h4 { margin: 0 0 4px; font-size: 15px; color: var(--text-primary); }
+.chart-header p { margin: 0; font-size: 12px; color: var(--text-secondary); }
 .chart-header a { color: #579dff; text-decoration: none; }
 
 .empty-card {
@@ -2447,12 +2447,12 @@ const formatDate = (dateStr) => {
 .toolbar-left, .toolbar-right { display: flex; align-items: center; gap: 12px; }
 .toolbar-btn {
   display: flex; align-items: center; gap: 8px;
-  background-color: transparent; border: 1px solid #3f3f46; border-radius: 20px;
-  padding: 6px 12px; color: #d4d4d8; font-size: 13px; cursor: pointer; transition: all 0.2s;
+  background-color: transparent; border: 1px solid var(--border-color); border-radius: 20px;
+  padding: 6px 12px; color: var(--text-secondary); font-size: 13px; cursor: pointer; transition: all 0.2s;
 }
-.toolbar-btn:hover { background-color: #27272a; color: white;}
+.toolbar-btn:hover { background-color: var(--hover-bg); color: var(--text-primary);}
 .toolbar-btn.primary-tint { background-color: #3b0764; border-color: #6b21a8; color: #d8b4fe; }
-.toolbar-icon { color: #a1a1aa; cursor: pointer; padding: 0 8px; font-size: 14px;}
+.toolbar-icon { color: var(--text-secondary); cursor: pointer; padding: 0 8px; font-size: 14px;}
 .avatar-tiny { background:#f8fafc; color:#0c101a; border-radius:50%; width:16px; height:16px; display:inline-flex; align-items:center; justify-content:center; font-size:10px; font-weight:bold; margin-left:4px; }
 .add-task-white-btn {
   background-color: #f8fafc; color: #0f172a; border: none; border-radius: 6px;
@@ -4278,7 +4278,7 @@ const formatDate = (dateStr) => {
 ========================================== */
 .backlog-content {
   padding: 24px;
-  background-color: #0f172a;
+  background-color: var(--bg-content);
   min-height: 100%;
 }
 .backlog-header-jira {
@@ -4287,11 +4287,11 @@ const formatDate = (dateStr) => {
 .backlog-title {
   font-size: 24px;
   font-weight: 600;
-  color: #f1f5f9;
+  color: var(--text-primary);
   margin-bottom: 4px;
 }
 .muted-text {
-  color: #94a3b8;
+  color: var(--text-secondary);
   font-size: 14px;
 }
 .backlog-list-container {
@@ -4341,13 +4341,13 @@ const formatDate = (dateStr) => {
   gap: 12px;
 }
 .bi-key {
-  color: #94a3b8;
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 600;
   min-width: 70px;
 }
 .bi-title {
-  color: #f1f5f9;
+  color: var(--text-primary);
   font-size: 14px;
 }
 .bi-right {
@@ -4462,8 +4462,8 @@ const formatDate = (dateStr) => {
 }
 
 .sidebar-more-trigger:hover {
-  background-color: #1e293b;
-  color: white;
+  background-color: var(--hover-bg);
+  color: var(--text-primary);
 }
 </style>
 

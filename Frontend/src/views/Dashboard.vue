@@ -44,8 +44,8 @@
         <ul class="side-menu">
           <!-- Dynamic Main Sidebar Items -->
           <li class="active"><i class="fa-solid fa-border-all"></i> Dành cho bạn</li>
-          <li v-if="sidebarPreferences.spaces" @click="goToDefaultSpace"><i class="fa-regular fa-folder-open"></i> Không gian</li>
-          <li v-if="sidebarPreferences.recent"><i class="fa-regular fa-clock"></i> Gần đây</li>
+          <li v-if="sidebarPreferences.spaces" @click="goToDefaultSpace"><i class="fa-solid fa-folder-open"></i> Không gian</li>
+          <li v-if="sidebarPreferences.recent"><i class="fa-solid fa-clock"></i> Gần đây</li>
           <li v-if="sidebarPreferences.ai" class="ai-item" @click="goToAI"><i class="fa-solid fa-robot"></i> Trợ lý AI</li>
           
           <!-- More Dropdown -->
@@ -55,22 +55,22 @@
                 <i class="fa-solid fa-ellipsis"></i> Thêm
               </div>
               <template #dropdown>
-                <el-dropdown-menu class="jira-more-menu" style="background-color: #282e33; border: 1px solid #333c43; border-radius: 4px; padding: 4px 0; width: 200px;">
+                <el-dropdown-menu class="jira-more-menu" style="background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: 4px; padding: 4px 0; width: 200px;">
                   <!-- Unselected items mapped to Dropdown -->
                   <el-dropdown-item v-if="!sidebarPreferences.spaces">
-                    <div @click="goToDefaultSpace" style="display: flex; align-items: center; gap: 12px; color: #b3bac5; font-size: 14px; padding: 4px 8px; width: 100%;">
-                      <i class="fa-regular fa-folder-open"></i>
+                    <div @click="goToDefaultSpace" style="display: flex; align-items: center; gap: 12px; color: var(--text-secondary); font-size: 14px; padding: 4px 8px; width: 100%;">
+                      <i class="fa-solid fa-folder-open"></i>
                       <span>Không gian</span>
                     </div>
                   </el-dropdown-item>
                   <el-dropdown-item v-if="!sidebarPreferences.recent">
-                    <div style="display: flex; align-items: center; gap: 12px; color: #b3bac5; font-size: 14px; padding: 4px 8px; width: 100%;">
-                      <i class="fa-regular fa-clock"></i>
+                    <div style="display: flex; align-items: center; gap: 12px; color: var(--text-secondary); font-size: 14px; padding: 4px 8px; width: 100%;">
+                      <i class="fa-solid fa-clock"></i>
                       <span>Gần đây</span>
                     </div>
                   </el-dropdown-item>
                   <el-dropdown-item v-if="!sidebarPreferences.ai">
-                    <div @click="goToAI" style="display: flex; align-items: center; gap: 12px; color: #b3bac5; font-size: 14px; padding: 4px 8px; width: 100%;">
+                    <div @click="goToAI" style="display: flex; align-items: center; gap: 12px; color: var(--text-secondary); font-size: 14px; padding: 4px 8px; width: 100%;">
                       <i class="fa-solid fa-robot"></i>
                       <span>Trợ lý AI</span>
                     </div>
@@ -79,7 +79,7 @@
                   <el-dropdown-item v-if="!sidebarPreferences.spaces || !sidebarPreferences.recent || !sidebarPreferences.ai" divided></el-dropdown-item>
 
                   <el-dropdown-item>
-                    <div @click="showCustomizeModal = true" style="display: flex; align-items: center; gap: 12px; color: #b3bac5; font-size: 14px; padding: 4px 8px; width: 100%;">
+                    <div @click="showCustomizeModal = true" style="display: flex; align-items: center; gap: 12px; color: var(--text-secondary); font-size: 14px; padding: 4px 8px; width: 100%;">
                       <i class="fa-solid fa-sliders"></i>
                       <span>Customize sidebar</span>
                     </div>
@@ -321,15 +321,15 @@ onMounted(fetchSpaces)
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background-color: #020617; 
-  color: #f1f5f9; 
+  background-color: var(--bg-layout); 
+  color: var(--text-primary); 
   overflow: hidden;
 }
 
 .top-nav {
   height: 56px;
-  background-color: #020617; 
-  border-bottom: 1px solid #1e293b;
+  background-color: var(--bg-nav); 
+  border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -348,7 +348,7 @@ onMounted(fetchSpaces)
   display: none;
   background: transparent;
   border: none;
-  color: #94a3b8;
+  color: var(--text-secondary);
   font-size: 20px;
   cursor: pointer;
   padding: 8px;
@@ -358,7 +358,7 @@ onMounted(fetchSpaces)
   display: flex;
   align-items: center;
   gap: 8px;
-  color: white;
+  color: var(--text-primary);
   text-decoration: none;
   font-weight: 800;
   font-size: 20px;
@@ -371,17 +371,17 @@ onMounted(fetchSpaces)
 }
 
 .nav-link {
-  color: #94a3b8;
+  color: var(--text-secondary);
   font-size: 14px;
   font-weight: 600;
   padding-left: 16px;
-  border-left: 1px solid #334155;
+  border-left: 1px solid var(--border-color);
   cursor: pointer;
   transition: color 0.2s;
 }
 
 .nav-link:hover, .nav-link.active {
-  color: white;
+  color: var(--text-primary);
 }
 
 .nav-center {
@@ -403,8 +403,8 @@ onMounted(fetchSpaces)
 .search-input-mock {
   display: flex;
   align-items: center;
-  background-color: #22272b;
-  border: 1px solid #738496; 
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color); 
   border-radius: 4px;
   padding: 0 12px;
   flex: 1;
@@ -414,12 +414,12 @@ onMounted(fetchSpaces)
 }
 
 .search-input-mock:focus-within {
-  background-color: #2c333a;
-  border-color: #579dff;
+  background-color: var(--input-bg);
+  border-color: var(--border-color);
 }
 
 .search-input-mock i {
-  color: #8c9bab;
+  color: var(--text-secondary);
   font-size: 14px;
   margin-right: 8px;
 }
@@ -427,14 +427,14 @@ onMounted(fetchSpaces)
 .search-input-mock input {
   background: transparent;
   border: none;
-  color: #f4f5f7;
+  color: var(--text-primary);
   font-size: 14px;
   width: 100%;
   outline: none;
 }
 
 .search-input-mock input::placeholder {
-  color: #8c9bab;
+  color: var(--text-secondary);
 }
 
 .btn-create-jira {
@@ -460,7 +460,7 @@ onMounted(fetchSpaces)
 }
 
 .nav-icon {
-  color: #94a3b8;
+  color: var(--text-secondary);
   font-size: 18px;
   cursor: pointer;
   transition: color 0.2s;
@@ -473,13 +473,13 @@ onMounted(fetchSpaces)
 }
 
 .nav-icon:hover {
-  color: white;
-  background-color: #1e293b;
+  color: var(--text-primary);
+  background-color: var(--hover-bg);
 }
 
 .nav-icon.active {
-  color: #60a5fa;
-  background-color: #1e293b;
+  color: #3b82f6; 
+  background-color: var(--hover-bg);
 }
 
 .user-avatar {
@@ -505,8 +505,8 @@ onMounted(fetchSpaces)
 
 .sidebar {
   width: 240px;
-  background-color: #020617; 
-  border-right: 1px solid #1e293b;
+  background-color: var(--bg-sidebar); 
+  border-right: 1px solid var(--border-color);
   padding: 24px 16px;
   flex-shrink: 0;
   transition: transform 0.3s ease;
@@ -521,7 +521,7 @@ onMounted(fetchSpaces)
 .side-menu li {
   padding: 10px 12px;
   border-radius: 6px;
-  color: #cbd5e1;
+  color: var(--text-secondary);
   font-size: 14px;
   font-weight: 500;
   margin-bottom: 4px;
@@ -539,19 +539,19 @@ onMounted(fetchSpaces)
 }
 
 .side-menu li:hover {
-  background-color: #0f172a;
-  color: white;
+  background-color: var(--hover-bg);
+  color: var(--text-primary);
 }
 
 .side-menu li.active {
-  background-color: #1e293b;
-  color: white;
+  background-color: var(--active-bg);
+  color: var(--text-primary);
 }
 
 .sidebar-more-trigger {
   padding: 10px 12px;
   border-radius: 6px;
-  color: #cbd5e1;
+  color: var(--text-secondary);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -570,8 +570,8 @@ onMounted(fetchSpaces)
 }
 
 .sidebar-more-trigger:hover {
-  background-color: #0f172a;
-  color: white;
+  background-color: var(--hover-bg);
+  color: var(--text-primary);
 }
 
 .ai-item i {
@@ -584,7 +584,7 @@ onMounted(fetchSpaces)
 
 .content-area {
   flex: 1;
-  background-color: #1d2125; /* Jira Dark Mode background */
+  background-color: var(--bg-content); /* Jira theme background */
   padding: 40px;
   overflow-y: auto;
 }
@@ -597,7 +597,7 @@ onMounted(fetchSpaces)
 
 .page-title {
   font-size: 28px;
-  color: #f4f5f7;
+  color: var(--text-primary);
   font-weight: 600;
   margin-bottom: 32px;
 }
@@ -607,13 +607,13 @@ onMounted(fetchSpaces)
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
-  border-bottom: 1px solid #333c43;
+  border-bottom: 1px solid var(--border-color);
   padding-bottom: 12px;
 }
 
 .section-title {
   font-size: 18px;
-  color: #f4f5f7;
+  color: var(--text-primary);
   font-weight: 500;
   margin: 0;
 }
@@ -635,16 +635,16 @@ onMounted(fetchSpaces)
 .space-card.jira-card {
   display: flex;
   width: 380px;
-  background-color: #22272b;
+  background-color: var(--bg-card);
   border-radius: 4px;
   overflow: hidden;
   box-shadow: 0 1px 2px rgba(0,0,0,0.5);
-  border: 1px solid #333c43;
+  border: 1px solid var(--border-color);
   transition: background-color 0.2s;
   cursor: pointer;
 }
 .space-card.jira-card:hover {
-  background-color: #2c333a;
+  background-color: var(--hover-bg);
 }
 
 .card-left-border {
@@ -679,7 +679,7 @@ onMounted(fetchSpaces)
 .space-title-block h4 {
   margin: 0;
   font-size: 16px;
-  color: #f4f5f7;
+  color: var(--text-primary);
   font-weight: 600;
 }
 
@@ -707,12 +707,12 @@ onMounted(fetchSpaces)
   font-size: 14px;
 }
 .space-link-item a:hover {
-  color: #f4f5f7;
+  color: var(--text-primary);
 }
 
 .badge-count {
-  background-color: #333c43;
-  color: #b3bac5;
+  background-color: var(--border-color);
+  color: var(--text-secondary);
   font-size: 12px;
   padding: 2px 8px;
   border-radius: 10px;
@@ -823,7 +823,7 @@ onMounted(fetchSpaces)
 }
 
 .task-name {
-  color: #f4f5f7;
+  color: var(--text-primary);
   font-size: 15px;
   font-weight: 500;
   margin-bottom: 4px;
