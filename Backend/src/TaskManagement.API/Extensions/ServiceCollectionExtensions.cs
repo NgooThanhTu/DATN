@@ -51,5 +51,17 @@ namespace TaskManagement.API.Extensions
 
             return services;
         }
+
+        /// <summary>
+        /// Module 5: Workspace & Agile Planning — DI Registration
+        /// </summary>
+        public static IServiceCollection AddWorkspaceServices(this IServiceCollection services)
+        {
+            services.AddScoped<IDepartmentService, DepartmentService>();
+            services.AddScoped<IProjectService, ProjectService>();
+            services.AddScoped<ISprintService, SprintService>();
+            return services;
+        }
     }
 }
+

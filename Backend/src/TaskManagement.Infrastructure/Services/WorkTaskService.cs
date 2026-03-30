@@ -21,9 +21,16 @@ namespace TaskManagement.Infrastructure.Services
         {
             var taskToUpdate = await _context.WorkTasks
                 .Include(wt => wt.TaskStatus)
+                .Include(wt => wt.Sprint) // Load Sprint để check Sprint Lock
                 .FirstOrDefaultAsync(wt => wt.Id == taskId && !wt.IsDeleted);
 
             if (taskToUpdate == null) throw new ArgumentException("Tác vụ không tồn tại.");
+
+            // === 5.4 SPRINT LOCK: Chặn chỉnh sửa Task của Sprint đã đóng ===
+            if (taskToUpdate.Sprint != null && !taskToUpdate.Sprint.Status)
+            {
+                throw new InvalidOperationException("Không thể chỉnh sửa Task của một Sprint đã đóng.");
+            }
 
             var oldStatus = taskToUpdate.TaskStatus;
             var newStatus = await _context.TaskStatuses.FirstOrDefaultAsync(ts => ts.Id == request.TaskStatusId);

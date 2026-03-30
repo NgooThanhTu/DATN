@@ -56,6 +56,22 @@ namespace TaskManagement.Infrastructure.Data
             base.OnModelCreating(modelBuilder);
 
             // =============================================
+            // 0. Global Query Filters (Soft Delete) - Spec 5.1
+            // =============================================
+            modelBuilder.Entity<Department>().HasQueryFilter(d => !d.IsDeleted);
+            modelBuilder.Entity<Project>().HasQueryFilter(p => !p.IsDeleted);
+            modelBuilder.Entity<WorkTask>().HasQueryFilter(wt => !wt.IsDeleted);
+
+            // =============================================
+            // 0.5 Department - Project Relationship
+            // =============================================
+            modelBuilder.Entity<Project>()
+                .HasOne(p => p.Department)
+                .WithMany(d => d.Projects)
+                .HasForeignKey(p => p.DepartmentId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // =============================================
             // 1. Composite Keys & Special PKs
             // =============================================
             modelBuilder.Entity<UserRole>().HasKey(x => new { x.UserId, x.RoleId });

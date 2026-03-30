@@ -1,0 +1,14 @@
+namespace TaskManagement.Application.DTOs.Sprint
+{
+    public class SprintResponseDto
+    {
+        public Guid Id { get; set; }
+        public Guid ProjectId { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public DateTime StartDate { get; set; }
+        public DateTime EndDate { get; set; }
+        public bool Status { get; set; }
+        public int TaskCount { get; set; }
+        public DateTime CreatedAt { get; set; }
+    }
+}
