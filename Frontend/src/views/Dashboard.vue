@@ -295,7 +295,9 @@ const fetchSpaces = async () => {
   isLoading.value = true
   try {
     const response = await axiosClient.get('/projects')
-    spaces.value = response.data.map(p => ({
+    // API C# thường trả về dạng { statusCode: 200, message: "Success", data: [...] }
+    const projectList = response.data.data || response.data || []
+    spaces.value = projectList.map(p => ({
       ...p,
       gradient: 'linear-gradient(135deg, #3b82f6, #2563eb)'
     }))
