@@ -17,6 +17,53 @@ namespace TaskManagement.Infrastructure.Services
             _context = context;
         }
 
+        public async Task<WorkTaskResponseDto> CreateAsync(Guid reporterId, CreateWorkTaskDto request)
+        {
+            // Optional: Add logic to validate Project, Sprint, TaskType existing etc.
+            var taskStatus = await _context.TaskStatuses.FirstOrDefaultAsync(ts => ts.Name.Contains("To Do") || ts.Name.Contains("Cần làm"));
+            if (taskStatus == null) throw new InvalidOperationException("Default task status not found.");
+
+            var workTask = new TaskManagement.Domain.Entities.WorkTask
+            {
+                Id = Guid.NewGuid(),
+                ProjectId = request.ProjectId,
+                SprintId = request.SprintId,
+                ParentTaskId = request.ParentTaskId,
+                TaskTypeId = request.TaskTypeId,
+                TaskStatusId = taskStatus.Id,
+                Title = request.Title,
+                Description = request.Description,
+                Priority = request.Priority,
+                StoryPoints = request.StoryPoints,
+                PlannedStartDate = request.PlannedStartDate,
+                PlannedEndDate = request.PlannedEndDate,
+                ReporterId = reporterId,
+                AssignedUserId = request.AssignedUserId,
+                DueDate = request.DueDate,
+                TotalEstimatedHours = request.TotalEstimatedHours,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            _context.WorkTasks.Add(workTask);
+            await _context.SaveChangesAsync();
+
+            return new WorkTaskResponseDto
+            {
+                Id = workTask.Id,
+                Title = workTask.Title,
+                Description = workTask.Description,
+                ProjectId = workTask.ProjectId,
+                SprintId = workTask.SprintId,
+                TaskTypeId = workTask.TaskTypeId,
+                TaskStatusId = workTask.TaskStatusId,
+                ReporterId = workTask.ReporterId,
+                AssignedUserId = workTask.AssignedUserId,
+                CreatedAt = workTask.CreatedAt,
+                UpdatedAt = workTask.UpdatedAt
+            };
+        }
+
         public async Task UpdateTaskStatusAsync(Guid taskId, UpdateTaskStatusRequestDto request)
         {
             var taskToUpdate = await _context.WorkTasks
@@ -45,7 +92,7 @@ namespace TaskManagement.Infrastructure.Services
                 throw new InvalidOperationException("Không được phép nhảy cóc trạng thái. Vui lòng chuyển thẻ theo thứ tự.");
             }
 
-            bool isMovingToActiveOrDone = newStatus.Name.Contains("In Progress", StringComparison.OrdinalIgnoreCase) || 
+            bool isMovingToActiveOrDone = newStatus.Name.Contains("In Progress", StringComparison.OrdinalIgnoreCase) ||
                                           newStatus.Name.Contains("Done", StringComparison.OrdinalIgnoreCase) ||
                                           newStatus.Name.Contains("Đang làm", StringComparison.OrdinalIgnoreCase) ||
                                           newStatus.Name.Contains("Hoàn thành", StringComparison.OrdinalIgnoreCase);
@@ -72,14 +119,14 @@ namespace TaskManagement.Infrastructure.Services
             }
 
             // 3. Parent-Subtask Constraint
-            bool isMovingToDone = newStatus.Name.Contains("Done", StringComparison.OrdinalIgnoreCase) || 
+            bool isMovingToDone = newStatus.Name.Contains("Done", StringComparison.OrdinalIgnoreCase) ||
                                   newStatus.Name.Contains("Hoàn thành", StringComparison.OrdinalIgnoreCase);
 
             if (isMovingToDone)
             {
                 bool hasUnfinishedSubtasks = await _context.WorkTasks
                     .Include(wt => wt.TaskStatus)
-                    .AnyAsync(wt => wt.ParentTaskId == taskId && !wt.IsDeleted && 
+                    .AnyAsync(wt => wt.ParentTaskId == taskId && !wt.IsDeleted &&
                                     !wt.TaskStatus.Name.Contains("Done", StringComparison.OrdinalIgnoreCase) &&
                                     !wt.TaskStatus.Name.Contains("Hoàn thành", StringComparison.OrdinalIgnoreCase));
 
@@ -92,7 +139,7 @@ namespace TaskManagement.Infrastructure.Services
             // Apply modifications
             taskToUpdate.TaskStatusId = newStatus.Id;
             taskToUpdate.UpdatedAt = DateTime.UtcNow; // UTC enforcement for UpdatedAt
-            
+
             // Apply RowVersion provided from client for Concurrency Check
             if (request.RowVersion != null && request.RowVersion.Length > 0)
             {

@@ -19,6 +19,7 @@ namespace TaskManagement.API.Extensions
             services.AddScoped<IWorkTaskService, WorkTaskService>();
             services.AddScoped<IEmailService, EmailService>();
             services.AddScoped<IOtpService, OtpService>();
+            services.AddScoped<IProjectService, ProjectService>();
             
             services.AddMemoryCache();
             services.AddHttpClient();
