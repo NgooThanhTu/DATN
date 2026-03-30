@@ -24,8 +24,18 @@ namespace TaskManagement.API.Controllers
         {
             try
             {
-                var tasks = await _workTaskService.GetByProjectAsync(projectId);
+                var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (!Guid.TryParse(userIdString, out Guid userId))
+                {
+                    return Unauthorized(new { statusCode = 401, message = "Vui lòng đăng nhập." });
+                }
+
+                var tasks = await _workTaskService.GetByProjectAsync(projectId, userId);
                 return Ok(tasks);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { statusCode = 403, message = ex.Message });
             }
             catch (Exception ex)
             {
@@ -55,6 +65,10 @@ namespace TaskManagement.API.Controllers
             catch (InvalidOperationException ex)
             {
                 return BadRequest(new { statusCode = 400, message = ex.Message });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { statusCode = 403, message = ex.Message });
             }
             catch (Exception ex)
             {

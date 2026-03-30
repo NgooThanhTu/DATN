@@ -26,8 +26,12 @@ class SignalRService {
       console.log('SignalR Connected.')
       await this.connection.invoke('JoinProjectGroup', projectId)
     } catch (err) {
-      console.error('SignalR Connection Error: ', err)
-      // Don't retry if hub is not available (405/404)
+      if (err.message && err.message.includes('405')) {
+          console.log('SignalR Hub temporarily suspended by backend (405). Skipping retry.')
+      } else {
+          console.error('SignalR Connection Error: ', err)
+      }
+      // Don't retry if hub is not available
       this.connection = null
       this.projectId = null
     }

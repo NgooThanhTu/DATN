@@ -7,7 +7,12 @@ namespace TaskManagement.Application.Interfaces
 {
     public interface IWorkTaskService
     {
-        Task<List<WorkTaskResponseDto>> GetByProjectAsync(Guid projectId);
+        /// <summary>
+        /// Get tasks by project with role-based authorization.
+        /// PM/PO/SM see all tasks. DEV/QA see only assigned/reported tasks.
+        /// </summary>
+        Task<List<WorkTaskResponseDto>> GetByProjectAsync(Guid projectId, Guid userId);
+        
         Task<WorkTaskResponseDto> CreateAsync(Guid reporterId, CreateWorkTaskDto request);
         Task UpdateTaskStatusAsync(Guid taskId, UpdateTaskStatusRequestDto request);
     }
