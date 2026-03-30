@@ -10,17 +10,19 @@ namespace TaskManagement.Application.DTOs.WorkTask
 
         public string? Description { get; set; }
 
-        [Required(ErrorMessage = "Dự án không được để trống.")]
         public Guid ProjectId { get; set; }
 
         public Guid? SprintId { get; set; }
         
         public Guid? ParentTaskId { get; set; }
         
-        [Required(ErrorMessage = "Loại tác vụ không được để trống.")]
-        public Guid TaskTypeId { get; set; }
+        // Support both Guid-based and Name-based lookup
+        public Guid? TaskTypeId { get; set; }
+        public string? TypeName { get; set; }
 
-        public int Priority { get; set; }
+        public string? StatusName { get; set; }
+
+        public int Priority { get; set; } = 3;
         public double StoryPoints { get; set; }
 
         public DateTime? PlannedStartDate { get; set; }

@@ -1313,6 +1313,13 @@ const sidebarPreferences = ref({
   ai: true
 })
 
+const handleSidebarSaved = (prefs) => {
+  if (prefs) {
+    Object.assign(sidebarPreferences.value, prefs)
+  }
+  localStorage.setItem('sidebarPreferences', JSON.stringify(sidebarPreferences.value))
+}
+
 const filteredTasks = computed(() => {
   let result = [...tasks.value]
 
@@ -1647,13 +1654,17 @@ onMounted(async () => {
 
   await fetchTasks()
   if (projectId.value) {
-    await signalRService.startConnection(projectId.value)
-    signalRService.on('TaskCreated', handleTaskCreated)
-    signalRService.on('TaskUpdated', handleTaskUpdated)
-    signalRService.on('TaskMoved', handleTaskMoved)
-    signalRService.on('TaskDeleted', handleTaskDeleted)
-    signalRService.on('CommentAdded', handleCommentAdded)
-    signalRService.on('FileUploaded', handleFileUploaded)
+    try {
+      await signalRService.startConnection(projectId.value)
+      signalRService.on('TaskCreated', handleTaskCreated)
+      signalRService.on('TaskUpdated', handleTaskUpdated)
+      signalRService.on('TaskMoved', handleTaskMoved)
+      signalRService.on('TaskDeleted', handleTaskDeleted)
+      signalRService.on('CommentAdded', handleCommentAdded)
+      signalRService.on('FileUploaded', handleFileUploaded)
+    } catch (err) {
+      console.warn('SignalR not available, real-time updates disabled:', err.message)
+    }
   }
 })
 

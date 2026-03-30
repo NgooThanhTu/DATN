@@ -9,7 +9,7 @@ using TaskManagement.Application.Interfaces;
 namespace TaskManagement.API.Controllers
 {
     [ApiController]
-    [Route("api/tasks")]
+    [Route("api/projects/{projectId}/WorkTasks")]
     public class WorkTasksController : ControllerBase
     {
         private readonly IWorkTaskService _workTaskService;
@@ -19,20 +19,34 @@ namespace TaskManagement.API.Controllers
             _workTaskService = workTaskService;
         }
 
-        [HttpPost]
-        public async Task<IActionResult> Create([FromBody] CreateWorkTaskDto request)
+        [HttpGet]
+        public async Task<IActionResult> GetByProject(Guid projectId)
         {
+            try
+            {
+                var tasks = await _workTaskService.GetByProjectAsync(projectId);
+                return Ok(tasks);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { statusCode = 500, message = "Lỗi máy chủ nội bộ: " + ex.Message });
+            }
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> Create(Guid projectId, [FromBody] CreateWorkTaskDto request)
+        {
+            request.ProjectId = projectId;
             try
             {
                 var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
                 if (string.IsNullOrEmpty(userIdString) || !Guid.TryParse(userIdString, out Guid reporterId))
                 {
-                    // Fallback to empty if not authenticated, though usually should return Unauthorized.
                     reporterId = Guid.Empty;
                 }
                 
                 var result = await _workTaskService.CreateAsync(reporterId, request);
-                return CreatedAtAction(nameof(UpdateStatus), new { id = result.Id }, new { statusCode = 201, message = "Tạo tác vụ thành công.", data = result });
+                return CreatedAtAction(nameof(GetByProject), new { projectId }, new { statusCode = 201, message = "Tạo tác vụ thành công.", data = result });
             }
             catch (ArgumentException ex)
             {
@@ -49,7 +63,7 @@ namespace TaskManagement.API.Controllers
         }
 
         [HttpPut("{id}/status")]
-        public async Task<IActionResult> UpdateStatus(Guid id, [FromBody] UpdateTaskStatusRequestDto request)
+        public async Task<IActionResult> UpdateStatus(Guid projectId, Guid id, [FromBody] UpdateTaskStatusRequestDto request)
         {
             try
             {

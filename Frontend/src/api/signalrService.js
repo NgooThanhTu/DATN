@@ -27,7 +27,9 @@ class SignalRService {
       await this.connection.invoke('JoinProjectGroup', projectId)
     } catch (err) {
       console.error('SignalR Connection Error: ', err)
-      setTimeout(() => this.startConnection(projectId), 5000)
+      // Don't retry if hub is not available (405/404)
+      this.connection = null
+      this.projectId = null
     }
   }
 

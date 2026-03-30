@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using TaskManagement.Application.DTOs.WorkTask;
@@ -17,11 +18,88 @@ namespace TaskManagement.Infrastructure.Services
             _context = context;
         }
 
+        public async Task<List<WorkTaskResponseDto>> GetByProjectAsync(Guid projectId)
+        {
+            var tasks = await _context.WorkTasks
+                .Include(wt => wt.TaskStatus)
+                .Include(wt => wt.TaskType)
+                .Include(wt => wt.Reporter)
+                .Include(wt => wt.AssignedUser)
+                .Where(wt => wt.ProjectId == projectId && !wt.IsDeleted)
+                .OrderByDescending(wt => wt.CreatedAt)
+                .ToListAsync();
+
+            return tasks.Select(wt => new WorkTaskResponseDto
+            {
+                Id = wt.Id,
+                Title = wt.Title,
+                Description = wt.Description,
+                ProjectId = wt.ProjectId,
+                SprintId = wt.SprintId,
+                TaskTypeId = wt.TaskTypeId,
+                TypeName = wt.TaskType?.Name ?? "",
+                TaskStatusId = wt.TaskStatusId,
+                StatusName = wt.TaskStatus?.Name ?? "",
+                ReporterId = wt.ReporterId,
+                ReporterName = wt.Reporter?.FullName ?? "",
+                AssignedUserId = wt.AssignedUserId,
+                AssigneeName = wt.AssignedUser?.FullName,
+                Priority = wt.Priority,
+                StoryPoints = wt.StoryPoints,
+                DueDate = wt.DueDate,
+                PlannedStartDate = wt.PlannedStartDate,
+                PlannedEndDate = wt.PlannedEndDate,
+                CreatedAt = wt.CreatedAt,
+                UpdatedAt = wt.UpdatedAt,
+                RowVersion = wt.RowVersion
+            }).ToList();
+        }
+
         public async Task<WorkTaskResponseDto> CreateAsync(Guid reporterId, CreateWorkTaskDto request)
         {
-            // Optional: Add logic to validate Project, Sprint, TaskType existing etc.
-            var taskStatus = await _context.TaskStatuses.FirstOrDefaultAsync(ts => ts.Name.Contains("To Do") || ts.Name.Contains("Cần làm"));
-            if (taskStatus == null) throw new InvalidOperationException("Default task status not found.");
+            // Resolve TaskStatus: by StatusName or default to "To Do"
+            TaskManagement.Domain.Entities.TaskStatus? taskStatus = null;
+            if (!string.IsNullOrEmpty(request.StatusName))
+            {
+                taskStatus = await _context.TaskStatuses
+                    .FirstOrDefaultAsync(ts => ts.Name.ToUpper().Replace(" ", "") == request.StatusName.ToUpper().Replace(" ", ""));
+            }
+            if (taskStatus == null)
+            {
+                taskStatus = await _context.TaskStatuses
+                    .FirstOrDefaultAsync(ts => ts.Name.Contains("To Do") || ts.Name.Contains("Cần làm"));
+            }
+            if (taskStatus == null) throw new InvalidOperationException("Không tìm thấy trạng thái mặc định (To Do).");
+
+            // Resolve TaskType: by TaskTypeId or TypeName or default
+            Guid resolvedTaskTypeId;
+            if (request.TaskTypeId.HasValue && request.TaskTypeId.Value != Guid.Empty)
+            {
+                resolvedTaskTypeId = request.TaskTypeId.Value;
+            }
+            else if (!string.IsNullOrEmpty(request.TypeName))
+            {
+                var taskType = await _context.TaskTypes
+                    .FirstOrDefaultAsync(tt => tt.Name.ToUpper() == request.TypeName.ToUpper());
+                if (taskType == null)
+                {
+                    // Fallback: get the first task type
+                    taskType = await _context.TaskTypes.FirstOrDefaultAsync();
+                }
+                resolvedTaskTypeId = taskType?.Id ?? throw new InvalidOperationException($"Không tìm thấy loại tác vụ '{request.TypeName}'.");
+            }
+            else
+            {
+                var defaultType = await _context.TaskTypes.FirstOrDefaultAsync();
+                resolvedTaskTypeId = defaultType?.Id ?? throw new InvalidOperationException("Không tìm thấy loại tác vụ mặc định.");
+            }
+
+            // Use reporterId from auth; if empty, try to fallback 
+            if (reporterId == Guid.Empty)
+            {
+                var firstUser = await _context.Users.FirstOrDefaultAsync();
+                if (firstUser != null) reporterId = firstUser.Id;
+            }
 
             var workTask = new TaskManagement.Domain.Entities.WorkTask
             {
@@ -29,7 +107,7 @@ namespace TaskManagement.Infrastructure.Services
                 ProjectId = request.ProjectId,
                 SprintId = request.SprintId,
                 ParentTaskId = request.ParentTaskId,
-                TaskTypeId = request.TaskTypeId,
+                TaskTypeId = resolvedTaskTypeId,
                 TaskStatusId = taskStatus.Id,
                 Title = request.Title,
                 Description = request.Description,
@@ -57,8 +135,10 @@ namespace TaskManagement.Infrastructure.Services
                 SprintId = workTask.SprintId,
                 TaskTypeId = workTask.TaskTypeId,
                 TaskStatusId = workTask.TaskStatusId,
+                StatusName = taskStatus.Name,
                 ReporterId = workTask.ReporterId,
                 AssignedUserId = workTask.AssignedUserId,
+                Priority = workTask.Priority,
                 CreatedAt = workTask.CreatedAt,
                 UpdatedAt = workTask.UpdatedAt
             };
