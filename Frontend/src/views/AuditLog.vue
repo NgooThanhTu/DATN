@@ -269,7 +269,7 @@ import logoImg from '../assets/logo_QLCV.png'
 import UserDropdown from '../components/UserDropdown.vue'
 import NotificationsDropdown from '../components/NotificationsDropdown.vue'
 import CustomizeSidebarModal from '../components/CustomizeSidebarModal.vue'
-import { ElMessage } from 'element-plus'
+
 
 const router = useRouter()
 const sidebarVisible = ref(false)

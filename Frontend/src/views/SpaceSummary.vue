@@ -1280,7 +1280,7 @@ import axiosClient from '../api/axiosClient'
 import draggable from 'vuedraggable'
 import * as echarts from 'echarts'
 import { signalRService } from '@/api/signalrService'
-import { ElNotification, ElMessageBox, ElMessage } from 'element-plus'
+
 
 const route = useRoute()
 const projectId = computed(() => route.params.id)
@@ -1811,7 +1811,10 @@ const updateTaskField = async (task, field, value) => {
     if (field === 'statusName') updateData.taskStatusId = '00000000-0000-0000-0000-000000000000'
     if (field === 'typeName') updateData.taskTypeId = '00000000-0000-0000-0000-000000000000'
     
-    await axiosClient.put(`/projects/${projectId.value}/WorkTasks/${task.id}`, updateData)
+    const response = await axiosClient.put(`/projects/${projectId.value}/WorkTasks/${task.id}`, updateData)
+    if (response.data && response.data.data) {
+      Object.assign(task, response.data.data)
+    }
   } catch (error) {
     if (error.response?.status === 409) {
       ElNotification({ title: 'Conflict', message: 'Công việc đã bị thay đổi bởi người khác. Đang cập nhật lại...', type: 'warning' })

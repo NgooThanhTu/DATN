@@ -101,5 +101,40 @@ namespace TaskManagement.API.Controllers
                 return StatusCode(500, new { statusCode = 500, message = "Lỗi máy chủ nội bộ: " + ex.Message });
             }
         }
+        [HttpPut("{id}")]
+        public async Task<IActionResult> Update(Guid projectId, Guid id, [FromBody] UpdateWorkTaskDto dto)
+        {
+            try
+            {
+                var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (!Guid.TryParse(userIdString, out Guid userId))
+                {
+                    return Unauthorized(new { statusCode = 401, message = "Vui lòng đăng nhập." });
+                }
+
+                var result = await _workTaskService.UpdateAsync(id, userId, dto);
+                return Ok(new { statusCode = 200, message = "Cập nhật công việc thành công.", data = result });
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return Conflict(new { statusCode = 409, message = "Dữ liệu đã bị người khác thay đổi. Vui lòng tải lại trang để tránh ghi đè (Anti-Overwrite)." });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { statusCode = 403, message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { statusCode = 400, message = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { statusCode = 400, message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { statusCode = 500, message = "Lỗi máy chủ nội bộ: " + ex.Message });
+            }
+        }
     }
 }

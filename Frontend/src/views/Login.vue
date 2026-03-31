@@ -90,7 +90,7 @@ import googleIcon from '../assets/Icongoogle.png'
 import githubIcon from '../assets/Icongithub.png'
 import { useRouter } from 'vue-router'
 import axiosClient from '../api/axiosClient'
-import { ElMessage } from 'element-plus'
+
 
 const form = reactive({
   email: '',

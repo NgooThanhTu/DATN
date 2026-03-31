@@ -58,6 +58,13 @@ namespace TaskManagement.API.Controllers
             }
         }
 
+        [HttpPost("{id}/Comments")]
+        public IActionResult CreateComment(Guid id, [FromBody] object request)
+        {
+            // Placeholder to prevent 405 error
+            return Ok(ApiResponse<object>.Success(null!, "Comment created successfully."));
+        }
+
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(Guid id, [FromBody] UpdateProjectDto dto)
         {

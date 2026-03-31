@@ -78,6 +78,26 @@ namespace TaskManagement.Infrastructure.Services
             return (await GetByIdAsync(sprint.Id))!;
         }
 
+        public async Task<SprintResponseDto> UpdateAsync(Guid projectId, Guid sprintId, UpdateSprintDto dto)
+        {
+            var sprint = await _context.Sprints
+                .FirstOrDefaultAsync(s => s.Id == sprintId && s.ProjectId == projectId);
+
+            if (sprint == null)
+                throw new ArgumentException("Sprint không tồn tại trong dự án này.");
+
+            if (dto.EndDate <= dto.StartDate)
+                throw new ArgumentException("Ngày kết thúc phải sau ngày bắt đầu.");
+
+            sprint.Name = dto.Name;
+            sprint.StartDate = dto.StartDate;
+            sprint.EndDate = dto.EndDate;
+
+            await _context.SaveChangesAsync();
+
+            return (await GetByIdAsync(sprint.Id))!;
+        }
+
         /// <summary>
         /// 5.3 Sprint Overlap Guard: Chặn 2 Sprint cùng Active trong 1 Project
         /// </summary>

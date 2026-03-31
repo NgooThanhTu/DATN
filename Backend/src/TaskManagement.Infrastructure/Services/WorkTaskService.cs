@@ -124,6 +124,62 @@ namespace TaskManagement.Infrastructure.Services
             return MapToDto(created);
         }
 
+        public async Task<WorkTaskResponseDto> UpdateAsync(Guid taskId, Guid userId, UpdateWorkTaskDto dto)
+        {
+            var taskToUpdate = await _context.WorkTasks
+                .Include(wt => wt.TaskStatus)
+                .Include(wt => wt.Sprint)
+                .Include(wt => wt.TaskType)
+                .Include(wt => wt.Reporter)
+                .Include(wt => wt.AssignedUser)
+                .Include(wt => wt.TaskAssignments)
+                .FirstOrDefaultAsync(wt => wt.Id == taskId && !wt.IsDeleted);
+
+            if (taskToUpdate == null) throw new ArgumentException("Tác vụ không tồn tại.");
+
+            // 1. RBAC Check
+            var membership = await _context.ProjectMembers
+                .FirstOrDefaultAsync(pm => pm.ProjectId == taskToUpdate.ProjectId && pm.UserId == userId);
+
+            if (membership == null)
+                throw new UnauthorizedAccessException("Bạn không phải thành viên của dự án này.");
+
+            bool isManager = ManagerRoles.Contains(membership.ProjectRole, StringComparer.OrdinalIgnoreCase);
+            if (!isManager && taskToUpdate.ReporterId != userId && taskToUpdate.AssignedUserId != userId && !taskToUpdate.TaskAssignments.Any(ta => ta.UserId == userId))
+            {
+                 throw new UnauthorizedAccessException("Bạn không có quyền sửa đổi tác vụ này.");
+            }
+
+            // 2. Sprint Lock
+            if (taskToUpdate.Sprint != null && !taskToUpdate.Sprint.Status)
+            {
+                throw new InvalidOperationException("Không thể chỉnh sửa Task của một Sprint đã đóng.");
+            }
+
+            // Update fields
+            taskToUpdate.Title = dto.Title;
+            taskToUpdate.Description = dto.Description;
+            taskToUpdate.Priority = dto.Priority ?? taskToUpdate.Priority;
+            taskToUpdate.StoryPoints = dto.StoryPoints ?? taskToUpdate.StoryPoints;
+            taskToUpdate.AssignedUserId = dto.AssignedUserId ?? taskToUpdate.AssignedUserId;
+            taskToUpdate.PlannedStartDate = dto.PlannedStartDate ?? taskToUpdate.PlannedStartDate;
+            taskToUpdate.PlannedEndDate = dto.PlannedEndDate ?? taskToUpdate.PlannedEndDate;
+            taskToUpdate.DueDate = dto.DueDate ?? taskToUpdate.DueDate;
+            taskToUpdate.SprintId = dto.SprintId ?? taskToUpdate.SprintId;
+            taskToUpdate.TaskTypeId = dto.TaskTypeId != Guid.Empty ? dto.TaskTypeId : taskToUpdate.TaskTypeId;
+            
+            taskToUpdate.UpdatedAt = DateTime.UtcNow;
+
+            if (dto.RowVersion != null && dto.RowVersion.Length > 0)
+            {
+                _context.Entry(taskToUpdate).Property(nameof(taskToUpdate.RowVersion)).OriginalValue = dto.RowVersion;
+            }
+
+            await _context.SaveChangesAsync();
+
+            return MapToDto(taskToUpdate);
+        }
+
         public async Task UpdateTaskStatusAsync(Guid taskId, UpdateTaskStatusRequestDto request)
         {
             var taskToUpdate = await _context.WorkTasks
