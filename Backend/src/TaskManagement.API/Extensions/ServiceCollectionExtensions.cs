@@ -19,7 +19,6 @@ namespace TaskManagement.API.Extensions
             services.AddScoped<IWorkTaskService, WorkTaskService>();
             services.AddScoped<IEmailService, EmailService>();
             services.AddScoped<IOtpService, OtpService>();
-            services.AddScoped<IProjectService, ProjectService>();
             
             services.AddMemoryCache();
             services.AddHttpClient();
@@ -52,5 +51,17 @@ namespace TaskManagement.API.Extensions
 
             return services;
         }
+
+        /// <summary>
+        /// Module 5: Workspace & Agile Planning — DI Registration
+        /// </summary>
+        public static IServiceCollection AddWorkspaceServices(this IServiceCollection services)
+        {
+            services.AddScoped<IDepartmentService, DepartmentService>();
+            services.AddScoped<IProjectService, ProjectService>();
+            services.AddScoped<ISprintService, SprintService>();
+            return services;
+        }
     }
 }
+

@@ -14,6 +14,8 @@ namespace TaskManagement.Domain.Entities
         public bool Status { get; set; } = true;
         public Guid CreatorId { get; set; }
         public User Creator { get; set; } = null!;
+        public Guid? DepartmentId { get; set; }
+        public Department? Department { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
         public bool IsDeleted { get; set; } = false;

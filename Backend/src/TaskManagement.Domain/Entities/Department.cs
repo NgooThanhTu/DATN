@@ -16,5 +16,6 @@ namespace TaskManagement.Domain.Entities
 
         public User? Manager { get; set; }
         public ICollection<DepartmentMember> DepartmentMembers { get; set; } = new List<DepartmentMember>();
+        public ICollection<Project> Projects { get; set; } = new List<Project>();
     }
 }

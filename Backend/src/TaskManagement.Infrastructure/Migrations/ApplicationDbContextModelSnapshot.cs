@@ -421,6 +421,9 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Property<Guid>("CreatorId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("DepartmentId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
 
@@ -446,6 +449,8 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CreatorId");
+
+                    b.HasIndex("DepartmentId");
 
                     b.ToTable("Projects");
                 });
@@ -1042,7 +1047,14 @@ namespace TaskManagement.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("TaskManagement.Domain.Entities.Department", "Department")
+                        .WithMany("Projects")
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("Creator");
+
+                    b.Navigation("Department");
                 });
 
             modelBuilder.Entity("TaskManagement.Domain.Entities.ProjectMember", b =>
@@ -1275,6 +1287,8 @@ namespace TaskManagement.Infrastructure.Migrations
             modelBuilder.Entity("TaskManagement.Domain.Entities.Department", b =>
                 {
                     b.Navigation("DepartmentMembers");
+
+                    b.Navigation("Projects");
                 });
 
             modelBuilder.Entity("TaskManagement.Domain.Entities.Permission", b =>

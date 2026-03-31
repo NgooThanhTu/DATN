@@ -239,7 +239,7 @@ import NotificationsDropdown from '../components/NotificationsDropdown.vue'
 import UserDropdown from '../components/UserDropdown.vue'
 import CustomizeSidebarModal from '../components/CustomizeSidebarModal.vue'
 import axiosClient from '../api/axiosClient'
-import { ElMessage } from 'element-plus'
+
 
 const router = useRouter()
 const currentUser = JSON.parse(localStorage.getItem('user') || '{}')
