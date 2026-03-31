@@ -8,5 +8,7 @@ namespace TaskManagement.Application.Interfaces
     {
         Task InviteMemberAsync(Guid projectId, ProjectMemberRequestDto request);
         Task RemoveMemberAsync(Guid projectId, Guid userId);
+        Task UpdateMemberRoleAsync(Guid projectId, Guid userId, string newRole);
+        Task<System.Collections.Generic.IEnumerable<ProjectMemberResponseDto>> GetProjectMembersAsync(Guid projectId);
     }
 }

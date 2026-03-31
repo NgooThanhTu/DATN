@@ -22,6 +22,7 @@ namespace TaskManagement.API.Extensions
             services.AddScoped<IProjectService, ProjectService>();
             
             services.AddMemoryCache();
+            services.AddHttpContextAccessor();
             services.AddHttpClient();
 
             // Cấu hình JWT Authentication

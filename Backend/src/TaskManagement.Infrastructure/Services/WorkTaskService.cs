@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using TaskManagement.Application.DTOs.WorkTask;
@@ -92,7 +93,98 @@ namespace TaskManagement.Infrastructure.Services
                 _context.Entry(taskToUpdate).Property(nameof(taskToUpdate.RowVersion)).OriginalValue = request.RowVersion;
             }
 
-            await _context.SaveChangesAsync();
+            // (A) Concurrency Handler: Bọc SaveChangesAsync để bắt DbUpdateConcurrencyException
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                throw new DbUpdateConcurrencyException(
+                    "Dữ liệu đã bị người khác thay đổi trước bạn. Vui lòng tải lại trang để tránh ghi đè (Anti-Overwrite).");
+            }
+        }
+
+        public async Task<IEnumerable<WorkTaskResponseDto>> GetTasksByProjectIdAsync(Guid projectId)
+        {
+            var tasks = await _context.WorkTasks
+                .AsNoTracking()
+                .Include(wt => wt.TaskStatus)
+                .Include(wt => wt.TaskType)
+                .Include(wt => wt.Reporter)
+                .Include(wt => wt.AssignedUser)
+                .Where(wt => wt.ProjectId == projectId && !wt.IsDeleted)
+                .OrderByDescending(wt => wt.CreatedAt)
+                .Select(wt => new WorkTaskResponseDto
+                {
+                    Id = wt.Id,
+                    ProjectId = wt.ProjectId,
+                    Title = wt.Title,
+                    Description = wt.Description,
+                    Priority = wt.Priority,
+                    StoryPoints = wt.StoryPoints,
+                    StatusName = wt.TaskStatus.Name,
+                    TaskStatusId = wt.TaskStatusId,
+                    TaskTypeName = wt.TaskType.Name,
+                    AssigneeName = wt.AssignedUser != null ? wt.AssignedUser.FullName : null,
+                    AssignedUserId = wt.AssignedUserId,
+                    ReporterName = wt.Reporter.FullName,
+                    ReporterId = wt.ReporterId,
+                    PlannedStartDate = wt.PlannedStartDate,
+                    PlannedEndDate = wt.PlannedEndDate,
+                    DueDate = wt.DueDate,
+                    TotalEstimatedHours = wt.TotalEstimatedHours,
+                    TotalActualHours = wt.TotalActualHours,
+                    ParentTaskId = wt.ParentTaskId,
+                    RowVersion = wt.RowVersion,
+                    CreatedAt = wt.CreatedAt,
+                    UpdatedAt = wt.UpdatedAt
+                })
+                .ToListAsync();
+
+            return tasks;
+        }
+
+        public async Task<IEnumerable<WorkTaskResponseDto>> GetMyTasksAsync(Guid userId)
+        {
+            var tasks = await _context.WorkTasks
+                .AsNoTracking()
+                .Include(wt => wt.TaskStatus)
+                .Include(wt => wt.TaskType)
+                .Include(wt => wt.Reporter)
+                .Include(wt => wt.AssignedUser)
+                .Include(wt => wt.Project)
+                .Where(wt => wt.AssignedUserId == userId && !wt.IsDeleted)
+                .OrderByDescending(wt => wt.UpdatedAt)
+                .Select(wt => new WorkTaskResponseDto
+                {
+                    Id = wt.Id,
+                    ProjectId = wt.ProjectId,
+                    Title = wt.Title,
+                    Description = wt.Description,
+                    Priority = wt.Priority,
+                    StoryPoints = wt.StoryPoints,
+                    StatusName = wt.TaskStatus.Name,
+                    TaskStatusId = wt.TaskStatusId,
+                    TaskTypeName = wt.TaskType.Name,
+                    AssigneeName = wt.AssignedUser != null ? wt.AssignedUser.FullName : null,
+                    AssignedUserId = wt.AssignedUserId,
+                    ReporterName = wt.Reporter.FullName,
+                    ReporterId = wt.ReporterId,
+                    PlannedStartDate = wt.PlannedStartDate,
+                    PlannedEndDate = wt.PlannedEndDate,
+                    DueDate = wt.DueDate,
+                    TotalEstimatedHours = wt.TotalEstimatedHours,
+                    TotalActualHours = wt.TotalActualHours,
+                    ParentTaskId = wt.ParentTaskId,
+                    RowVersion = wt.RowVersion,
+                    CreatedAt = wt.CreatedAt,
+                    UpdatedAt = wt.UpdatedAt,
+                    ProjectName = wt.Project.Name
+                })
+                .ToListAsync();
+
+            return tasks;
         }
     }
 }

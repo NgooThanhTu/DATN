@@ -115,5 +115,38 @@ namespace TaskManagement.Infrastructure.Services
                 throw;
             }
         }
+
+        public async Task UpdateMemberRoleAsync(Guid projectId, Guid userId, string newRole)
+        {
+            var member = await _context.ProjectMembers
+                .FirstOrDefaultAsync(pm => pm.ProjectId == projectId && pm.UserId == userId && pm.Status);
+
+            if (member == null)
+            {
+                throw new ArgumentException("Thành viên không tồn tại trong dự án.");
+            }
+
+            member.ProjectRole = newRole;
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task<System.Collections.Generic.IEnumerable<ProjectMemberResponseDto>> GetProjectMembersAsync(Guid projectId)
+        {
+            var members = await _context.ProjectMembers
+                .AsNoTracking()
+                .Include(pm => pm.User)
+                .Where(pm => pm.ProjectId == projectId && pm.Status && !pm.User.IsDeleted)
+                .Select(pm => new ProjectMemberResponseDto
+                {
+                    UserId = pm.UserId,
+                    Email = pm.User.Email,
+                    FullName = pm.User.FullName,
+                    ProjectRole = pm.ProjectRole,
+                    JoinedAt = pm.JoinedAt
+                })
+                .ToListAsync();
+
+            return members;
+        }
     }
 }

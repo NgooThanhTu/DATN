@@ -81,11 +81,11 @@
                 <div class="quick-links-title">Liên kết nhanh</div>
                 <div class="space-link-item">
                   <a href="#">Công việc đang mở của tôi</a>
-                  <span class="badge-count">0</span>
+                  <span class="badge-count">{{ openTasksCount }}</span>
                 </div>
                 
-                <div class="board-dropdown">
-                  0 bảng <i class="fa-solid fa-chevron-down"></i>
+                <div class="board-dropdown" style="cursor: pointer;">
+                  {{ spaces.length }} bảng <i class="fa-solid fa-chevron-down"></i>
                 </div>
               </div>
             </div>
@@ -93,35 +93,39 @@
 
           <!-- Tabs -->
           <div class="jira-tabs scrollable-tabs">
-            <div class="jira-tab active">Đã làm</div>
-            <div class="jira-tab">Đã xem</div>
-            <div class="jira-tab">Được giao cho tôi <span class="badge-count tab-badge">0</span></div>
-            <div class="jira-tab">Đã đánh dấu sao</div>
-            <div class="jira-tab">Bảng</div>
+            <div class="jira-tab" :class="{ active: currentTaskTab === 'Đã làm' }" @click="currentTaskTab = 'Đã làm'">Đã làm</div>
+            <div class="jira-tab" :class="{ active: currentTaskTab === 'Đã xem' }" @click="currentTaskTab = 'Đã xem'">Đã xem</div>
+            <div class="jira-tab" :class="{ active: currentTaskTab === 'Được giao cho tôi' }" @click="currentTaskTab = 'Được giao cho tôi'">Được giao cho tôi <span class="badge-count tab-badge">{{ myAssignedTasksCount }}</span></div>
+            <div class="jira-tab" :class="{ active: currentTaskTab === 'Đã đánh dấu sao' }" @click="currentTaskTab = 'Đã đánh dấu sao'">Đã đánh dấu sao</div>
+            <div class="jira-tab" :class="{ active: currentTaskTab === 'Bảng' }" @click="currentTaskTab = 'Bảng'">Bảng</div>
           </div>
 
           <div class="task-list-section">
-            <div class="list-time-header">TRONG THÁNG QUA</div>
+            <div class="list-time-header">CẬP NHẬT GẦN ĐÂY</div>
             
-            <div v-if="tasks.length === 0" class="empty-state">
-              <i class="fa-solid fa-square-check"></i>
-              <p>Không tìm thấy công việc nào</p>
+            <div v-if="isLoadingTasks" style="text-align: center; color: #8c9bab; padding: 20px;">
+              <i class="fa-solid fa-spinner fa-spin"></i> Đang tải dữ liệu...
             </div>
-            <div class="jira-task-row" v-for="task in tasks" :key="task.id">
+            <div v-else-if="filteredTasks && filteredTasks.length === 0" class="empty-state">
+              <i class="fa-solid fa-square-check"></i>
+              <p>Không tìm thấy công việc nào thư mục này</p>
+            </div>
+            
+            <div class="jira-task-row" v-for="task in filteredTasks" :key="task.id" @click="goToSpace(task.projectId)" style="cursor: pointer;">
               <div class="jira-task-left">
                 <!-- Icon logic based on type -->
-                <i v-if="task.isSubtask" class="fa-solid fa-diagram-project task-icon subtask-color"></i>
-                <i v-else class="fa-solid fa-square-check task-icon done-color"></i>
+                <i v-if="task.taskTypeName === 'Sub-Task' || task.parentTaskId" class="fa-solid fa-diagram-project task-icon subtask-color"></i>
+                <i v-else class="fa-solid fa-square-check task-icon" :class="task.statusName && (task.statusName.toLowerCase().includes('done') || task.statusName.toLowerCase().includes('hoàn thành')) ? 'done-color' : 'todo-color'"></i>
                 
                 <div class="task-text">
-                  <div class="task-name">{{ task.name }}</div>
-                  <div class="task-meta">{{ task.id }} · {{ task.space }}</div>
+                  <div class="task-name">{{ task.title || task.name }}</div>
+                  <div class="task-meta">{{ task.statusName || 'N/A' }} · {{ task.projectName || 'Dự án' }}</div>
                 </div>
               </div>
               
               <div class="jira-task-right">
-                <span class="task-action-text desktop-only">Đã tạo</span>
-                <div class="user-avatar-small">DN</div>
+                <span class="task-action-text desktop-only">Cập nhật lúc {{ new Date(task.updatedAt || task.createdAt || Date.now()).toLocaleDateString('vi-VN') }}</span>
+                <div class="user-avatar-small" :title="task.reporterName || 'Dev'">{{ task.reporterName ? task.reporterName.substring(0, 2).toUpperCase() : '?' }}</div>
               </div>
             </div>
           </div>
@@ -181,6 +185,7 @@ import NotificationsDropdown from '../components/NotificationsDropdown.vue'
 import UserDropdown from '../components/UserDropdown.vue'
 import axiosClient from '../api/axiosClient'
 import { ElMessage } from 'element-plus'
+import { computed } from 'vue'
 
 const router = useRouter()
 
@@ -188,6 +193,7 @@ const sidebarVisible = ref(false)
 const aiVisible = ref(false)
 const searchQuery = ref('')
 const isLoading = ref(false)
+const currentTaskTab = ref('Được giao cho tôi')
 
 const toggleSidebar = () => {
   sidebarVisible.value = !sidebarVisible.value
@@ -215,6 +221,8 @@ const goToAI = () => {
 
 const spaces = ref([])
 const tasks = ref([])
+const allMyTasks = ref([])
+const isLoadingTasks = ref(false)
 
 const fetchSpaces = async () => {
   isLoading.value = true
@@ -236,9 +244,48 @@ const fetchSpaces = async () => {
   }
 }
 
+const fetchTasks = async () => {
+  isLoadingTasks.value = true
+  try {
+    const { data } = await axiosClient.get('/tasks/my-tasks')
+    allMyTasks.value = data.data || data || []
+  } catch (error) {
+    console.error('Fetch tasks error:', error)
+  } finally {
+    isLoadingTasks.value = false
+  }
+}
 
+const isDoneStatus = (statusName) => {
+  if (!statusName) return false;
+  const name = statusName.toLowerCase();
+  return name.includes('done') || name.includes('hoàn thành');
+}
 
-onMounted(fetchSpaces)
+const filteredTasks = computed(() => {
+  if (!allMyTasks.value || !Array.isArray(allMyTasks.value)) return []
+  
+  if (currentTaskTab.value === 'Được giao cho tôi') {
+    return allMyTasks.value.filter(t => !isDoneStatus(t.statusName))
+  } else if (currentTaskTab.value === 'Đã làm') {
+    return allMyTasks.value.filter(t => isDoneStatus(t.statusName))
+  }
+  return [] // Other tabs
+})
+
+const myAssignedTasksCount = computed(() => {
+  if (!allMyTasks.value || !Array.isArray(allMyTasks.value)) return 0
+  return allMyTasks.value.filter(t => !isDoneStatus(t.statusName)).length
+})
+
+const openTasksCount = computed(() => {
+  return myAssignedTasksCount.value
+})
+
+onMounted(async () => {
+  await fetchSpaces()
+  await fetchTasks()
+})
 </script>
 
 <style scoped>

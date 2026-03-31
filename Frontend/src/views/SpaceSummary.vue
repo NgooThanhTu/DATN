@@ -250,34 +250,34 @@
                 </div>
                 <h1 class="page-title">My Team</h1>
                 <div class="project-info-right">
-                  <div class="users-icon-box" title="Thành viên" @click="showTeamsDialog = true">
+                  <div class="users-icon-box" title="Thành viên" @click="openMembersDialog">
                     <i class="fa-solid fa-users"></i>
                   </div>
                   <div class="more-icon-box" title="Thêm tùy chọn">
-                  <el-dropdown trigger="click" placement="bottom-start" popper-class="space-settings-dropdown">
+                  <el-dropdown trigger="click" placement="bottom-start" popper-class="space-settings-dropdown" @command="handleSpaceMenuCommand">
                     <i class="fa-solid fa-ellipsis"></i>
                     <template #dropdown>
                       <el-dropdown-menu>
-                        <el-dropdown-item><i class="fa-regular fa-star"></i> Add to starred</el-dropdown-item>
-                        <el-dropdown-item><i class="fa-regular fa-user-plus"></i> Add people</el-dropdown-item>
-                        <el-dropdown-item class="flex-between">
+                        <el-dropdown-item command="star"><i :class="isStarred ? 'fa-solid fa-star' : 'fa-regular fa-star'" :style="{ color: isStarred ? '#f59e0b' : '' }"></i> {{ isStarred ? 'Remove from starred' : 'Add to starred' }}</el-dropdown-item>
+                        <el-dropdown-item command="add-people"><i class="fa-regular fa-user-plus"></i> Add people</el-dropdown-item>
+                        <el-dropdown-item class="flex-between" command="save-template">
                           <span><i class="fa-regular fa-clone"></i> Save as template</span>
                           <span class="enterprise-badge">ENTERPRISE</span>
                         </el-dropdown-item>
-                        <el-dropdown-item class="flex-between">
+                        <el-dropdown-item class="flex-between" command="set-background">
                           <span><i class="fa-solid fa-mountain-sun"></i> Set space background</span>
                           <i class="fa-solid fa-chevron-right sub-arrow"></i>
                         </el-dropdown-item>
-                        <el-dropdown-item><i class="fa-solid fa-gear"></i> Space settings</el-dropdown-item>
+                        <el-dropdown-item command="settings"><i class="fa-solid fa-gear"></i> Space settings</el-dropdown-item>
                         
                         <div class="dropdown-divider"></div>
                         
-                        <el-dropdown-item><i class="fa-solid fa-box-archive"></i> Archive space</el-dropdown-item>
-                        <el-dropdown-item class="danger-item"><i class="fa-solid fa-trash-can"></i> Delete space</el-dropdown-item>
+                        <el-dropdown-item command="archive"><i class="fa-solid fa-box-archive"></i> Archive space</el-dropdown-item>
+                        <el-dropdown-item class="danger-item" command="delete"><i class="fa-solid fa-trash-can"></i> Delete space</el-dropdown-item>
                         
                         <div class="dropdown-divider"></div>
 
-                        <el-dropdown-item class="info-item">
+                        <el-dropdown-item class="info-item" disabled>
                           <div class="info-item-content">
                             <i class="fa-solid fa-rocket info-icon"></i>
                             <div class="info-text">
@@ -1014,56 +1014,92 @@
         </div>
       </main>
 
-      <!-- Link Contributing Teams Dialog -->
+      <!-- Members Management Dialog -->
       <el-dialog
         v-model="showTeamsDialog"
-        width="480px"
-        :show-close="false"
-        class="jira-dark-dialog teams-dialog"
+        title="Thành viên dự án"
+        width="560px"
+        custom-class="jira-dark-dialog"
       >
-        <div class="teams-dialog-header">
-          <div class="header-illustration">
-            <div class="team-banner">
-              <div class="team-tag">
-                <div class="tag-icon"><i class="fa-solid fa-users"></i></div>
-                <span>Team Awesome</span>
+        <div class="members-dialog-body" style="padding: 10px 0;">
+          <!-- Invite Member Section -->
+          <div v-if="canManageMembers" class="invite-section" style="margin-bottom: 20px; padding: 16px; background: #161b22; border-radius: 8px; border: 1px solid #30363d;">
+            <div style="font-size: 14px; font-weight: 600; color: #f4f5f7; margin-bottom: 12px;"><i class="fa-solid fa-user-plus" style="margin-right: 8px; color: #579dff;"></i>Mời thành viên mới</div>
+            <div style="display: flex; gap: 8px; align-items: flex-end;">
+              <div style="flex: 1;">
+                <label style="font-size: 12px; color: #8c9bab; display: block; margin-bottom: 4px;">Email</label>
+                <input v-model="addPeopleEmail" type="email" placeholder="Nhập email thành viên..." style="width: 100%; padding: 8px 12px; background: #22272b; border: 1px solid #30363d; border-radius: 6px; color: #f4f5f7; font-size: 14px; outline: none; box-sizing: border-box;" />
               </div>
-              <div class="team-avatars">
-                <div class="avatar-ring av-1"><img src="https://i.pravatar.cc/32?img=1" /></div>
-                <div class="avatar-ring av-2"><img src="https://i.pravatar.cc/32?img=2" /></div>
-                <div class="avatar-ring av-3"><img src="https://i.pravatar.cc/32?img=3" /></div>
-                <div class="avatar-ring av-4"><img src="https://i.pravatar.cc/32?img=4" /></div>
+              <div style="width: 130px;">
+                <label style="font-size: 12px; color: #8c9bab; display: block; margin-bottom: 4px;">Vai trò</label>
+                <el-select v-model="addPeopleRole" placeholder="Chọn" size="default" style="width: 100%;">
+                  <el-option label="DEV" value="DEV" />
+                  <el-option label="QA" value="QA" />
+                  <el-option label="PM" value="PM" />
+                  <el-option label="PO" value="PO" />
+                  <el-option label="SM" value="SM" />
+                  <el-option label="Admin" value="Admin" />
+                </el-select>
+              </div>
+              <el-button type="primary" @click="inviteMember" :disabled="!addPeopleEmail" style="height: 34px;"><i class="fa-solid fa-paper-plane" style="margin-right: 6px;"></i>Mời</el-button>
+            </div>
+          </div>
+
+          <!-- Members List -->
+          <div style="font-size: 13px; font-weight: 600; color: #8c9bab; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px;">Danh sách thành viên ({{ (projectMembers || []).length }})</div>
+          <div v-if="isFetchingMembers" class="loading-state" style="text-align: center; color: #8c9bab; padding: 20px;">
+             <i class="fa-solid fa-spinner fa-spin"></i> Đang tải danh sách...
+          </div>
+          <div v-else class="members-list" style="display: flex; flex-direction: column; gap: 8px; max-height: 360px; overflow-y: auto;">
+            <div class="member-row" v-for="member in (projectMembers || [])" :key="member.userId" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-radius: 8px; background-color: #22272b; transition: background 0.15s;">
+              <div class="member-info" style="display: flex; align-items: center; gap: 12px;">
+                <div class="avatar-sm" style="background-color: #3b82f6; color: white; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 13px; flex-shrink: 0;">
+                  {{ member.fullName ? member.fullName.substring(0, 2).toUpperCase() : '?' }}
+                </div>
+                <div class="member-details">
+                  <div class="member-name" style="color: #f4f5f7; font-weight: 500; font-size: 14px;">{{ member.fullName }}</div>
+                  <div class="member-email" style="color: #8c9bab; font-size: 12px;">{{ member.email }}</div>
+                </div>
+              </div>
+              <div class="member-role" style="display: flex; align-items: center; gap: 8px;">
+                <el-dropdown trigger="click" @command="(val) => changeMemberRole(member.userId, val)" v-if="canManageMembers && member.userId !== currentUser.id">
+                  <div class="role-trigger" style="color: #579dff; font-size: 13px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 4px; background: rgba(87, 157, 255, 0.1);">
+                    {{ member.projectRole || 'Thành viên' }} <i class="fa-solid fa-chevron-down" style="font-size: 10px;"></i>
+                  </div>
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item command="Admin">Admin</el-dropdown-item>
+                      <el-dropdown-item command="PM">PM (Quản lý)</el-dropdown-item>
+                      <el-dropdown-item command="PO">PO (Product Owner)</el-dropdown-item>
+                      <el-dropdown-item command="SM">SM (Scrum Master)</el-dropdown-item>
+                      <el-dropdown-item command="DEV">DEV (Lập trình viên)</el-dropdown-item>
+                      <el-dropdown-item command="QA">QA (Kiểm thử viên)</el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
+                <div v-else class="role-static" style="color: #8c9bab; font-size: 13px; font-weight: 500; padding: 4px 8px;">
+                  {{ member.projectRole || 'Thành viên' }}
+                </div>
+                <!-- (B) Nút Xóa thành viên -->
+                <i 
+                  v-if="canManageMembers && member.userId !== currentUser.id"
+                  class="fa-solid fa-trash-can"
+                  style="color: #ef4444; font-size: 13px; cursor: pointer; padding: 6px; border-radius: 4px; transition: background 0.15s;"
+                  title="Xóa thành viên khỏi dự án"
+                  @click="removeMember(member.userId, member.fullName)"
+                ></i>
               </div>
             </div>
-            <div class="mini-cards">
-              <div class="m-card c-1"><div class="c-icon blue"><i class="fa-brands fa-atlassian"></i></div><div class="c-line"></div></div>
-              <div class="m-card c-2"><div class="c-icon purple"><i class="fa-solid fa-rocket"></i></div><div class="c-line"></div></div>
-              <div class="m-card c-3"><div class="c-icon gray"><i class="fa-solid fa-gear"></i></div><div class="c-line"></div></div>
-            </div>
-            <div class="sparkles">
-              <i class="fa-solid fa-star sp-1"></i>
-              <i class="fa-solid fa-star sp-2"></i>
-              <i class="fa-solid fa-plus sp-3"></i>
+            
+            <div v-if="(projectMembers || []).length === 0 && !isFetchingMembers" style="text-align: center; color: #8c9bab; padding: 20px;">
+              <i class="fa-regular fa-face-meh" style="font-size: 32px; margin-bottom: 8px; display: block; opacity: 0.5;"></i>
+              Chưa có thành viên nào trong dự án.
             </div>
           </div>
         </div>
-        
-        <div class="teams-dialog-body">
-          <h3 class="dialog-main-title">Link contributing teams</h3>
-          <p class="dialog-subtitle">Add the teams that work in this space, so everyone knows who to go to for help.</p>
-          
-          <div class="search-teams-wrapper">
-            <div class="search-teams-box">
-              <i class="fa-solid fa-users-viewfinder"></i>
-              <input type="text" placeholder="Search and add teams" />
-            </div>
-          </div>
-        </div>
-        
         <template #footer>
           <div class="dialog-footer">
-            <el-button @click="showTeamsDialog = false" text class="cancel-btn">Cancel</el-button>
-            <el-button type="primary" @click="showTeamsDialog = false" class="save-btn">Save</el-button>
+            <el-button @click="showTeamsDialog = false" class="close-btn" style="background: transparent; color: #f4f5f7; border: 1px solid #738496;">Đóng</el-button>
           </div>
         </template>
       </el-dialog>
@@ -1210,6 +1246,8 @@
         </template>
       </el-dialog>
     </div>
+    
+    <AddPeopleModal v-model:visible="showAddPeopleModal" @added="handleAddedPeople" />
   </div>
 </template>
 
@@ -1222,18 +1260,30 @@ import HelpDropdown from '../components/HelpDropdown.vue'
 import SettingsDropdown from '../components/SettingsDropdown.vue'
 import NotificationsDropdown from '../components/NotificationsDropdown.vue'
 import UserDropdown from '../components/UserDropdown.vue';
+import AddPeopleModal from '../components/AddPeopleModal.vue';
 import draggable from 'vuedraggable'
 import * as echarts from 'echarts'
 import axiosClient from '@/api/axiosClient'
 import { signalRService } from '@/api/signalrService'
-import { ElNotification, ElMessageBox } from 'element-plus'
+import { ElNotification, ElMessageBox, ElMessage } from 'element-plus'
 
 const route = useRoute()
 const projectId = computed(() => route.params.id)
 
+const showAddPeopleModal = ref(false)
+const handleAddedPeople = (data) => {
+  console.log('Added people:', data)
+  fetchProjectMembers()
+}
+
 const searchQuery = ref('')
 const aiVisible = ref(false)
 const showTeamsDialog = ref(false)
+const isStarred = ref(false)
+const showAddPeopleDialog = ref(false)
+const showSettingsDialog = ref(false)
+const addPeopleEmail = ref('')
+const addPeopleRole = ref('DEV')
 
 const toggleAI = () => {
   aiVisible.value = !aiVisible.value
@@ -1255,6 +1305,71 @@ const newTask = ref({
 const projectMembers = ref([])
 const isFetchingMembers = ref(false)
 const isValidProject = ref(true)
+
+const canManageMembers = computed(() => {
+  if (!currentUser || !currentUser.id) return false;
+  // If user has system admin role, allow
+  if (currentUser.role && typeof currentUser.role === 'string' && currentUser.role.includes('Admin')) return true;
+  
+  if (!projectMembers.value || !Array.isArray(projectMembers.value)) return false;
+
+  const myMemberInfo = projectMembers.value.find(m => m && m.userId === currentUser.id);
+  if (!myMemberInfo) return false;
+  
+  const role = myMemberInfo.projectRole || myMemberInfo.role;
+  return role === 'PM' || role === 'PO' || role === 'Admin';
+});
+
+const changeMemberRole = async (userId, newRole) => {
+  try {
+    const payload = { role: newRole };
+    await axiosClient.put(`/projects/${projectId.value}/members/${userId}/role`, payload);
+    ElMessage.success('Cập nhật quyền thành công');
+    await fetchProjectMembers();
+  } catch (error) {
+    console.error('Role update error:', error);
+    ElMessage.error(error.response?.data?.message || 'Không thể cập nhật quyền');
+  }
+};
+
+// (B) Xóa thành viên khỏi dự án (Soft Delete)
+const removeMember = async (userId, fullName) => {
+  try {
+    await ElMessageBox.confirm(
+      `Bạn có chắc chắn muốn xóa "${fullName}" khỏi dự án? Các task được giao cho người này sẽ bị gỡ phân công.`,
+      'Xóa thành viên',
+      { confirmButtonText: 'Xóa', cancelButtonText: 'Hủy', type: 'warning', confirmButtonClass: 'el-button--danger' }
+    );
+    await axiosClient.delete(`/projects/${projectId.value}/members/${userId}`);
+    ElMessage.success(`Đã xóa ${fullName} khỏi dự án`);
+    await fetchProjectMembers();
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('Remove member error:', error);
+      ElMessage.error(error.response?.data?.message || 'Không thể xóa thành viên');
+    }
+  }
+};
+
+const inviteMember = async () => {
+  if (!addPeopleEmail.value) {
+    ElMessage.warning('Vui lòng nhập email thành viên');
+    return;
+  }
+  try {
+    await axiosClient.post(`/projects/${projectId.value}/members`, {
+      email: addPeopleEmail.value,
+      role: addPeopleRole.value
+    });
+    ElMessage.success(`Đã mời ${addPeopleEmail.value} với vai trò ${addPeopleRole.value}`);
+    addPeopleEmail.value = '';
+    addPeopleRole.value = 'DEV';
+    await fetchProjectMembers();
+  } catch (error) {
+    console.error('Invite member error:', error);
+    ElMessage.error(error.response?.data?.message || 'Không thể mời thành viên. Kiểm tra lại email.');
+  }
+};
 
 // Filtering & Sorting State
 const activeFilters = ref({
@@ -1596,16 +1711,83 @@ const handleFileUploaded = (taskId, attachment) => {
   }
 }
 
+// Watch for members dialog opening to fetch members
+watch(showTeamsDialog, async (newVal) => {
+  if (newVal) {
+    await fetchProjectMembers()
+  }
+})
+
+// Open members dialog helper
+const openMembersDialog = () => {
+  showTeamsDialog.value = true
+}
+
+// Space menu command handler
+const handleSpaceMenuCommand = async (command) => {
+  switch (command) {
+    case 'star':
+      isStarred.value = !isStarred.value
+      ElMessage.success(isStarred.value ? 'Đã thêm vào mục yêu thích' : 'Đã xóa khỏi mục yêu thích')
+      break
+    case 'add-people':
+      showAddPeopleModal.value = true
+      break
+    case 'save-template':
+      ElMessage.info('Tính năng Save as Template chỉ khả dụng cho gói Enterprise')
+      break
+    case 'set-background':
+      ElMessage.info('Tính năng đặt hình nền đang được phát triển')
+      break
+    case 'settings':
+      ElMessage.info('Tính năng cài đặt không gian đang được phát triển')
+      break
+    case 'archive':
+      try {
+        await ElMessageBox.confirm(
+          'Bạn có chắc muốn lưu trữ không gian này? Các công việc sẽ bị ẩn khỏi bảng điều khiển.',
+          'Lưu trữ không gian',
+          { confirmButtonText: 'Lưu trữ', cancelButtonText: 'Hủy', type: 'warning' }
+        )
+        ElMessage.success('Không gian đã được lưu trữ (Archive)')
+        router.push('/dashboard')
+      } catch { /* user cancelled */ }
+      break
+    case 'delete':
+      try {
+        await ElMessageBox.confirm(
+          'Bạn có chắc chắn muốn xóa không gian này? Hành động này không thể hoàn tác!',
+          'Xóa không gian',
+          { confirmButtonText: 'Xóa', cancelButtonText: 'Hủy', type: 'error', confirmButtonClass: 'el-button--danger' }
+        )
+        await axiosClient.delete(`/projects/${projectId.value}`)
+        ElMessage.success('Đã xóa không gian thành công')
+        router.push('/dashboard')
+      } catch (error) {
+        if (error !== 'cancel') {
+          console.error('Delete space error:', error)
+          ElMessage.error(error.response?.data?.message || 'Không thể xóa không gian')
+        }
+      }
+      break
+  }
+}
+
 onMounted(async () => {
   await fetchTasks()
+  await fetchProjectMembers()
   if (projectId.value) {
-    await signalRService.startConnection(projectId.value)
-    signalRService.on('TaskCreated', handleTaskCreated)
-    signalRService.on('TaskUpdated', handleTaskUpdated)
-    signalRService.on('TaskMoved', handleTaskMoved)
-    signalRService.on('TaskDeleted', handleTaskDeleted)
-    signalRService.on('CommentAdded', handleCommentAdded)
-    signalRService.on('FileUploaded', handleFileUploaded)
+    try {
+      await signalRService.startConnection(projectId.value)
+      signalRService.on('TaskCreated', handleTaskCreated)
+      signalRService.on('TaskUpdated', handleTaskUpdated)
+      signalRService.on('TaskMoved', handleTaskMoved)
+      signalRService.on('TaskDeleted', handleTaskDeleted)
+      signalRService.on('CommentAdded', handleCommentAdded)
+      signalRService.on('FileUploaded', handleFileUploaded)
+    } catch (err) {
+      console.warn('SignalR không khả dụng, tính năng real-time bị tạm tắt:', err.message)
+    }
   }
 })
 
