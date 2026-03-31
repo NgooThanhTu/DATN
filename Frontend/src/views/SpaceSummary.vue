@@ -1318,7 +1318,7 @@ import axiosClient from '../api/axiosClient';
 import draggable from 'vuedraggable'
 import * as echarts from 'echarts'
 import { signalRService } from '@/api/signalrService'
-import { ElNotification, ElMessageBox, ElMessage } from 'element-plus'
+
 
 const route = useRoute()
 const projectId = computed(() => route.params.id)
@@ -1439,6 +1439,13 @@ const sidebarPreferences = ref({
   users: true
 })
 
+// const handleSidebarSaved = (prefs) => {
+//   if (prefs) {
+//     Object.assign(sidebarPreferences.value, prefs)
+//   }
+//   localStorage.setItem('sidebarPreferences', JSON.stringify(sidebarPreferences.value))
+// }
+
 const filteredTasks = computed(() => {
   let result = [...tasks.value]
 
@@ -1504,7 +1511,7 @@ const taskGroups = computed(() => {
         expanded: true,
         items: allTasks.filter(t => {
           const s = (t.statusName || '').toUpperCase().replace(/\s/g, '')
-          return s === 'TODO' || s === 'BACKLOG'
+          return s !== 'INPROGRESS' && s !== 'DONE'
         }),
         showQuickAdd: false,
         quickAddTitle: ''
@@ -1515,7 +1522,10 @@ const taskGroups = computed(() => {
         statusBg: '#166534',
         statusColor: '#ffffff',
         expanded: true,
-        items: allTasks.filter(t => (t.statusName || '').toUpperCase() === 'DONE'),
+        items: allTasks.filter(t => {
+          const s = (t.statusName || '').toUpperCase().replace(/\s/g, '')
+          return s === 'DONE'
+        }),
         showQuickAdd: false,
         quickAddTitle: ''
       }
@@ -1656,7 +1666,14 @@ const fetchTasks = async () => {
     const { data } = await axiosClient.get(`/projects/${projectId.value}/WorkTasks`)
     tasks.value = data
   } catch (error) {
-    console.error('Fetch tasks error:', error)
+    if (error.response && error.response.status === 403) {
+      ElMessage.error(error.response.data?.message || 'Bạn không có quyền truy cập dự án này.')
+      // Optional: redirect back to dashboard if they don't have access at all
+      router.push('/dashboard')
+    } else {
+      console.error('Fetch tasks error:', error)
+      ElMessage.error('Không thể tải danh sách công việc')
+    }
   }
 }
 
@@ -1716,17 +1733,27 @@ const submitCreateTask = async () => {
   
   try {
     const payload = {
-      ...newTask.value,
-      projectId: route.params.id,
-      typeName: 'Task'
+      title: newTask.value.title,
+      description: newTask.value.description || null,
+      statusName: newTask.value.statusName || 'TO DO',
+      priority: newTask.value.priority || 3,
+      typeName: 'Task',
+      dueDate: newTask.value.dueDate || null
+    }
+    // Only add assignedUserId if it's a valid GUID
+    if (newTask.value.assignedUserId && newTask.value.assignedUserId !== 'null') {
+      payload.assignedUserId = newTask.value.assignedUserId
     }
     await axiosClient.post(`/projects/${projectId.value}/WorkTasks`, payload)
     showCreateModal.value = false
     ElNotification({ title: 'Thành công', message: 'Đã tạo công việc mới', type: 'success' })
     await fetchTasks()
+    // Reset form
+    newTask.value = { title: '', description: '', statusName: 'TO DO', priority: 3, assignedUserId: currentUser.id || null, dueDate: null }
   } catch (error) {
     console.error('Create task error:', error)
-    ElNotification({ title: 'Lỗi', message: 'Không thể tạo công việc', type: 'error' })
+    const errMsg = error.response?.data?.message || error.response?.data?.title || 'Không thể tạo công việc'
+    ElNotification({ title: 'Lỗi', message: errMsg, type: 'error' })
   }
 }
 
@@ -1961,7 +1988,10 @@ const updateTaskField = async (task, field, value) => {
     if (field === 'statusName') updateData.taskStatusId = '00000000-0000-0000-0000-000000000000'
     if (field === 'typeName') updateData.taskTypeId = '00000000-0000-0000-0000-000000000000'
     
-    await axiosClient.put(`/projects/${projectId.value}/WorkTasks/${task.id}`, updateData)
+    const response = await axiosClient.put(`/projects/${projectId.value}/WorkTasks/${task.id}`, updateData)
+    if (response.data && response.data.data) {
+      Object.assign(task, response.data.data)
+    }
   } catch (error) {
     if (error.response?.status === 409) {
       ElNotification({ title: 'Conflict', message: 'Công việc đã bị thay đổi bởi người khác. Đang cập nhật lại...', type: 'warning' })

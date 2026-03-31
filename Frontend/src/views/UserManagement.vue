@@ -333,7 +333,7 @@ import UserDropdown from '../components/UserDropdown.vue'
 import NotificationsDropdown from '../components/NotificationsDropdown.vue'
 import CustomizeSidebarModal from '../components/CustomizeSidebarModal.vue'
 import { Plus, Search, Edit, Delete, Key, More, ArrowDown, User, Monitor, Folder } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+
 import { onMounted } from 'vue'
 
 const router = useRouter()

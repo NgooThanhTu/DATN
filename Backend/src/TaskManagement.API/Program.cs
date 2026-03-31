@@ -16,6 +16,7 @@ builder.Services.AddOpenApi();
 
 // Đăng ký Custom Services từ Extension Methods
 builder.Services.AddAuthServices(builder.Configuration);
+builder.Services.AddWorkspaceServices();
 
 // 2. Khai báo Policy CORS
 var myAllowSpecificOrigins = "_myAllowSpecificOrigins";
@@ -64,8 +65,7 @@ app.UseDefaultFiles(); // Phải gọi dòng này trước
 app.UseStaticFiles();
 // 5. Nối các endpoint vào Controllers
 app.MapControllers();
-// app.MapHub<TaskManagement.API.Hubs.KanbanHub>("/kanban-hub");
-// app.MapHub removed because KanbanHub was deleted
+app.MapHub<TaskManagement.API.Hubs.KanbanHub>("/kanban-hub");
 
 // TỰ ĐỘNG MIGRATE VÀ SEED DỮ LIỆU KHI STARTUP (PM: Vui lòng không xóa đoạn này)
 using (var scope = app.Services.CreateScope())

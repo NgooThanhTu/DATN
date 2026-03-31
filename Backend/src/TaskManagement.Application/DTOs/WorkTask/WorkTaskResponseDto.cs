@@ -6,6 +6,7 @@ namespace TaskManagement.Application.DTOs.WorkTask
     {
         public Guid Id { get; set; }
         public Guid ProjectId { get; set; }
+        public Guid? SprintId { get; set; }
         public string Title { get; set; } = string.Empty;
         public string? Description { get; set; }
         public int Priority { get; set; }
@@ -13,6 +14,8 @@ namespace TaskManagement.Application.DTOs.WorkTask
         public string StatusName { get; set; } = string.Empty;
         public Guid TaskStatusId { get; set; }
         public string TaskTypeName { get; set; } = string.Empty;
+        public string TypeName { get; set; } = string.Empty;
+        public Guid TaskTypeId { get; set; }
         public string? AssigneeName { get; set; }
         public Guid? AssignedUserId { get; set; }
         public string ReporterName { get; set; } = string.Empty;
@@ -23,7 +26,7 @@ namespace TaskManagement.Application.DTOs.WorkTask
         public double TotalEstimatedHours { get; set; }
         public double TotalActualHours { get; set; }
         public Guid? ParentTaskId { get; set; }
-        public byte[] RowVersion { get; set; } = null!;
+        public byte[]? RowVersion { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
         public string? ProjectName { get; set; }

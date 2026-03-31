@@ -11,6 +11,8 @@ using TaskManagement.Application.Interfaces;
 namespace TaskManagement.API.Controllers
 {
     [ApiController]
+    [Route("api")]
+    [Authorize]
     public class WorkTasksController : ControllerBase
     {
         private readonly IWorkTaskService _workTaskService;
@@ -20,31 +22,31 @@ namespace TaskManagement.API.Controllers
             _workTaskService = workTaskService;
         }
 
-        /// <summary>
-        /// GET /api/projects/{projectId}/WorkTasks
-        /// Lấy danh sách tasks của dự án. Chỉ thành viên dự án mới được phép.
-        /// </summary>
-        [HttpGet("api/projects/{projectId}/WorkTasks")]
-        [Authorize]
-        public async Task<IActionResult> GetTasksByProject(Guid projectId)
+        [HttpGet("projects/{projectId}/WorkTasks")]
+        public async Task<IActionResult> GetByProject(Guid projectId)
         {
             try
             {
-                var tasks = await _workTaskService.GetTasksByProjectIdAsync(projectId);
-                return Ok(tasks);
+                var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (!Guid.TryParse(userIdString, out Guid userId))
+                {
+                    return Unauthorized(new { statusCode = 401, message = "Vui lòng đăng nhập." });
+                }
+
+                var tasks = await _workTaskService.GetByProjectAsync(projectId, userId);
+                return Ok(new { statusCode = 200, message = "Success", data = tasks });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { statusCode = 403, message = ex.Message });
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { statusCode = 500, message = "Lỗi máy chủ: " + ex.Message });
+                return StatusCode(500, new { statusCode = 500, message = "Lỗi máy chủ nội bộ: " + ex.Message });
             }
         }
 
-        /// <summary>
-        /// GET /api/tasks/my-tasks
-        /// Lấy danh sách tasks được giao cho user đang đăng nhập (dùng cho Dashboard).
-        /// </summary>
-        [HttpGet("api/tasks/my-tasks")]
-        [Authorize]
+        [HttpGet("tasks/my-tasks")]
         public async Task<IActionResult> GetMyTasks()
         {
             try
@@ -64,13 +66,41 @@ namespace TaskManagement.API.Controllers
             }
         }
 
-        /// <summary>
-        /// PUT /api/tasks/{id}/status
-        /// Cập nhật trạng thái task (kèm các ràng buộc State Machine, Dependencies, Parent-Subtask).
-        /// </summary>
-        [HttpPut("api/tasks/{id}/status")]
-        [Authorize]
-        public async Task<IActionResult> UpdateStatus(Guid id, [FromBody] UpdateTaskStatusRequestDto request)
+        [HttpPost("projects/{projectId}/WorkTasks")]
+        public async Task<IActionResult> Create(Guid projectId, [FromBody] CreateWorkTaskDto request)
+        {
+            request.ProjectId = projectId;
+            try
+            {
+                var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrEmpty(userIdString) || !Guid.TryParse(userIdString, out Guid reporterId))
+                {
+                    reporterId = Guid.Empty;
+                }
+                
+                var result = await _workTaskService.CreateAsync(reporterId, request);
+                return CreatedAtAction(nameof(GetByProject), new { projectId }, new { statusCode = 201, message = "Tạo tác vụ thành công.", data = result });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { statusCode = 400, message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { statusCode = 400, message = ex.Message });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { statusCode = 403, message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { statusCode = 500, message = "Lỗi máy chủ nội bộ: " + ex.Message });
+            }
+        }
+
+        [HttpPut("projects/{projectId}/WorkTasks/{id}/status")]
+        public async Task<IActionResult> UpdateStatus(Guid projectId, Guid id, [FromBody] UpdateTaskStatusRequestDto request)
         {
             try
             {
@@ -80,6 +110,42 @@ namespace TaskManagement.API.Controllers
             catch (DbUpdateConcurrencyException)
             {
                 return Conflict(new { statusCode = 409, message = "Dữ liệu đã bị người khác thay đổi. Vui lòng tải lại trang để tránh ghi đè (Anti-Overwrite)." });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { statusCode = 400, message = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { statusCode = 400, message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { statusCode = 500, message = "Lỗi máy chủ nội bộ: " + ex.Message });
+            }
+        }
+
+        [HttpPut("projects/{projectId}/WorkTasks/{id}")]
+        public async Task<IActionResult> Update(Guid projectId, Guid id, [FromBody] UpdateWorkTaskDto dto)
+        {
+            try
+            {
+                var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (!Guid.TryParse(userIdString, out Guid userId))
+                {
+                    return Unauthorized(new { statusCode = 401, message = "Vui lòng đăng nhập." });
+                }
+
+                var result = await _workTaskService.UpdateAsync(id, userId, dto);
+                return Ok(new { statusCode = 200, message = "Cập nhật công việc thành công.", data = result });
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return Conflict(new { statusCode = 409, message = "Dữ liệu đã bị người khác thay đổi. Vui lòng tải lại trang để tránh ghi đè (Anti-Overwrite)." });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { statusCode = 403, message = ex.Message });
             }
             catch (InvalidOperationException ex)
             {
