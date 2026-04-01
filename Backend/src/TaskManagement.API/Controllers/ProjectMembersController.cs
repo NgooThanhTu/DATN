@@ -59,5 +59,26 @@ namespace TaskManagement.API.Controllers
                 return StatusCode(500, new { statusCode = 500, message = "Internal server error: " + ex.Message });
             }
         }
+
+        [HttpGet]
+        public async Task<IActionResult> GetProjectMembers(Guid projectId, [FromServices] TaskManagement.Infrastructure.Data.ApplicationDbContext context)
+        {
+            try
+            {
+                // Simple select from join
+                var members = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
+                    System.Linq.Queryable.Select(
+                        System.Linq.Queryable.Where(context.ProjectMembers, pm => pm.ProjectId == projectId && pm.Status),
+                        pm => new { pm.UserId, FullName = pm.User.FullName ?? pm.User.Email, Email = pm.User.Email, Role = pm.ProjectRole }
+                    )
+                );
+                
+                return Ok(new { statusCode = 200, message = "Success", data = members });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { statusCode = 500, message = "Internal server error: " + ex.Message });
+            }
+        }
     }
 }
