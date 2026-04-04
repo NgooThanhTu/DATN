@@ -148,7 +148,7 @@
                 </div>
 
                 <div class="activity-scroll">
-                  <div class="comment-card" v-for="c in comments" :key="c.id">
+                  <div class="comment-card" v-for="c in topLevelComments" :key="c.id">
                     <div class="c-head">
                       <div class="avatar-sm">{{ c.avatar || 'U' }}</div>
                       <div class="c-user">{{ c.fullName }} <span class="c-time">{{ formatDate(c.createdAt) }}</span></div>
@@ -159,14 +159,27 @@
                          <i class="fa-regular fa-thumbs-up"></i>
                          <i class="fa-regular fa-face-smile"></i>
                        </div>
-                       <div class="c-rep">Trả lời</div>
+                       <div class="c-rep" @click="startReply(c)">Trả lời</div>
+                    </div>
+                    
+                    <div class="replies-container" v-if="c.childComments && c.childComments.length > 0">
+                      <div class="comment-card reply-card" v-for="reply in c.childComments" :key="reply.id">
+                        <div class="c-head">
+                          <div class="avatar-sm" style="width: 20px; height: 20px; font-size: 9px;">{{ reply.avatar || 'U' }}</div>
+                          <div class="c-user" style="font-size: 12px;">{{ reply.fullName }} <span class="c-time">{{ formatDate(reply.createdAt) }}</span></div>
+                        </div>
+                        <div class="c-body" style="font-size: 13px;">{{ reply.content }}</div>
+                      </div>
                     </div>
                   </div>
                 </div>
 
+                <div class="reply-badge" v-if="replyingToCommentId">
+                  Đang trả lời bình luận... <i class="fa-solid fa-xmark" @click="cancelReply" style="cursor: pointer; margin-left: 8px;"></i>
+                </div>
                 <div class="activity-input">
                   <div class="input-container">
-                    <textarea placeholder="Viết bình luận..." v-model="newComment" @keyup.enter.ctrl="submitComment"></textarea>
+                    <textarea id="comment-textarea" placeholder="Viết bình luận..." v-model="newComment" @keyup.enter.ctrl="submitComment"></textarea>
                     <div class="input-actions-bar">
                       <div class="bar-left">
                         <i class="fa-solid fa-plus"></i>
@@ -1910,16 +1923,57 @@ const moveTask = async (taskId, newStatusId, rowVersion, statusName) => {
 }
 
 const newComment = ref('')
+const replyingToCommentId = ref(null)
+
+const topLevelComments = computed(() => {
+  const map = {}
+  const list = []
+  
+  comments.value.forEach(c => {
+    const clone = { ...c, childComments: [] }
+    map[clone.id] = clone
+    list.push(clone)
+  })
+
+  const roots = []
+  list.forEach(c => {
+    if (c.parentCommentId && map[c.parentCommentId]) {
+      map[c.parentCommentId].childComments.push(c)
+    } else {
+      roots.push(c)
+    }
+  })
+  
+  return roots
+})
+
+const startReply = (comment) => {
+  replyingToCommentId.value = comment.id
+  setTimeout(() => {
+    const ta = document.getElementById('comment-textarea')
+    if (ta) ta.focus()
+  }, 100)
+}
+
+const cancelReply = () => {
+  replyingToCommentId.value = null
+}
 
 const submitComment = async () => {
   if (!newComment.value || !selectedTask.value) return
   
   try {
-    const { data } = await axiosClient.post(`/projects/${projectId.value}/Comments`, {
+    const payload = {
       workTaskId: selectedTask.value.id,
       content: newComment.value
-    })
+    }
+    if (replyingToCommentId.value) {
+      payload.parentCommentId = replyingToCommentId.value
+    }
+    
+    const { data } = await axiosClient.post(`/projects/${projectId.value}/Comments`, payload)
     newComment.value = ''
+    replyingToCommentId.value = null
     comments.value.push(data.data)
   } catch (error) {
     console.error('Submit comment error:', error)
@@ -3148,7 +3202,13 @@ const formatDate = (dateStr) => {
 .c-body { font-size: 14px; color: #cbd5e1; padding-left: 34px; line-height: 1.5; }
 .c-foot { display: flex; align-items: center; justify-content: space-between; padding-left: 34px; margin-top: 12px; }
 .c-actions { display: flex; gap: 12px; color: #64748b; font-size: 12px; }
-.c-rep { font-size: 12px; font-weight: 600; color: #64748b; cursor: pointer; }
+.c-rep { font-size: 12px; font-weight: 600; color: #64748b; cursor: pointer; transition: color 0.2s; }
+.c-rep:hover { color: #3b82f6; }
+
+.replies-container { margin-top: 16px; margin-left: 34px; padding-left: 16px; border-left: 2px solid #334155; }
+.reply-card { margin-bottom: 12px; padding-bottom: 0; border-bottom: none; }
+.reply-card:last-child { margin-bottom: 0; }
+.reply-badge { font-size: 12px; color: #f59e0b; padding: 8px 20px 0 20px; font-weight: 600; display: flex; align-items: center; }
 
 .activity-input { padding: 20px; background-color: var(--bg-card); border-top: 1px solid var(--border-color); }
 .input-container { background-color: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; display: flex; flex-direction: column; }

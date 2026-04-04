@@ -61,6 +61,7 @@ namespace TaskManagement.API.Controllers
         public class CreateCommentRequest {
             public Guid WorkTaskId { get; set; }
             public string Content { get; set; } = string.Empty;
+            public Guid? ParentCommentId { get; set; }
         }
 
         [HttpPost("{id}/Comments")]
@@ -75,6 +76,7 @@ namespace TaskManagement.API.Controllers
                 Id = Guid.NewGuid(),
                 WorkTaskId = request.WorkTaskId,
                 Content = request.Content,
+                ParentCommentId = request.ParentCommentId,
                 UserId = userId,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
@@ -87,6 +89,7 @@ namespace TaskManagement.API.Controllers
             return Ok(new { statusCode = 200, message = "Success", data = new {
                 comment.Id,
                 comment.Content,
+                comment.ParentCommentId,
                 comment.CreatedAt,
                 UserId = userId,
                 FullName = user?.FullName ?? user?.Email,

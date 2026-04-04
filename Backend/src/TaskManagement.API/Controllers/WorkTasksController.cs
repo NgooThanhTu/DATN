@@ -173,6 +173,7 @@ namespace TaskManagement.API.Controllers
                             c => new {
                                 c.Id,
                                 c.Content,
+                                c.ParentCommentId,
                                 c.CreatedAt,
                                 UserId = c.UserId,
                                 FullName = c.User.FullName ?? c.User.Email,
