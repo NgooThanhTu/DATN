@@ -71,24 +71,33 @@
       </div>
     </div>
 
-    <!-- Recent Spaces (Legacy Integration) -->
+    <!-- Recent Spaces -->
     <div class="recent-spaces-section">
       <div class="section-header">
-        <h3>Recent Spaces</h3>
+        <h3>Không gian gần đây</h3>
       </div>
-      <div v-if="isLoading" class="loading-state">Loading spaces...</div>
+      <div v-if="isLoading" class="loading-state">
+        <i class="fa-solid fa-spinner fa-spin"></i> Đang tải...
+      </div>
       <div v-else-if="spaces.length === 0" class="empty-state">
         <i class="fa-regular fa-folder-open"></i>
-        <p>No recent spaces found</p>
+        <p>Chưa có không gian nào</p>
       </div>
       <div v-else class="recent-spaces-grid">
-        <div class="space-card" v-for="space in spaces" :key="space.id" @click="goToSpace(space.id)">
-          <div class="space-icon-box">
-            <i class="fa-solid fa-rocket"></i>
+        <div class="space-card" v-for="(space, index) in spaces" :key="space.id" @click="goToSpace(space.id)">
+          <div class="space-icon-box" :style="{ background: spaceGradients[index % spaceGradients.length] }">
+            <i :class="spaceIcons[index % spaceIcons.length]"></i>
           </div>
           <div class="space-details">
             <h4>{{ space.name }}</h4>
-            <span>{{ space.type || 'Workspace' }}</span>
+            <span>{{ space.description || 'Workspace' }}</span>
+            <div class="space-meta">
+              <span class="meta-item"><i class="fa-solid fa-users"></i> {{ space.activeMemberCount || 0 }}</span>
+              <span class="meta-item" :class="space.status ? 'active-status' : 'archived-status'">
+                <i :class="space.status ? 'fa-solid fa-circle-check' : 'fa-solid fa-archive'"></i>
+                {{ space.status ? 'Hoạt động' : 'Đã lưu trữ' }}
+              </span>
+            </div>
           </div>
           <div class="space-arrow">
             <i class="fa-solid fa-arrow-right"></i>
@@ -139,6 +148,24 @@ const events = ref([
 ])
 
 const goToSpace = (id) => { router.push(`/space/${id}`) }
+
+const spaceGradients = [
+  'linear-gradient(135deg, #3b82f6, #8b5cf6)',
+  'linear-gradient(135deg, #10b981, #059669)',
+  'linear-gradient(135deg, #f59e0b, #ef4444)',
+  'linear-gradient(135deg, #8b5cf6, #ec4899)',
+  'linear-gradient(135deg, #06b6d4, #3b82f6)',
+  'linear-gradient(135deg, #f97316, #eab308)'
+]
+
+const spaceIcons = [
+  'fa-solid fa-rocket',
+  'fa-solid fa-code',
+  'fa-solid fa-palette',
+  'fa-solid fa-chart-line',
+  'fa-solid fa-gear',
+  'fa-solid fa-bolt'
+]
 
 const fetchSpaces = async () => {
   isLoading.value = true
@@ -489,10 +516,36 @@ onBeforeUnmount(() => {
   box-shadow: 0 6px 16px rgba(59, 130, 246, 0.1);
 }
 
+
+.space-details h4 { margin: 0 0 4px 0; font-size: 16px; font-weight: 600; }
+.space-details > span { font-size: 13px; color: var(--text-muted); display: block; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+
+.space-meta {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.meta-item {
+  font-size: 12px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.meta-item.active-status {
+  color: #10b981;
+}
+
+.meta-item.archived-status {
+  color: #94a3b8;
+}
+
 .space-icon-box {
   width: 48px;
   height: 48px;
-  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  min-width: 48px;
   border-radius: 12px;
   display: flex;
   align-items: center;
@@ -502,12 +555,27 @@ onBeforeUnmount(() => {
   margin-right: 16px;
 }
 
-.space-details h4 { margin: 0 0 4px 0; font-size: 16px; font-weight: 600; }
-.space-details span { font-size: 13px; color: var(--text-muted); }
-
 .space-arrow {
   margin-left: auto;
   color: var(--text-muted);
 }
 .space-card:hover .space-arrow { color: #3b82f6; }
+
+.loading-state {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 20px;
+}
+
+.empty-state {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 40px;
+}
+.empty-state i {
+  font-size: 32px;
+  margin-bottom: 12px;
+  display: block;
+  opacity: 0.5;
+}
 </style>

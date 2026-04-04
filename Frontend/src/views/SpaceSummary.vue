@@ -1200,7 +1200,6 @@
           </div>
         </template>
       </el-dialog>
-    </div>
     
     <AddPeopleModal v-model:visible="showAddPeopleModal" @added="handleAddedPeople" />
     <!-- Customize Sidebar Modal -->
@@ -1616,14 +1615,19 @@ const goToAI = () => {
 }
 
 // Fetch tasks
+const isValidGuid = (val) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val)
+
 const fetchTasks = async () => {
+  if (!projectId.value || !isValidGuid(projectId.value)) {
+    console.warn('Invalid projectId:', projectId.value)
+    return
+  }
   try {
     const { data } = await axiosClient.get(`/projects/${projectId.value}/WorkTasks`)
     tasks.value = data.data || data || []
   } catch (error) {
     if (error.response && error.response.status === 403) {
       ElMessage.error(error.response.data?.message || 'Bạn không có quyền truy cập dự án này.')
-      // Optional: redirect back to dashboard if they don't have access at all
       router.push('/dashboard')
     } else {
       console.error('Fetch tasks error:', error)
@@ -1642,6 +1646,10 @@ const fetchComments = async (taskId) => {
 }
 
 const seedTestTasks = async () => {
+  if (!projectId.value || !isValidGuid(projectId.value)) {
+    ElMessage.error('ID dự án không hợp lệ.')
+    return
+  }
   try {
     for (let i = 1; i <= 5; i++) {
         await axiosClient.post(`/projects/${projectId.value}/WorkTasks`, {
@@ -1649,7 +1657,8 @@ const seedTestTasks = async () => {
             description: `Dữ liệu mẫu để kiểm tra tính năng kéo thả số ${i}`,
             statusName: 'TO DO',
             priority: Math.floor(Math.random() * 4) + 1,
-            assignedUserId: currentUser.id || null
+            assignedUserId: currentUser.id || null,
+            projectId: projectId.value
         })
     }
     await fetchTasks()
@@ -1661,7 +1670,7 @@ const seedTestTasks = async () => {
 }
 
 const fetchProjectMembers = async () => {
-  if (!projectId.value || projectId.value === 'my-team' || projectId.value === 'my_team') {
+  if (!projectId.value || !isValidGuid(projectId.value)) {
     isValidProject.value = false
     projectMembers.value = []
     return
@@ -1689,6 +1698,12 @@ const submitCreateTask = async () => {
     ElNotification({ title: 'Cảnh báo', message: 'Vui lòng nhập tiêu đề công việc', type: 'warning' })
     return
   }
+
+  // Validate projectId is a valid GUID before calling API
+  if (!projectId.value || !isValidGuid(projectId.value)) {
+    ElNotification({ title: 'Lỗi', message: 'ID dự án không hợp lệ. Vui lòng truy cập lại từ trang Dashboard.', type: 'error' })
+    return
+  }
   
   try {
     const payload = {
@@ -1697,7 +1712,8 @@ const submitCreateTask = async () => {
       statusName: newTask.value.statusName || 'TO DO',
       priority: newTask.value.priority || 3,
       typeName: 'Task',
-      dueDate: newTask.value.dueDate || null
+      dueDate: newTask.value.dueDate || null,
+      projectId: projectId.value
     }
     // Only add assignedUserId if it's a valid GUID
     if (newTask.value.assignedUserId && newTask.value.assignedUserId !== 'null') {
