@@ -161,8 +161,7 @@
                        </div>
                        <div class="c-rep" @click="startReply(c)">Trả lời</div>
                     </div>
-                    
-                    <div class="replies-container" v-if="c.childComments && c.childComments.length > 0">
+                    <div class="replies-container" v-if="(c.childComments && c.childComments.length > 0) || replyingToCommentId === c.id">
                       <div class="comment-card reply-card" v-for="reply in c.childComments" :key="reply.id">
                         <div class="c-head">
                           <div class="avatar-sm" style="width: 20px; height: 20px; font-size: 9px;">{{ reply.avatar || 'U' }}</div>
@@ -170,14 +169,27 @@
                         </div>
                         <div class="c-body" style="font-size: 13px;">{{ reply.content }}</div>
                       </div>
+                      
+                      <div class="inline-reply-box" v-if="replyingToCommentId === c.id">
+                        <div class="avatar-sm" style="width: 20px; height: 20px; font-size: 9px; align-self: flex-start; margin-top: 6px;">{{ currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'U' }}</div>
+                        <div class="inline-input-wrapper">
+                           <textarea 
+                              :id="'reply-textarea-' + c.id" 
+                              placeholder="Viết phản hồi công khai..." 
+                              v-model="newComment" 
+                              @keyup.enter.ctrl="submitComment"
+                           ></textarea>
+                           <div class="inline-actions">
+                             <i class="fa-solid fa-paper-plane" :class="{ 'send-enabled': !!newComment }" @click="submitComment"></i>
+                             <i class="fa-solid fa-xmark cancel-btn" @click="cancelReply" title="Hủy"></i>
+                           </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <div class="reply-badge" v-if="replyingToCommentId">
-                  Đang trả lời bình luận... <i class="fa-solid fa-xmark" @click="cancelReply" style="cursor: pointer; margin-left: 8px;"></i>
-                </div>
-                <div class="activity-input">
+                <div class="activity-input" v-show="!replyingToCommentId">
                   <div class="input-container">
                     <textarea id="comment-textarea" placeholder="Viết bình luận..." v-model="newComment" @keyup.enter.ctrl="submitComment"></textarea>
                     <div class="input-actions-bar">
@@ -1948,15 +1960,19 @@ const topLevelComments = computed(() => {
 })
 
 const startReply = (comment) => {
+  if (replyingToCommentId.value !== comment.id) {
+    newComment.value = ''
+  }
   replyingToCommentId.value = comment.id
   setTimeout(() => {
-    const ta = document.getElementById('comment-textarea')
+    const ta = document.getElementById('reply-textarea-' + comment.id)
     if (ta) ta.focus()
   }, 100)
 }
 
 const cancelReply = () => {
   replyingToCommentId.value = null
+  newComment.value = ''
 }
 
 const submitComment = async () => {
@@ -3205,10 +3221,85 @@ const formatDate = (dateStr) => {
 .c-rep { font-size: 12px; font-weight: 600; color: #64748b; cursor: pointer; transition: color 0.2s; }
 .c-rep:hover { color: #3b82f6; }
 
-.replies-container { margin-top: 16px; margin-left: 34px; padding-left: 16px; border-left: 2px solid #334155; }
-.reply-card { margin-bottom: 12px; padding-bottom: 0; border-bottom: none; }
-.reply-card:last-child { margin-bottom: 0; }
-.reply-badge { font-size: 12px; color: #f59e0b; padding: 8px 20px 0 20px; font-weight: 600; display: flex; align-items: center; }
+.replies-container {
+  margin-top: 12px;
+  margin-left: 17px;
+  position: relative;
+  border-left: 2px solid #30363d;
+}
+
+.replies-container::before {
+  content: '';
+  position: absolute;
+  top: -12px;     /* Start slightly above the container */
+  left: -2px;     /* Align with border-left */
+  width: 2px;
+  height: 12px;   /* Connects to parent comment */
+  background-color: #30363d;
+}
+
+.reply-card, .inline-reply-box {
+  margin-bottom: 12px;
+  margin-left: 32px; /* Giving space from vertical line */
+  position: relative;
+}
+
+.reply-card:last-child, .inline-reply-box:last-child {
+  margin-bottom: 0;
+}
+
+.reply-card::before, .inline-reply-box::before {
+  content: '';
+  position: absolute;
+  top: -24px;   /* Start high up to connect to the main line */
+  left: -34px;  /* Reach across the gap (32px + 2px border) */
+  width: 22px;
+  height: 38px;
+  border-bottom: 2px solid #30363d;
+  border-left: 2px solid #30363d;
+  border-bottom-left-radius: 12px;
+  pointer-events: none;
+}
+
+.inline-reply-box {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-top: 12px;
+}
+
+.inline-input-wrapper {
+  flex: 1;
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 12px;
+  padding: 8px 12px;
+}
+
+.inline-input-wrapper textarea {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: #c9d1d9;
+  font-size: 13px;
+  resize: none;
+  min-height: 24px;
+  outline: none;
+}
+
+.inline-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 4px;
+}
+.inline-actions i {
+  color: #64748b;
+  cursor: pointer;
+  font-size: 14px;
+}
+.inline-actions i.send-enabled { color: #3b82f6; }
+.inline-actions i.cancel-btn:hover { color: #ef4444; }
 
 .activity-input { padding: 20px; background-color: var(--bg-card); border-top: 1px solid var(--border-color); }
 .input-container { background-color: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; display: flex; flex-direction: column; }
