@@ -75,40 +75,9 @@ const goToTask = (task) => {
 onMounted(() => {
   // Giả lập tải dữ liệu gần đây
   setTimeout(() => {
-    recentTasks.value = [
-      {
-        id: '1',
-        title: 'Thiết kế giao diện Dashboard SprintA',
-        statusText: 'IN PROGRESS',
-        statusColor: '#a855f7',
-        updatedAt: new Date().toISOString(),
-        projectName: 'Phát triển SprintA',
-        projectId: '4238e87d-8153-4886-9057-0744de88924b',
-        assignee: 'C'
-      },
-      {
-        id: '2',
-        title: 'Cài đặt SignalR cho Real-time updates',
-        statusText: 'DONE',
-        statusColor: '#22c55e',
-        updatedAt: new Date(Date.now() - 3600000).toISOString(),
-        projectName: 'Phát triển SprintA',
-        projectId: '4238e87d-8153-4886-9057-0744de88924b',
-        assignee: 'C'
-      },
-      {
-        id: '3',
-        title: 'Fix bug navigation sidebar',
-        statusText: 'TODO',
-        statusColor: '#64748b',
-        updatedAt: new Date(Date.now() - 86400000).toISOString(),
-        projectName: 'Quản lý dự án',
-        projectId: '4238e87d-8153-4886-9057-0744de88924b',
-        assignee: 'A'
-      }
-    ]
+    recentTasks.value = []
     loading.value = false
-  }, 1000)
+  }, 500)
 })
 </script>
 

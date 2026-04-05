@@ -60,7 +60,10 @@
           </div>
         </div>
         <div class="events-list">
-          <div class="event-item" v-for="event in events" :key="event.id">
+          <div v-if="events.length === 0" class="empty-events">
+            <p>No upcoming events</p>
+          </div>
+          <div class="event-item" v-for="event in events" :key="event.id" v-else>
             <div class="event-dot" :style="{ backgroundColor: event.color }"></div>
             <div class="event-info">
               <h4>{{ event.title }}</h4>
@@ -126,26 +129,32 @@ let chartInstance = null
 
 // Mock Data
 const stats = ref([
-  { id: 2, title: 'Active Projects', value: '124', trend: 15.1, icon: 'fa-solid fa-folder' },
-  { id: 3, title: 'Tasks Completed', value: '892', trend: -4.5, icon: 'fa-solid fa-check-double' },
-  { id: 4, title: 'Team Members', value: '42', trend: 12.0, icon: 'fa-solid fa-users' }
+  { id: 2, title: 'Active Projects', value: '0', trend: 0, icon: 'fa-solid fa-folder' },
+  { id: 3, title: 'Tasks Completed', value: '0', trend: 0, icon: 'fa-solid fa-check-double' },
+  { id: 4, title: 'Team Members', value: '0', trend: 0, icon: 'fa-solid fa-users' }
 ])
 
-const weekDays = ref([
-  { name: 'Mon', date: '12', active: false },
-  { name: 'Tue', date: '13', active: false },
-  { name: 'Wed', date: '14', active: true },
-  { name: 'Thu', date: '15', active: false },
-  { name: 'Fri', date: '16', active: false },
-  { name: 'Sat', date: '17', active: false },
-  { name: 'Sun', date: '18', active: false }
-])
+const getWeekDays = () => {
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  const today = new Date()
+  const todayDay = today.getDay()
+  const week = []
+  
+  for (let i = 0; i < 7; i++) {
+    const d = new Date()
+    d.setDate(today.getDate() - todayDay + i)
+    week.push({
+      name: days[i],
+      date: d.getDate().toString(),
+      active: i === todayDay
+    })
+  }
+  return week
+}
 
-const events = ref([
-  { id: 1, title: 'Design Review: Nexus UI', time: '10:00 AM - 11:30 AM', color: '#3b82f6' },
-  { id: 2, title: 'Sprint Planning Meeting', time: '1:00 PM - 2:00 PM', color: '#8b5cf6' },
-  { id: 3, title: 'Client Feedback Session', time: '3:30 PM - 4:00 PM', color: '#10b981' }
-])
+const weekDays = ref(getWeekDays())
+
+const events = ref([])
 
 const goToSpace = (id) => { router.push(`/space/${id}`) }
 
@@ -225,14 +234,14 @@ const initChart = () => {
               { offset: 1, color: 'rgba(59, 130, 246, 0.05)' }
             ])
           },
-          data: [120, 132, 101, 134, 90, 230, 210]
+          data: [0, 0, 0, 0, 0, 0, 0]
         },
         {
           name: 'Metric B',
           type: 'line',
           smooth: true,
           itemStyle: { color: '#8b5cf6' },
-          data: [220, 182, 191, 234, 290, 330, 310]
+          data: [0, 0, 0, 0, 0, 0, 0]
         }
       ]
     }
@@ -489,6 +498,13 @@ onBeforeUnmount(() => {
 
 .event-info h4 { margin: 0 0 4px 0; font-size: 14px; font-weight: 600; color: var(--text-primary); }
 .event-time { font-size: 12px; color: var(--text-muted); }
+
+.empty-events {
+  text-align: center;
+  padding: 20px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
 
 /* Recent Spaces Grid */
 .section-header h3 { font-size: 20px; font-weight: 600; margin-bottom: 20px; }
