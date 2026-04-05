@@ -278,6 +278,7 @@
           <!-- Tabs -->
           <div class="jira-tabs">
             <div class="jira-tab" :class="{ active: currentTab === 'list' }" @click="currentTab = 'list'">Danh sách</div>
+            <div class="jira-tab" :class="{ active: currentTab === 'board' }" @click="currentTab = 'board'">Bảng</div>
             <div class="jira-tab" :class="{ active: currentTab === 'summary' }" @click="currentTab = 'summary'">Tổng quan</div>
             <div class="jira-tab" :class="{ active: currentTab === 'backlog' }" @click="currentTab = 'backlog'">Tồn đọng</div>
             <div class="jira-tab" :class="{ active: currentTab === 'calendar' }" @click="currentTab = 'calendar'">Lịch</div>
@@ -295,33 +296,32 @@
               <el-button size="small" plain class="dark-btn"><i class="fa-solid fa-filter"></i> Filter</el-button>
             </div>
 
-            <!-- Top 4 Widgets -->
             <div class="top-widgets">
               <div class="widget">
                 <i class="fa-regular fa-circle-check widget-icon" style="color: #94a3b8"></i>
                 <div class="widget-info">
-                  <div class="num">0 completed</div>
+                  <div class="num">{{ completedTasksLast7Days }} completed</div>
                   <div class="sub">in the last 7 days</div>
                 </div>
               </div>
               <div class="widget">
                 <i class="fa-solid fa-pen widget-icon" style="color: #94a3b8"></i>
                 <div class="widget-info">
-                  <div class="num">0 updated</div>
+                  <div class="num">{{ updatedTasksLast7Days }} updated</div>
                   <div class="sub">in the last 7 days</div>
                 </div>
               </div>
               <div class="widget">
                 <i class="fa-regular fa-square-plus widget-icon" style="color: #94a3b8"></i>
                 <div class="widget-info">
-                  <div class="num">0 created</div>
+                  <div class="num">{{ createdTasksLast7Days }} created</div>
                   <div class="sub">in the last 7 days</div>
                 </div>
               </div>
               <div class="widget">
                 <i class="fa-regular fa-calendar widget-icon" style="color: #f59e0b"></i>
                 <div class="widget-info">
-                  <div class="num">0 due soon</div>
+                  <div class="num">{{ dueSoonTasksNext7Days }} due soon</div>
                   <div class="sub">in the next 7 days</div>
                 </div>
               </div>
@@ -335,8 +335,28 @@
                   <h4>Tổng quan trạng thái</h4>
                   <p>Xem nhanh trạng thái các công việc của bạn.</p>
                 </div>
-                <div class="chart-body donut-body">
-                  <div id="status-donut-chart" style="width: 100%; height: 250px;"></div>
+                <div class="chart-body donut-body custom-legend-body">
+                  <div id="status-donut-chart" style="width: 180px; height: 180px; flex-shrink: 0;"></div>
+                  <div class="custom-status-legend">
+                    <div class="legend-item" @mouseenter="hoveredStatus = 'DONE'" @mouseleave="hoveredStatus = null">
+                       <div class="l-color" style="background: #86efac"></div> Đã hoàn thành : {{ statusCounts['DONE'] || 0 }}
+                       <transition name="fade">
+                         <div class="l-tooltip" v-if="hoveredStatus === 'DONE'">Đã hoàn thành: {{ statusCounts['DONE'] || 0 }} (Hoàn thành trong vòng 7 ngày qua)</div>
+                       </transition>
+                    </div>
+                    <div class="legend-item" @mouseenter="hoveredStatus = 'TODO'" @mouseleave="hoveredStatus = null">
+                       <div class="l-color" style="background: #c4b5fd"></div> Việc cần làm : {{ statusCounts['TODO'] || 0 }}
+                       <transition name="fade">
+                         <div class="l-tooltip" v-if="hoveredStatus === 'TODO'">Việc cần làm: {{ statusCounts['TODO'] || 0 }} (Tạo mới trong vòng 7 ngày qua)</div>
+                       </transition>
+                    </div>
+                    <div class="legend-item" @mouseenter="hoveredStatus = 'INPROGRESS'" @mouseleave="hoveredStatus = null">
+                       <div class="l-color" style="background: #93c5fd"></div> Đang thực hiện : {{ statusCounts['IN PROGRESS'] || 0 }}
+                       <transition name="fade">
+                         <div class="l-tooltip" v-if="hoveredStatus === 'INPROGRESS'">Đang thực hiện: {{ statusCounts['IN PROGRESS'] || 0 }}</div>
+                       </transition>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -354,11 +374,28 @@
               <!-- Types of work -->
               <div class="chart-card">
                 <div class="chart-header">
-                  <h4>Loại hình công việc</h4>
-                  <p>Xem phân bổ các công việc theo loại.</p>
+                  <h4>Các loại công việc</h4>
+                  <p>Xem chi tiết các hạng mục công việc theo loại. <a href="#" class="view-all-link">Xem tất cả các hạng mục</a></p>
                 </div>
-                <div class="chart-body type-chart">
-                   <div id="type-pie-chart" style="width: 100%; height: 250px;"></div>
+                <div class="chart-body type-progress-list">
+                   <div class="type-row type-header-row">
+                     <div class="t-col-name">Kiểu</div>
+                     <div class="t-col-bar">Phân bổ</div>
+                   </div>
+                   <div class="type-row" v-for="(item, idx) in taskTypesBreakdown" :key="idx">
+                     <div class="t-col-name">
+                       <i :class="item.icon" :style="{ color: item.color }"></i>
+                       <span>{{ item.label }}</span>
+                     </div>
+                     <div class="t-col-bar">
+                       <div class="p-bar-bg" v-if="item.percent > 0">
+                         <div class="p-bar-fill" :style="{ width: item.percent + '%' }">
+                            <span class="p-bar-text" :class="{ 'text-outside': item.percent < 15 }">{{ item.percent }}%</span>
+                         </div>
+                       </div>
+                       <div class="p-bar-bg empty" v-else></div>
+                     </div>
+                   </div>
                 </div>
               </div>
             </div>
@@ -430,6 +467,21 @@
                           </div>
                         </div>
                       </div>
+                    </div>
+                  </template>
+                  <template #footer>
+                    <div class="jira-empty-col" v-if="group.items.length === 0 && group.statusText === 'TO DO'">
+                      <div class="empty-icon-wrap">
+                        <svg width="120" height="90" viewBox="0 0 150 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M100 45 C 100 20, 45 20, 45 45" stroke="#3b82f6" stroke-width="18" stroke-linecap="round" />
+                          <path d="M45 45 L25 20" stroke="#3b82f6" stroke-width="18" stroke-linecap="round" />
+                          <path d="M45 55 C 45 80, 100 80, 100 55" stroke="#10b981" stroke-width="18" stroke-linecap="round" />
+                          <path d="M100 55 L120 80" stroke="#10b981" stroke-width="18" stroke-linecap="round" />
+                        </svg>
+                      </div>
+                      <h4>Bắt đầu từ Backlog</h4>
+                      <p>Lên kế hoạch và bắt đầu làm việc tại đây.</p>
+                      <button class="btn-go-backlog" @click="currentTab = 'backlog'">Đến Backlog</button>
                     </div>
                   </template>
                 </draggable>
@@ -783,7 +835,7 @@
                   </template>
                 </el-dropdown>
                 <div class="toolbar-btn"><i class="fa-solid fa-code-branch"></i> Việc con</div>
-                <div class="toolbar-btn"><i class="fa-solid fa-columns"></i> Cột</div>
+                <div class="toolbar-btn" @click="currentTab = 'board'"><i class="fa-solid fa-columns"></i> Cột</div>
               </div>
               <div class="toolbar-right">
                 <el-dropdown trigger="click" @command="handleFilterCommand">
@@ -1488,7 +1540,6 @@ const taskGroups = computed(() => {
 // Charts instances
 let statusChart = null
 let priorityChart = null
-let typeChart = null
 
 const initCharts = () => {
   const isDark = document.documentElement.classList.contains('dark')
@@ -1508,40 +1559,45 @@ const initCharts = () => {
     priorityChart = echarts.init(priorityDom)
     updatePriorityChart(textColor, splitLineColor)
   }
-
-  const typeDom = document.getElementById('type-pie-chart')
-  if (typeDom) {
-    if (typeChart) typeChart.dispose()
-    typeChart = echarts.init(typeDom)
-    updateTypeChart(textColor)
-  }
 }
 
 const updateStatusChart = (textColor) => {
   if (!statusChart) return
-  const counts = {
-    'TODO': tasks.value.filter(t => {
-      const s = (t.statusName || '').toUpperCase().replace(/\s/g, '')
-      return s !== 'INPROGRESS' && s !== 'DONE'
-    }).length,
-    'IN PROGRESS': tasks.value.filter(t => (t.statusName || '').toUpperCase().replace(/\s/g, '') === 'INPROGRESS').length,
-    'DONE': tasks.value.filter(t => (t.statusName || '').toUpperCase() === 'DONE').length
-  }
+  const counts = statusCounts.value
+  const total = counts['TODO'] + counts['IN PROGRESS'] + counts['DONE']
+  const donePercent = total > 0 ? Math.round((counts['DONE'] / total) * 100) : 0
 
   statusChart.setOption({
     tooltip: { trigger: 'item' },
-    legend: { bottom: '0', textStyle: { color: textColor } },
+    legend: { show: false },
+    title: {
+      text: `${donePercent}%\n{sub|Done}`,
+      left: 'center',
+      top: 'center',
+      textStyle: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        color: textColor,
+        rich: {
+          sub: {
+            fontSize: 14,
+            color: '#64748b',
+            align: 'center',
+            padding: [4, 0, 0, 0]
+          }
+        }
+      }
+    },
     series: [{
       type: 'pie',
-      radius: ['50%', '75%'],
+      radius: ['65%', '85%'],
       avoidLabelOverlap: false,
-      itemStyle: { borderRadius: 10, borderColor: 'transparent', borderWidth: 2 },
-      label: { show: false, position: 'center' },
-      emphasis: { label: { show: true, fontSize: '16', fontWeight: 'bold', color: textColor } },
+      itemStyle: { borderColor: '#fff', borderWidth: 2 },
+      label: { show: false },
       data: [
-        { value: counts['TODO'], name: 'Cần làm', itemStyle: { color: '#64748b' } },
-        { value: counts['IN PROGRESS'], name: 'Đang thực hiện', itemStyle: { color: '#a855f7' } },
-        { value: counts['DONE'], name: 'Hoàn thành', itemStyle: { color: '#22c55e' } }
+        { value: counts['TODO'], name: 'Cần làm', itemStyle: { color: '#c4b5fd' } },
+        { value: counts['IN PROGRESS'], name: 'Đang thực hiện', itemStyle: { color: '#93c5fd' } },
+        { value: counts['DONE'], name: 'Đã hoàn thành', itemStyle: { color: '#86efac' } }
       ]
     }]
   })
@@ -1585,29 +1641,7 @@ const updatePriorityChart = (textColor, splitLineColor) => {
   })
 }
 
-const updateTypeChart = (textColor) => {
-  if (!typeChart) return
-  const types = {}
-  tasks.value.forEach(t => {
-    const typeName = t.typeName || 'Task'
-    types[typeName] = (types[typeName] || 0) + 1
-  })
 
-  typeChart.setOption({
-    tooltip: { trigger: 'item' },
-    legend: { bottom: '0', textStyle: { color: textColor }, icon: 'circle' },
-    series: [{
-      type: 'pie',
-      radius: '60%',
-      data: Object.entries(types).map(([name, value]) => ({ 
-        name, 
-        value,
-        itemStyle: { color: name === 'Bug' ? '#ef4444' : '#3b82f6' }
-      })),
-      label: { color: textColor, formatter: '{b}: {c}' }
-    }]
-  })
-}
 
 watch(tasks, () => {
   const isDark = document.documentElement.classList.contains('dark')
@@ -1615,7 +1649,6 @@ watch(tasks, () => {
   const splitLineColor = isDark ? '#334155' : '#e2e8f0'
   updateStatusChart(textColor)
   updatePriorityChart(textColor, splitLineColor)
-  updateTypeChart(textColor)
 }, { deep: true })
 
 watch(currentTab, (newTab) => {
@@ -1693,6 +1726,77 @@ const seedTestTasks = async () => {
     ElMessage.error('Không thể tạo công việc mẫu. Vui lòng kiểm tra lại dự án.')
   }
 }
+
+// Computed properties for Top Widgets
+const completedTasksLast7Days = computed(() => {
+  const now = new Date()
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+  return tasks.value.filter(t => {
+    if ((t.statusName || '').toUpperCase() !== 'DONE') return false
+    const d = new Date(t.updatedAt || t.createdAt)
+    return d >= sevenDaysAgo && d <= now
+  }).length
+})
+
+const updatedTasksLast7Days = computed(() => {
+  const now = new Date()
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+  return tasks.value.filter(t => {
+    if (!t.updatedAt) return false
+    const d = new Date(t.updatedAt)
+    return d >= sevenDaysAgo && d <= now
+  }).length
+})
+
+const createdTasksLast7Days = computed(() => {
+  const now = new Date()
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+  return tasks.value.filter(t => {
+    if (!t.createdAt) return false
+    const d = new Date(t.createdAt)
+    return d >= sevenDaysAgo && d <= now
+  }).length
+})
+
+const dueSoonTasksNext7Days = computed(() => {
+  const now = new Date()
+  now.setHours(0,0,0,0)
+  const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+  return tasks.value.filter(t => {
+    if (!t.dueDate && !t.plannedEndDate) return false
+    const d = new Date(t.dueDate || t.plannedEndDate)
+    return d >= now && d <= sevenDaysFromNow && (t.statusName || '').toUpperCase() !== 'DONE'
+  }).length
+})
+
+const hoveredStatus = ref(null)
+
+const statusCounts = computed(() => {
+  return {
+    'TODO': tasks.value.filter(t => {
+      const s = (t.statusName || '').toUpperCase().replace(/\s/g, '')
+      return s !== 'INPROGRESS' && s !== 'DONE'
+    }).length,
+    'IN PROGRESS': tasks.value.filter(t => (t.statusName || '').toUpperCase().replace(/\s/g, '') === 'INPROGRESS').length,
+    'DONE': tasks.value.filter(t => (t.statusName || '').toUpperCase() === 'DONE').length
+  }
+})
+
+const taskTypesBreakdown = computed(() => {
+  const total = tasks.value.length || 1;
+  const getCount = (name) => tasks.value.filter(t => (t.typeName || 'Task').toLowerCase() === name.toLowerCase() || (t.typeName || 'Task').toLowerCase() === name.toLowerCase().replace(' ','')).length;
+  const tasksCount = getCount('task');
+  const epicCount = getCount('epic');
+  const storyCount = getCount('story');
+  const subtaskCount = getCount('subtask') || getCount('sub task');
+
+  return [
+    { label: 'Nhiệm vụ', icon: 'fa-regular fa-square-check', color: '#3b82f6', percent: Math.round((tasksCount / total) * 100) },
+    { label: 'Sử thi', icon: 'fa-solid fa-bolt', color: '#a855f7', percent: Math.round((epicCount / total) * 100) },
+    { label: 'Câu chuyện', icon: 'fa-regular fa-bookmark', color: '#84cc16', percent: Math.round((storyCount / total) * 100) },
+    { label: 'Nhiệm vụ phụ', icon: 'fa-solid fa-diagram-project', color: '#3b82f6', percent: Math.round((subtaskCount / total) * 100) }
+  ]
+})
 
 const fetchProjectMembers = async () => {
   if (!projectId.value || !isValidGuid(projectId.value)) {
@@ -1924,13 +2028,19 @@ const moveTask = async (taskId, newStatusId, rowVersion, statusName) => {
   try {
     await axiosClient.put(`/projects/${projectId.value}/WorkTasks/${taskId}/status`, {
       taskStatusId: newStatusId || '00000000-0000-0000-0000-000000000000',
+      statusName: statusName,
       rowVersion: rowVersion
     })
   } catch (error) {
     if (error.response?.status === 409) {
-      ElNotification({ title: 'Conflict', message: 'Task was moved by someone else. Refreshing...', type: 'warning' })
-      fetchTasks()
+      ElNotification({ title: 'Conflict', message: 'Tác vụ đã bị thay đổi bởi người khác. Đang cập nhật lại...', type: 'warning' })
+    } else if (error.response?.status === 400) {
+      ElNotification({ title: 'Không hợp lệ', message: error.response.data.message || 'Không thể chuyển trạng thái', type: 'error' })
+    } else {
+      console.error('Move task error:', error)
     }
+    // Refresh to revert optimistic update or sync state
+    fetchTasks()
   }
 }
 
@@ -4165,6 +4275,46 @@ const formatDate = (dateStr) => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-height: calc(100vh - 350px);
+}
+
+.jira-empty-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 10px;
+  text-align: center;
+  margin-top: 20px;
+}
+.empty-icon-wrap {
+  margin-bottom: 24px;
+}
+.jira-empty-col h4 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #f1f5f9;
+  margin: 0 0 8px 0;
+}
+.jira-empty-col p {
+  font-size: 13px;
+  color: #94a3b8;
+  margin: 0 0 24px 0;
+}
+.btn-go-backlog {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: #f1f5f9;
+  padding: 8px 20px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-go-backlog:hover {
+  background-color: #334155;
+  border-color: #64748b;
 }
 
 .kanban-card {
@@ -4703,6 +4853,125 @@ const formatDate = (dateStr) => {
   font-size: 13px;
   font-weight: 600;
 }
+/* Custom Charts UI additions */
+.custom-legend-body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding-bottom: 20px;
+}
+.custom-status-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  position: relative;
+}
+.legend-item:hover {
+  color: var(--text-primary);
+}
+.l-color {
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+}
+.l-tooltip {
+  position: absolute;
+  top: 24px;
+  left: 0;
+  background: var(--bg-layout);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  pointer-events: none;
+}
+.fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+
+.type-progress-list {
+  padding: 0 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.type-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.type-header-row {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.t-col-name {
+  width: 130px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+.t-col-name i {
+  font-size: 16px;
+  width: 16px;
+  text-align: center;
+}
+.t-col-bar {
+  flex: 1;
+}
+.p-bar-bg {
+  height: 28px;
+  background-color: var(--border-color);
+  border-radius: 4px;
+  width: 100%;
+  position: relative;
+}
+.p-bar-bg.empty {
+  background-color: #334155 !important;
+}
+.p-bar-fill {
+  height: 100%;
+  background-color: #64748b;
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+.p-bar-text {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  padding-left: 10px;
+}
+.p-bar-text.text-outside {
+  color: var(--text-primary);
+  position: absolute;
+  left: calc(100% + 8px);
+}
+.view-all-link {
+  color: #3b82f6;
+  text-decoration: none;
+  font-weight: 500;
+}
+.view-all-link:hover {
+  text-decoration: underline;
+}
+
 .bg-header-count {
   background-color: var(--bg-secondary);
   padding: 2px 8px;
