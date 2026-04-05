@@ -44,20 +44,7 @@
 
         <div class="panel-section mt-30">
           <div class="section-title">NGỮ CẢNH GẦN ĐÂY</div>
-          <div class="context-item">
-            <div class="c-icon blue"><i class="fa-solid fa-layer-group"></i></div>
-            <div class="c-text">
-              <div class="c-name">Mô-đun xác thực</div>
-              <div class="c-time">Cập nhật 2 giờ trước</div>
-            </div>
-          </div>
-          <div class="context-item">
-            <div class="c-icon purple"><i class="fa-solid fa-database"></i></div>
-            <div class="c-text">
-              <div class="c-name">Backend API</div>
-              <div class="c-time">Chờ đồng bộ</div>
-            </div>
-          </div>
+          <p class="text-muted" style="font-size: 12px; margin-top: 8px;">Chưa có ngữ cảnh nào.</p>
         </div>
 
         <!-- Upgrade Card -->
