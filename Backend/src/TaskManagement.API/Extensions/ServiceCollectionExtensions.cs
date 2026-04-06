@@ -21,6 +21,7 @@ namespace TaskManagement.API.Extensions
             services.AddScoped<IOtpService, OtpService>();
             
             services.AddMemoryCache();
+            services.AddHttpContextAccessor();
             services.AddHttpClient();
 
             // Cấu hình JWT Authentication

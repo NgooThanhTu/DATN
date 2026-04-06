@@ -1,15 +1,18 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using TaskManagement.API.Filters;
 using TaskManagement.Application.DTOs.WorkTask;
 using TaskManagement.Application.Interfaces;
 
 namespace TaskManagement.API.Controllers
 {
     [ApiController]
-    [Route("api/projects/{projectId}/WorkTasks")]
+    [Route("api")]
+    [Authorize]
     public class WorkTasksController : ControllerBase
     {
         private readonly IWorkTaskService _workTaskService;
@@ -19,7 +22,7 @@ namespace TaskManagement.API.Controllers
             _workTaskService = workTaskService;
         }
 
-        [HttpGet]
+        [HttpGet("projects/{projectId}/WorkTasks")]
         public async Task<IActionResult> GetByProject(Guid projectId)
         {
             try
@@ -31,7 +34,7 @@ namespace TaskManagement.API.Controllers
                 }
 
                 var tasks = await _workTaskService.GetByProjectAsync(projectId, userId);
-                return Ok(tasks);
+                return Ok(new { statusCode = 200, message = "Success", data = tasks });
             }
             catch (UnauthorizedAccessException ex)
             {
@@ -43,7 +46,27 @@ namespace TaskManagement.API.Controllers
             }
         }
 
-        [HttpPost]
+        [HttpGet("tasks/my-tasks")]
+        public async Task<IActionResult> GetMyTasks()
+        {
+            try
+            {
+                var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (!Guid.TryParse(userIdString, out Guid userId))
+                {
+                    return Unauthorized(new { statusCode = 401, message = "Token không hợp lệ." });
+                }
+
+                var tasks = await _workTaskService.GetMyTasksAsync(userId);
+                return Ok(new { statusCode = 200, message = "Success", data = tasks });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { statusCode = 500, message = "Lỗi máy chủ: " + ex.Message });
+            }
+        }
+
+        [HttpPost("projects/{projectId}/WorkTasks")]
         public async Task<IActionResult> Create(Guid projectId, [FromBody] CreateWorkTaskDto request)
         {
             request.ProjectId = projectId;
@@ -76,7 +99,7 @@ namespace TaskManagement.API.Controllers
             }
         }
 
-        [HttpPut("{id}/status")]
+        [HttpPut("projects/{projectId}/WorkTasks/{id}/status")]
         public async Task<IActionResult> UpdateStatus(Guid projectId, Guid id, [FromBody] UpdateTaskStatusRequestDto request)
         {
             try
@@ -101,7 +124,8 @@ namespace TaskManagement.API.Controllers
                 return StatusCode(500, new { statusCode = 500, message = "Lỗi máy chủ nội bộ: " + ex.Message });
             }
         }
-        [HttpPut("{id}")]
+
+        [HttpPut("projects/{projectId}/WorkTasks/{id}")]
         public async Task<IActionResult> Update(Guid projectId, Guid id, [FromBody] UpdateWorkTaskDto dto)
         {
             try
@@ -149,6 +173,7 @@ namespace TaskManagement.API.Controllers
                             c => new {
                                 c.Id,
                                 c.Content,
+                                c.ParentCommentId,
                                 c.CreatedAt,
                                 UserId = c.UserId,
                                 FullName = c.User.FullName ?? c.User.Email,
@@ -167,3 +192,4 @@ namespace TaskManagement.API.Controllers
         }
     }
 }
+

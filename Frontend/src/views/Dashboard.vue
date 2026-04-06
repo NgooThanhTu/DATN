@@ -5,6 +5,7 @@
         <h1>Welcome back, {{ currentUser?.name || 'User' }}! 👋</h1>
         <p class="text-muted">Here's what's happening with your projects today.</p>
       </div>
+
     </div>
 
     <!-- 4.1 Statistical Cards -->
@@ -73,24 +74,33 @@
       </div>
     </div>
 
-    <!-- Recent Spaces (Legacy Integration) -->
+    <!-- Recent Spaces -->
     <div class="recent-spaces-section">
       <div class="section-header">
-        <h3>Recent Spaces</h3>
+        <h3>Không gian gần đây</h3>
       </div>
-      <div v-if="isLoading" class="loading-state">Loading spaces...</div>
+      <div v-if="isLoading" class="loading-state">
+        <i class="fa-solid fa-spinner fa-spin"></i> Đang tải...
+      </div>
       <div v-else-if="spaces.length === 0" class="empty-state">
         <i class="fa-regular fa-folder-open"></i>
-        <p>No recent spaces found</p>
+        <p>Chưa có không gian nào</p>
       </div>
       <div v-else class="recent-spaces-grid">
-        <div class="space-card" v-for="space in spaces" :key="space.id" @click="goToSpace(space.id)">
-          <div class="space-icon-box">
-            <i class="fa-solid fa-rocket"></i>
+        <div class="space-card" v-for="(space, index) in spaces" :key="space.id" @click="goToSpace(space.id)">
+          <div class="space-icon-box" :style="{ background: spaceGradients[index % spaceGradients.length] }">
+            <i :class="spaceIcons[index % spaceIcons.length]"></i>
           </div>
           <div class="space-details">
             <h4>{{ space.name }}</h4>
-            <span>{{ space.type || 'Workspace' }}</span>
+            <span>{{ space.description || 'Workspace' }}</span>
+            <div class="space-meta">
+              <span class="meta-item"><i class="fa-solid fa-users"></i> {{ space.activeMemberCount || 0 }}</span>
+              <span class="meta-item" :class="space.status ? 'active-status' : 'archived-status'">
+                <i :class="space.status ? 'fa-solid fa-circle-check' : 'fa-solid fa-archive'"></i>
+                {{ space.status ? 'Hoạt động' : 'Đã lưu trữ' }}
+              </span>
+            </div>
           </div>
           <div class="space-arrow">
             <i class="fa-solid fa-arrow-right"></i>
@@ -107,6 +117,7 @@ import { useRouter } from 'vue-router'
 import * as echarts from 'echarts'
 import axiosClient from '@/api/axiosClient'
 import NexusLayout from '@/components/layout/NexusLayout.vue'
+import { ElMessage } from 'element-plus'
 
 const router = useRouter()
 const currentUser = JSON.parse(localStorage.getItem('user') || '{}')
@@ -116,12 +127,17 @@ const spaces = ref([])
 const chartRef = ref(null)
 let chartInstance = null
 
-// Mock Data
 const stats = ref([
-  { id: 2, title: 'Active Projects', value: '0', trend: 0, icon: 'fa-solid fa-folder' },
-  { id: 3, title: 'Tasks Completed', value: '0', trend: 0, icon: 'fa-solid fa-check-double' },
-  { id: 4, title: 'Team Members', value: '0', trend: 0, icon: 'fa-solid fa-users' }
+  { id: 2, title: 'Active Projects', value: '...', trend: 0, icon: 'fa-solid fa-folder' },
+  { id: 3, title: 'Tasks Completed', value: '...', trend: 0, icon: 'fa-solid fa-check-double' },
+  { id: 4, title: 'Team Members', value: '...', trend: 0, icon: 'fa-solid fa-users' }
 ])
+
+const chartData = ref({
+  days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+  created: [0, 0, 0, 0, 0, 0, 0],
+  completed: [0, 0, 0, 0, 0, 0, 0]
+})
 
 const getWeekDays = () => {
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -133,7 +149,7 @@ const getWeekDays = () => {
     const d = new Date()
     d.setDate(today.getDate() - todayDay + i)
     week.push({
-      name: days[i],
+      name: days[d.getDay()],
       date: d.getDate().toString(),
       active: i === todayDay
     })
@@ -147,24 +163,131 @@ const events = ref([])
 
 const goToSpace = (id) => { router.push(`/space/${id}`) }
 
+const spaceGradients = [
+  'linear-gradient(135deg, #3b82f6, #8b5cf6)',
+  'linear-gradient(135deg, #10b981, #059669)',
+  'linear-gradient(135deg, #f59e0b, #ef4444)',
+  'linear-gradient(135deg, #8b5cf6, #ec4899)',
+  'linear-gradient(135deg, #06b6d4, #3b82f6)',
+  'linear-gradient(135deg, #f97316, #eab308)'
+]
+
+const spaceIcons = [
+  'fa-solid fa-rocket',
+  'fa-solid fa-code',
+  'fa-solid fa-palette',
+  'fa-solid fa-chart-line',
+  'fa-solid fa-gear',
+  'fa-solid fa-bolt'
+]
+
 const fetchSpaces = async () => {
   isLoading.value = true
   try {
     const response = await axiosClient.get('/projects')
     const projectList = response.data.data || response.data || []
     spaces.value = projectList
+    
+    // Calculate stats based on project list
+    const activeProjects = projectList.filter(p => p.status !== false).length
+    stats.value[0].value = activeProjects.toString()
+    stats.value[2].value = projectList.reduce((acc, p) => acc + (p.activeMemberCount || 0), 0).toString()
+
+    // Fetch tasks for the user to determine dashboard chart and schedule logic
+    const tasksRes = await axiosClient.get('/tasks/my-tasks')
+    const tasks = tasksRes.data.data || tasksRes.data || []
+    
+    processTasksForDashboard(tasks)
   } catch (error) {
-    console.error('Fetch projects error:', error)
+    console.error('Fetch projects or tasks error:', error)
   } finally {
     isLoading.value = false
   }
+}
+
+const processTasksForDashboard = (tasks) => {
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  
+  const days = []
+  const dates = []
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today)
+    d.setDate(today.getDate() - i)
+    days.push(['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()])
+    dates.push(d)
+  }
+
+  const createdCounts = [0, 0, 0, 0, 0, 0, 0]
+  const completedCounts = [0, 0, 0, 0, 0, 0, 0]
+  const upcomingEventsList = []
+  let totalTasksCompleted = 0
+
+  tasks.forEach(task => {
+    // Determine overall completed count
+    if (task.statusName === 'DONE' || task.status === 'Completed') {
+      totalTasksCompleted++;
+    }
+
+    // Created distribution
+    if (task.createdAt) {
+      let cd = new Date(task.createdAt)
+      cd = new Date(cd.getFullYear(), cd.getMonth(), cd.getDate())
+      const diffIndex = Math.floor((cd - dates[0]) / (1000 * 60 * 60 * 24))
+      if (diffIndex >= 0 && diffIndex <= 6) {
+        createdCounts[diffIndex]++
+      }
+    }
+
+    // Completed distribution
+    if ((task.statusName === 'DONE' || task.status === 'Completed') && task.updatedAt) {
+      let ud = new Date(task.updatedAt)
+      ud = new Date(ud.getFullYear(), ud.getMonth(), ud.getDate())
+      const diffIndex = Math.floor((ud - dates[0]) / (1000 * 60 * 60 * 24))
+      if (diffIndex >= 0 && diffIndex <= 6) {
+        completedCounts[diffIndex]++
+      }
+    }
+
+    // Upcoming schedule items (focus on tasks due in the future week)
+    let targetDate = task.dueDate || task.plannedEndDate
+    if (targetDate && task.statusName !== 'DONE') {
+      let dDate = new Date(targetDate)
+      const diffDays = Math.floor((dDate - today) / (1000 * 60 * 60 * 24))
+      
+      // Events in the span of next 7 days
+      if (diffDays >= 0 && diffDays <= 7) {
+        upcomingEventsList.push({
+          id: task.id,
+          title: task.title,
+          time: dDate.toLocaleDateString('vi-VN') + ' ' + dDate.toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'}),
+          color: task.priority === 'High' ? '#ef4444' : (task.priority === 'Medium' ? '#f59e0b' : '#3b82f6'),
+          realDate: dDate
+        })
+      }
+    }
+  })
+
+  upcomingEventsList.sort((a, b) => a.realDate - b.realDate)
+  events.value = upcomingEventsList
+
+  chartData.value = {
+    days: days,
+    created: createdCounts,
+    completed: completedCounts
+  }
+
+  // Update total completed stat card
+  stats.value[1].value = totalTasksCompleted.toString()
+
+  // Re-render chart with new data
+  initChart()
 }
 
 const initChart = () => {
   if (chartRef.value) {
     chartInstance = echarts.init(chartRef.value)
     
-    // Light theme defaults
     let textColor = '#64748b'
     let splitLineColor = '#e2e8f0'
     let isDark = document.documentElement.classList.contains('dark')
@@ -177,7 +300,7 @@ const initChart = () => {
     const option = {
       tooltip: { trigger: 'axis' },
       legend: { 
-        data: ['Metric A', 'Metric B'],
+        data: ['Tasks Created', 'Tasks Completed'],
         bottom: 0,
         textStyle: { color: textColor }
       },
@@ -185,18 +308,19 @@ const initChart = () => {
       xAxis: {
         type: 'category',
         boundaryGap: false,
-        data: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+        data: chartData.value.days,
         axisLabel: { color: textColor },
         axisLine: { lineStyle: { color: splitLineColor } }
       },
       yAxis: {
         type: 'value',
         axisLabel: { color: textColor },
-        splitLine: { lineStyle: { color: splitLineColor, type: 'dashed' } }
+        splitLine: { lineStyle: { color: splitLineColor, type: 'dashed' } },
+        minInterval: 1
       },
       series: [
         {
-          name: 'Metric A',
+          name: 'Tasks Created',
           type: 'line',
           smooth: true,
           itemStyle: { color: '#3b82f6' },
@@ -206,14 +330,20 @@ const initChart = () => {
               { offset: 1, color: 'rgba(59, 130, 246, 0.05)' }
             ])
           },
-          data: [0, 0, 0, 0, 0, 0, 0]
+          data: chartData.value.created
         },
         {
-          name: 'Metric B',
+          name: 'Tasks Completed',
           type: 'line',
           smooth: true,
-          itemStyle: { color: '#8b5cf6' },
-          data: [0, 0, 0, 0, 0, 0, 0]
+          itemStyle: { color: '#10b981' }, // green for completed
+          areaStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: 'rgba(16, 185, 129, 0.3)' },
+              { offset: 1, color: 'rgba(16, 185, 129, 0.05)' }
+            ])
+          },
+          data: chartData.value.completed
         }
       ]
     }
@@ -225,11 +355,10 @@ const handleResize = () => {
   if (chartInstance) chartInstance.resize()
 }
 
-// Watch for theme changes to update chart colors
 const observer = new MutationObserver((mutations) => {
   mutations.forEach((mutation) => {
     if (mutation.attributeName === 'class' && chartInstance) {
-      initChart() // Re-init to update colors
+      initChart()
     }
   })
 })
@@ -505,10 +634,36 @@ onBeforeUnmount(() => {
   box-shadow: 0 6px 16px rgba(59, 130, 246, 0.1);
 }
 
+
+.space-details h4 { margin: 0 0 4px 0; font-size: 16px; font-weight: 600; }
+.space-details > span { font-size: 13px; color: var(--text-muted); display: block; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+
+.space-meta {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.meta-item {
+  font-size: 12px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.meta-item.active-status {
+  color: #10b981;
+}
+
+.meta-item.archived-status {
+  color: #94a3b8;
+}
+
 .space-icon-box {
   width: 48px;
   height: 48px;
-  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  min-width: 48px;
   border-radius: 12px;
   display: flex;
   align-items: center;
@@ -518,12 +673,27 @@ onBeforeUnmount(() => {
   margin-right: 16px;
 }
 
-.space-details h4 { margin: 0 0 4px 0; font-size: 16px; font-weight: 600; }
-.space-details span { font-size: 13px; color: var(--text-muted); }
-
 .space-arrow {
   margin-left: auto;
   color: var(--text-muted);
 }
 .space-card:hover .space-arrow { color: #3b82f6; }
+
+.loading-state {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 20px;
+}
+
+.empty-state {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 40px;
+}
+.empty-state i {
+  font-size: 32px;
+  margin-bottom: 12px;
+  display: block;
+  opacity: 0.5;
+}
 </style>

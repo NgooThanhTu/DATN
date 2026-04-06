@@ -1,4 +1,10 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Security.Claims;
+using System.Threading.Tasks;
 using TaskManagement.Application.DTOs.Project;
 using TaskManagement.Application.Interfaces;
 using TaskManagement.Infrastructure.Data;
@@ -9,10 +15,12 @@ namespace TaskManagement.Infrastructure.Services
     public class ProjectService : IProjectService
     {
         private readonly ApplicationDbContext _context;
+        private readonly IHttpContextAccessor _httpContextAccessor;
 
-        public ProjectService(ApplicationDbContext context)
+        public ProjectService(ApplicationDbContext context, IHttpContextAccessor httpContextAccessor)
         {
             _context = context;
+            _httpContextAccessor = httpContextAccessor;
         }
 
         /// <summary>
@@ -20,9 +28,17 @@ namespace TaskManagement.Infrastructure.Services
         /// </summary>
         public async Task<List<ProjectResponseDto>> GetAllAsync()
         {
+            var userIdString = _httpContextAccessor.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!Guid.TryParse(userIdString, out Guid userId))
+            {
+                return new List<ProjectResponseDto>();
+            }
+
             return await _context.Projects
+                .AsNoTracking()
                 .Include(p => p.Creator)
                 .Include(p => p.Department)
+                .Where(p => !p.IsDeleted && p.ProjectMembers.Any(pm => pm.UserId == userId && pm.Status))
                 .Select(p => new ProjectResponseDto
                 {
                     Id = p.Id,

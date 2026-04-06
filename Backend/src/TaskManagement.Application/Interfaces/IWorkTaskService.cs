@@ -16,5 +16,7 @@ namespace TaskManagement.Application.Interfaces
         Task<WorkTaskResponseDto> CreateAsync(Guid reporterId, CreateWorkTaskDto request);
         Task<WorkTaskResponseDto> UpdateAsync(Guid taskId, Guid userId, UpdateWorkTaskDto dto);
         Task UpdateTaskStatusAsync(Guid taskId, UpdateTaskStatusRequestDto request);
+        Task<IEnumerable<WorkTaskResponseDto>> GetTasksByProjectIdAsync(Guid projectId);
+        Task<IEnumerable<WorkTaskResponseDto>> GetMyTasksAsync(Guid userId);
     }
 }

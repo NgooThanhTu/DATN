@@ -220,15 +220,18 @@ const filters = ref({
 const auditLogs = ref([])
 
 onMounted(async () => {
-  // Admin guard - chỉ Admin mới được truy cập trang này
+  // Admin/PM guard - chỉ Admin và PM mới được truy cập trang này
   const currentUser = JSON.parse(localStorage.getItem('user') || '{}')
   const roles = currentUser.systemRoles || []
-  if (!roles.includes('Admin') && !roles.includes('admin')) {
+  const isAuthorized = roles.some(r => ['Admin', 'admin', 'Manager', 'manager', 'PM'].includes(r))
+  
+  if (!isAuthorized) {
     ElMessage.error('Bạn không có quyền truy cập trang Audit Log.')
     router.push('/dashboard')
     return
   }
 
+  
   // restore sidebar settings
   const saved = localStorage.getItem('sidebarPreferences')
   if (saved) {
@@ -250,7 +253,7 @@ onMounted(async () => {
     }
   }
 
-  // fetch logs
+  // fetch logs - backend will check Admin/PM permission
   await fetchLogs()
 })
 
@@ -262,7 +265,12 @@ const fetchLogs = async () => {
     const { data } = await axiosClient.get('/auditlogs')
     auditLogs.value = data.data.items || []
   } catch (error) {
-    console.error('Lỗi khi tải Audit Logs', error)
+    if (error.response?.status === 403) {
+      ElMessage.error(error.response.data?.message || 'Bạn không có quyền truy cập trang Audit Log.')
+      router.push('/dashboard')
+    } else {
+      console.error('Lỗi khi tải Audit Logs', error)
+    }
   } finally {
     loading.value = false
   }

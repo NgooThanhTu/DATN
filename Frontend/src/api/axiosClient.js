@@ -43,7 +43,10 @@ axiosClient.interceptors.response.use(
     async (error) => {
         const originalRequest = error.config;
 
-        const isAuthRequest = originalRequest.url.includes('/auth/login') || originalRequest.url.includes('/auth/register');
+        const isAuthRequest = originalRequest.url.includes('/auth/login') || 
+                              originalRequest.url.includes('/auth/register') ||
+                              originalRequest.url.includes('/auth/google-login') ||
+                              originalRequest.url.includes('/auth/github-login');
 
         if (error.response?.status === 401 && !originalRequest._retry && !isAuthRequest) {
             if (isRefreshing) {
@@ -64,8 +67,9 @@ axiosClient.interceptors.response.use(
                 // Call refresh-token API. Cookie is automatically sent due to withCredentials
                 // Backend requires the expired access token in the header to identify the user
                 const accessToken = localStorage.getItem('accessToken');
+                const authHeaders = accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {};
                 const { data } = await axios.post('http://localhost:5136/api/auth/refresh-token', {}, {
-                    headers: { 'Authorization': `Bearer ${accessToken}` },
+                    headers: authHeaders,
                     withCredentials: true
                 });
 

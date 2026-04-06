@@ -18,6 +18,20 @@ namespace TaskManagement.API.Controllers
             _projectMemberService = projectMemberService;
         }
 
+        [HttpGet]
+        public async Task<IActionResult> GetProjectMembers(Guid projectId)
+        {
+            try
+            {
+                var members = await _projectMemberService.GetProjectMembersAsync(projectId);
+                return Ok(new { statusCode = 200, message = "Success", data = members });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { statusCode = 500, message = "Internal server error: " + ex.Message });
+            }
+        }
+
         [HttpPost]
         [ProjectAuthorize("PM, Admin")]
         public async Task<IActionResult> InviteMember(Guid projectId, [FromBody] ProjectMemberRequestDto request)
@@ -60,20 +74,23 @@ namespace TaskManagement.API.Controllers
             }
         }
 
-        [HttpGet]
-        public async Task<IActionResult> GetProjectMembers(Guid projectId, [FromServices] TaskManagement.Infrastructure.Data.ApplicationDbContext context)
+        [HttpPut("{userId}/role")]
+        [ProjectAuthorize("PM, Admin")]
+        public async Task<IActionResult> UpdateMemberRole(Guid projectId, Guid userId, [FromBody] UpdateRoleRequestDto request)
         {
             try
             {
-                // Simple select from join
-                var members = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
-                    System.Linq.Queryable.Select(
-                        System.Linq.Queryable.Where(context.ProjectMembers, pm => pm.ProjectId == projectId && pm.Status),
-                        pm => new { pm.UserId, FullName = pm.User.FullName ?? pm.User.Email, Email = pm.User.Email, Role = pm.ProjectRole }
-                    )
-                );
-                
-                return Ok(new { statusCode = 200, message = "Success", data = members });
+                if (string.IsNullOrWhiteSpace(request?.Role))
+                {
+                    return BadRequest(new { statusCode = 400, message = "Role không để trống." });
+                }
+
+                await _projectMemberService.UpdateMemberRoleAsync(projectId, userId, request.Role);
+                return Ok(new { statusCode = 200, message = "Success", data = "Cập nhật role thành công." });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { statusCode = 400, message = ex.Message });
             }
             catch (Exception ex)
             {
