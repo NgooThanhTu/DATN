@@ -1,10 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 using System;
-using System.Security.Claims;
 using System.Threading.Tasks;
 using TaskManagement.API.Filters;
+using TaskManagement.Application.DTOs.Project;
 using TaskManagement.Application.Interfaces;
-using TaskManagement.Domain.Constants;
 
 namespace TaskManagement.API.Controllers
 {
@@ -20,45 +19,81 @@ namespace TaskManagement.API.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetMembers(Guid projectId)
+        public async Task<IActionResult> GetProjectMembers(Guid projectId)
         {
-            var members = await _projectMemberService.GetProjectMembersAsync(projectId);
-            return Ok(new { statusCode = 200, message = "Success", data = members });
+            try
+            {
+                var members = await _projectMemberService.GetProjectMembersAsync(projectId);
+                return Ok(new { statusCode = 200, message = "Success", data = members });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { statusCode = 500, message = "Internal server error: " + ex.Message });
+            }
+        }
+
+        [HttpPost]
+        [ProjectAuthorize("PM, Admin")]
+        public async Task<IActionResult> InviteMember(Guid projectId, [FromBody] ProjectMemberRequestDto request)
+        {
+            try
+            {
+                await _projectMemberService.InviteMemberAsync(projectId, request);
+                return Ok(new { statusCode = 200, message = "Success", data = "Thêm thành viên thành công." });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { statusCode = 409, message = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { statusCode = 400, message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { statusCode = 500, message = "Internal server error: " + ex.Message });
+            }
         }
 
         [HttpDelete("{userId}")]
-        [ProjectAuthorize($"{ProjectRoles.PO},{ProjectRoles.PM},{ProjectRoles.SM},{ProjectRoles.TechLead}")]
+        [ProjectAuthorize("PM, Admin")]
         public async Task<IActionResult> RemoveMember(Guid projectId, Guid userId)
         {
             try
             {
-                var currentUserIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                if (!Guid.TryParse(currentUserIdStr, out Guid adminId))
-                {
-                    return Unauthorized(new { statusCode = 401, message = "Invalid token" });
-                }
-
-                // Cannot remove oneself through this API (or handle logically)
-                if (adminId == userId)
-                {
-                    return BadRequest(new { statusCode = 400, message = "Cannot kick yourself. Use leave project API." });
-                }
-
-                await _projectMemberService.RemoveMemberAsync(projectId, userId, adminId);
-
-                return Ok(new 
-                { 
-                    statusCode = 200, 
-                    message = "Member removed successfully. Orphan tasks removed and PMs notified." 
-                });
+                await _projectMemberService.RemoveMemberAsync(projectId, userId);
+                return Ok(new { statusCode = 200, message = "Success", data = "Xóa thành viên thành công và đã xử lý task mồ côi." });
             }
             catch (ArgumentException ex)
             {
-                return NotFound(new { statusCode = 404, message = ex.Message });
+                return BadRequest(new { statusCode = 400, message = ex.Message });
             }
             catch (Exception ex)
             {
-                // In production, should log the exception
+                return StatusCode(500, new { statusCode = 500, message = "Internal server error: " + ex.Message });
+            }
+        }
+
+        [HttpPut("{userId}/role")]
+        [ProjectAuthorize("PM, Admin")]
+        public async Task<IActionResult> UpdateMemberRole(Guid projectId, Guid userId, [FromBody] UpdateRoleRequestDto request)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(request?.Role))
+                {
+                    return BadRequest(new { statusCode = 400, message = "Role không để trống." });
+                }
+
+                await _projectMemberService.UpdateMemberRoleAsync(projectId, userId, request.Role);
+                return Ok(new { statusCode = 200, message = "Success", data = "Cập nhật role thành công." });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { statusCode = 400, message = ex.Message });
+            }
+            catch (Exception ex)
+            {
                 return StatusCode(500, new { statusCode = 500, message = "Internal server error: " + ex.Message });
             }
         }

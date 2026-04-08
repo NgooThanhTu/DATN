@@ -1,23 +1,6 @@
 <template>
-  <div class="dashboard-layout profile-page">
-    <!-- Navbar -->
-    <header class="top-nav">
-      <div class="nav-left">
-        <router-link to="/dashboard" class="nav-brand">
-          <img :src="logoImg" alt="SprintA Logo" class="nav-logo" />
-          <span>SprintA</span>
-        </router-link>
-        <span class="nav-link">Hồ sơ</span>
-      </div>
-      <div class="nav-right">
-        <NotificationsDropdown />
-        <SettingsDropdown />
-        <HelpDropdown />
-        <UserDropdown />
-      </div>
-    </header>
-
-    <div class="main-body">
+  <NexusLayout class="profile-page">
+    <div class="profile-body-container" style="padding: 40px 0; display: flex; justify-content: center;">
       <div class="profile-container">
         <!-- Header Banner & Avatar Section -->
         <div class="profile-header-section">
@@ -173,18 +156,15 @@
             </div>
           </div>
         </div>
-      </div>
-    </div>
-  </div>
+      </div> <!-- Closes profile-container -->
+    </div> <!-- Closes profile-body-container -->
+  </NexusLayout>
 </template>
 
 <script setup>
 import { ref } from 'vue'
 import logoImg from '../assets/logo_QLCV.png'
-import HelpDropdown from '../components/HelpDropdown.vue'
-import SettingsDropdown from '../components/SettingsDropdown.vue'
-import NotificationsDropdown from '../components/NotificationsDropdown.vue'
-import UserDropdown from '../components/UserDropdown.vue'
+import NexusLayout from '@/components/layout/NexusLayout.vue'
 
 const profileData = ref({
   fullName: '',
@@ -197,34 +177,7 @@ const profileData = ref({
 </script>
 
 <style scoped>
-.profile-page {
-  background-color: #0d1117;
-  min-height: 100vh;
-  color: #c9d1d9;
-}
 
-.top-nav {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 16px;
-  height: 60px;
-  background-color: #161b22;
-  border-bottom: 1px solid #30363d;
-}
-
-.nav-left { display: flex; align-items: center; gap: 12px; }
-.nav-brand { display: flex; align-items: center; gap: 8px; text-decoration: none; color: #579dff; font-weight: 700; font-size: 18px; }
-.nav-logo { height: 32px; }
-.nav-link { color: #8b949e; font-size: 14px; font-weight: 500; }
-
-.nav-right { display: flex; align-items: center; gap: 16px; }
-
-.main-body {
-  padding: 40px 0;
-  display: flex;
-  justify-content: center;
-}
 
 .profile-container {
   width: 100%;
@@ -236,10 +189,10 @@ const profileData = ref({
 /* Header Section Styling */
 .profile-header-section {
   position: relative;
-  background-color: #161b22;
+  background-color: var(--bg-card);
   border-radius: 12px;
   overflow: visible;
-  border: 1px solid #30363d;
+  border: 1px solid var(--border-color);
   margin-bottom: 80px;
   width: 100%;
 }
@@ -278,7 +231,7 @@ const profileData = ref({
   font-size: 40px;
   font-weight: 700;
   color: #1d2125;
-  border: 4px solid #0d1117;
+  border: 4px solid var(--bg-layout);
 }
 
 .banner-upload-prompt {
@@ -293,7 +246,7 @@ const profileData = ref({
 }
 
 .header-footer-privacy {
-  background-color: #161b22;
+  background-color: var(--bg-card);
   border-radius: 0 0 12px 12px;
   padding: 40px 24px 12px; /* Increased top padding for avatar overlap */
 }
@@ -323,7 +276,7 @@ const profileData = ref({
 .section-title {
   font-size: 20px;
   font-weight: 600;
-  color: #f0f6fc;
+  color: var(--text-primary);
   margin-bottom: 24px;
 }
 
@@ -344,7 +297,7 @@ const profileData = ref({
 .field-label {
   font-size: 14px;
   font-weight: 600;
-  color: #f0f6fc;
+  color: var(--text-primary);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -378,12 +331,8 @@ const profileData = ref({
 
 .danger-item { color: #f87171 !important; }
 
-:deep(.el-input__wrapper) {
-  background-color: transparent !important;
-  box-shadow: 0 0 0 1px #30363d !important;
-  border: none !important;
-}
-:deep(.el-input__inner) { color: #f0f6fc !important; }
+
+/* Component-specific overrides removed as they are now globalized in style.css */
 
 @media (max-width: 768px) {
   .nav-brand span {

@@ -17,8 +17,17 @@ namespace TaskManagement.API.Extensions
             services.AddScoped<IAuthService, AuthService>();
             services.AddScoped<IProjectMemberService, ProjectMemberService>();
             services.AddScoped<IWorkTaskService, WorkTaskService>();
+<<<<<<< HEAD
             services.AddScoped<IWorkTaskNotificationService, TaskManagement.Infrastructure.Services.MockWorkTaskNotificationService>();
             // services.AddScoped<IFileService, FileService>();
+=======
+            services.AddScoped<IEmailService, EmailService>();
+            services.AddScoped<IOtpService, OtpService>();
+            
+            services.AddMemoryCache();
+            services.AddHttpContextAccessor();
+            services.AddHttpClient();
+>>>>>>> 48c51e8ea7724f864eee16b488d26cc33f3752ec
 
             // Cấu hình JWT Authentication
             var jwtConfig = configuration.GetSection("Jwt");
@@ -48,5 +57,28 @@ namespace TaskManagement.API.Extensions
 
             return services;
         }
+
+        /// <summary>
+        /// Module 5: Workspace & Agile Planning — DI Registration
+        /// </summary>
+        public static IServiceCollection AddWorkspaceServices(this IServiceCollection services)
+        {
+            services.AddScoped<IDepartmentService, DepartmentService>();
+            services.AddScoped<IProjectService, ProjectService>();
+            services.AddScoped<ISprintService, SprintService>();
+            return services;
+        }
+
+        /// <summary>
+        /// Module 6: System Audit & Logging — DI Registration
+        /// </summary>
+        public static IServiceCollection AddAuditLogServices(this IServiceCollection services)
+        {
+            services.AddHttpContextAccessor();
+            services.AddSingleton<IAuditLogQueue, AuditLogQueue>();
+            services.AddHostedService<AuditLogWorker>();
+            return services;
+        }
     }
 }
+

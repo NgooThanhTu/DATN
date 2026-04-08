@@ -46,7 +46,7 @@ const ROW_COUNT = 20;
 sql += `-- Users\n`;
 for (let i = 1; i <= ROW_COUNT; i++) {
     let id = generateGuid(i, USERS_PREFIX);
-    sql += `INSERT INTO Users (Id, Email, PasswordHash, FullName, IsActive, CreatedAt, UpdatedAt) VALUES ('${id}', 'user${i}@test.com', 'hash${i}', 'User ${i}', 1, GETDATE(), GETDATE());\n`;
+    sql += `INSERT INTO Users (Id, Email, PasswordHash, FullName, IsActive, IsDeleted, CreatedAt, UpdatedAt) VALUES ('${id}', 'user${i}@test.com', 'hash${i}', 'User ${i}', 1, 0, GETDATE(), GETDATE());\n`;
 }
 sql += '\n';
 
@@ -107,7 +107,7 @@ sql += `-- Projects\n`;
 for (let i = 1; i <= ROW_COUNT; i++) {
     let id = generateGuid(i, PROJ_PREFIX);
     let creatorId = generateGuid(i, USERS_PREFIX);
-    sql += `INSERT INTO Projects (Id, Name, Description, StartDate, EndDate, Status, CreatorId, CreatedAt, UpdatedAt) VALUES ('${id}', 'Project ${i}', 'Proj Desc ${i}', GETDATE(), DATEADD(month, 3, GETDATE()), ${(i%3)}, '${creatorId}', GETDATE(), GETDATE());\n`;
+    sql += `INSERT INTO Projects (Id, Name, Description, StartDate, EndDate, Status, IsDeleted, CreatorId, CreatedAt, UpdatedAt) VALUES ('${id}', 'Project ${i}', 'Proj Desc ${i}', GETDATE(), DATEADD(month, 3, GETDATE()), ${(i%3)}, 0, '${creatorId}', GETDATE(), GETDATE());\n`;
 }
 sql += '\n';
 
@@ -165,7 +165,7 @@ sql += `-- TaskAssignments\n`;
 for (let i = 1; i <= ROW_COUNT; i++) {
     let tid = generateGuid(i, TASK_PREFIX);
     let uid = generateGuid(i, USERS_PREFIX);
-    sql += `INSERT INTO TaskAssignments (WorkTaskId, UserId, Status, ActualStartDate, ActualEndDate) VALUES ('${tid}', '${uid}', 0, GETDATE(), DATEADD(day, 2, GETDATE()));\n`;
+    sql += `INSERT INTO TaskAssignments (WorkTaskId, UserId, Status, Priority, EstimatedHours, TotalActualHours, ActualStartDate, ActualEndDate) VALUES ('${tid}', '${uid}', 0, ${(i%4)}, 4.0, 0, GETDATE(), DATEADD(day, 2, GETDATE()));\n`;
 }
 sql += '\n';
 
@@ -187,7 +187,7 @@ for (let i = 1; i <= ROW_COUNT; i++) {
     let id = generateGuid(i, COMM_PREFIX);
     let tid = generateGuid(i, TASK_PREFIX);
     let uid = generateGuid(i, USERS_PREFIX);
-    sql += `INSERT INTO Comments (Id, Content, WorkTaskId, UserId, CreatedAt, UpdatedAt) VALUES ('${id}', 'Comment ${i}', '${tid}', '${uid}', GETDATE(), GETDATE());\n`;
+    sql += `INSERT INTO Comments (Id, Content, WorkTaskId, UserId, IsDeleted, CreatedAt, UpdatedAt) VALUES ('${id}', 'Comment ${i}', '${tid}', '${uid}', 0, GETDATE(), GETDATE());\n`;
 }
 sql += '\n';
 

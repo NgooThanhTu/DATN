@@ -2,11 +2,10 @@ using Microsoft.EntityFrameworkCore;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using TaskManagement.Application.DTOs.Project;
 using TaskManagement.Application.Interfaces;
-using TaskManagement.Domain.Constants;
 using TaskManagement.Domain.Entities;
 using TaskManagement.Infrastructure.Data;
-using TaskManagement.Application.DTOs.Project;
 
 namespace TaskManagement.Infrastructure.Services
 {
@@ -19,26 +18,66 @@ namespace TaskManagement.Infrastructure.Services
             _context = context;
         }
 
-        public async Task RemoveMemberAsync(Guid projectId, Guid userId, Guid adminId)
+        public async Task InviteMemberAsync(Guid projectId, ProjectMemberRequestDto request)
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email && !u.IsDeleted);
+            if (user == null)
+            {
+                throw new ArgumentException("Người dùng không tồn tại trong hệ thống.");
+            }
+
+            bool isAlreadyMember = await _context.ProjectMembers
+                .AnyAsync(pm => pm.ProjectId == projectId && pm.UserId == user.Id && pm.Status);
+            
+            if (isAlreadyMember)
+            {
+                throw new InvalidOperationException("Thành viên này đã tồn tại trong dự án."); // Controller can map this to 409 Conflict
+            }
+
+            var softDeletedMember = await _context.ProjectMembers
+                .FirstOrDefaultAsync(pm => pm.ProjectId == projectId && pm.UserId == user.Id && !pm.Status);
+
+            if (softDeletedMember != null)
+            {
+                softDeletedMember.Status = true;
+                softDeletedMember.ProjectRole = request.Role;
+                softDeletedMember.JoinedAt = DateTime.UtcNow;
+                softDeletedMember.LeftAt = null;
+            }
+            else
+            {
+                var newMember = new ProjectMember
+                {
+                    ProjectId = projectId,
+                    UserId = user.Id,
+                    ProjectRole = request.Role,
+                    JoinedAt = DateTime.UtcNow,
+                    Status = true
+                };
+                _context.ProjectMembers.Add(newMember);
+            }
+
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task RemoveMemberAsync(Guid projectId, Guid userId)
         {
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                // 1. Tìm ProjectMember
                 var member = await _context.ProjectMembers
-                    .FirstOrDefaultAsync(pm => pm.ProjectId == projectId && pm.UserId == userId);
+                    .FirstOrDefaultAsync(pm => pm.ProjectId == projectId && pm.UserId == userId && pm.Status);
 
-                if (member == null || !member.Status)
+                if (member == null)
                 {
-                    throw new ArgumentException("Member not found in project or already removed.");
+                    throw new ArgumentException("Thành viên không tồn tại hoặc đã rời dự án.");
                 }
 
-                // 2. Cập nhật trạng thái (Soft Delete)
+                // Soft Delete
                 member.Status = false;
                 member.LeftAt = DateTime.UtcNow;
 
-                // 3. Xử lý "Task mồ côi"
-                // Lấy tất cả các TaskAssignment của User trong Project này
+                // Handle Orphan Tasks
                 var orphans = await _context.TaskAssignments
                     .Include(ta => ta.WorkTask)
                     .Where(ta => ta.UserId == userId && ta.WorkTask.ProjectId == projectId)
@@ -47,58 +86,67 @@ namespace TaskManagement.Infrastructure.Services
                 if (orphans.Any())
                 {
                     _context.TaskAssignments.RemoveRange(orphans);
-                }
 
-                // 4. Báo Notification cho các PM (Project Manager)
-                var projectManagers = await _context.ProjectMembers
-                    .Where(pm => pm.ProjectId == projectId 
-                                    && pm.Status == true 
-                                    && pm.ProjectRole == ProjectRoles.PM)
-                    .Select(pm => pm.UserId)
-                    .ToListAsync();
+                    // Notify PM
+                    var pm = await _context.ProjectMembers
+                        .FirstOrDefaultAsync(pm => pm.ProjectId == projectId && pm.ProjectRole == "PM" && pm.Status);
 
-                // Lấy thông tin user bị kick để gán tên thật vào thông báo nếu cần (tối ưu: bỏ qua nếu k quá quan trọng, chỉ dùng ID)
-                var kickedUser = await _context.Users.FindAsync(userId);
-                string userName = kickedUser?.FullName ?? "Một thành viên";
-
-                var currentTime = DateTime.UtcNow;
-                foreach (var pmId in projectManagers)
-                {
-                    _context.Notifications.Add(new Notification
+                    if (pm != null)
                     {
-                        Id = Guid.NewGuid(),
-                        UserId = pmId,
-                        Title = "⚠ Cảnh báo: Task cần gán lại",
-                        Content = $"User '{userName}' (Role: {member.ProjectRole}) đã bị xóa khỏi dự án. {orphans.Count} task đang bị bỏ trống (orphan), vui lòng phân công lại.",
-                        CreatedAt = currentTime,
-                        IsRead = false
-                    });
+                        var notification = new Notification
+                        {
+                            Id = Guid.NewGuid(),
+                            UserId = pm.UserId,
+                            Title = "Task Mồ Côi - Thành viên rời dự án",
+                            Content = $"Một thành viên vừa bị xóa khỏi dự án. Có {orphans.Count} task đang bị mồ côi cần được phân công lại.",
+                            CreatedAt = DateTime.UtcNow,
+                            IsRead = false
+                        };
+                        _context.Notifications.Add(notification);
+                    }
                 }
 
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
             }
-            catch
+            catch (Exception)
             {
                 await transaction.RollbackAsync();
                 throw;
             }
         }
 
-        public async Task<IEnumerable<ProjectMemberDto>> GetProjectMembersAsync(Guid projectId)
+        public async Task UpdateMemberRoleAsync(Guid projectId, Guid userId, string newRole)
         {
-            return await _context.ProjectMembers
+            var member = await _context.ProjectMembers
+                .FirstOrDefaultAsync(pm => pm.ProjectId == projectId && pm.UserId == userId && pm.Status);
+
+            if (member == null)
+            {
+                throw new ArgumentException("Thành viên không tồn tại trong dự án.");
+            }
+
+            member.ProjectRole = newRole;
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task<System.Collections.Generic.IEnumerable<ProjectMemberResponseDto>> GetProjectMembersAsync(Guid projectId)
+        {
+            var members = await _context.ProjectMembers
+                .AsNoTracking()
                 .Include(pm => pm.User)
-                .Where(pm => pm.ProjectId == projectId && pm.Status)
-                .Select(pm => new ProjectMemberDto
+                .Where(pm => pm.ProjectId == projectId && pm.Status && !pm.User.IsDeleted)
+                .Select(pm => new ProjectMemberResponseDto
                 {
                     UserId = pm.UserId,
-                    FullName = pm.User.FullName,
                     Email = pm.User.Email,
+                    FullName = pm.User.FullName,
                     ProjectRole = pm.ProjectRole,
-                    Status = pm.Status
+                    JoinedAt = pm.JoinedAt
                 })
                 .ToListAsync();
+
+            return members;
         }
     }
 }

@@ -6,8 +6,17 @@ namespace TaskManagement.Infrastructure.Data
 {
     public class ApplicationDbContext : DbContext
     {
-        public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
-        { }
+        private readonly Microsoft.AspNetCore.Http.IHttpContextAccessor? _httpContextAccessor;
+        private readonly TaskManagement.Application.Interfaces.IAuditLogQueue? _auditLogQueue;
+
+        public ApplicationDbContext(
+            DbContextOptions<ApplicationDbContext> options,
+            Microsoft.AspNetCore.Http.IHttpContextAccessor? httpContextAccessor = null,
+            TaskManagement.Application.Interfaces.IAuditLogQueue? auditLogQueue = null) : base(options)
+        {
+            _httpContextAccessor = httpContextAccessor;
+            _auditLogQueue = auditLogQueue;
+        }
 
         // Group 1: System & Access
         public DbSet<User> Users { get; set; }
@@ -56,6 +65,22 @@ namespace TaskManagement.Infrastructure.Data
             base.OnModelCreating(modelBuilder);
 
             // =============================================
+            // 0. Global Query Filters (Soft Delete) - Spec 5.1
+            // =============================================
+            modelBuilder.Entity<Department>().HasQueryFilter(d => !d.IsDeleted);
+            modelBuilder.Entity<Project>().HasQueryFilter(p => !p.IsDeleted);
+            modelBuilder.Entity<WorkTask>().HasQueryFilter(wt => !wt.IsDeleted);
+
+            // =============================================
+            // 0.5 Department - Project Relationship
+            // =============================================
+            modelBuilder.Entity<Project>()
+                .HasOne(p => p.Department)
+                .WithMany(d => d.Projects)
+                .HasForeignKey(p => p.DepartmentId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // =============================================
             // 1. Composite Keys & Special PKs
             // =============================================
             modelBuilder.Entity<UserRole>().HasKey(x => new { x.UserId, x.RoleId });
@@ -72,6 +97,12 @@ namespace TaskManagement.Infrastructure.Data
             // =============================================
             modelBuilder.Entity<User>().HasIndex(u => u.Email).IsUnique();
             modelBuilder.Entity<Permission>().HasIndex(p => p.Code).IsUnique();
+
+            // Group 3 Core Management Indexes
+            modelBuilder.Entity<WorkTask>().HasIndex(wt => new { wt.ProjectId, wt.IsDeleted });
+            modelBuilder.Entity<WorkTask>().HasIndex(wt => wt.ReporterId);
+            modelBuilder.Entity<WorkTask>().HasIndex(wt => wt.AssignedUserId);
+            modelBuilder.Entity<ProjectMember>().HasIndex(pm => pm.UserId);
 
             // =============================================
             // 3. Relationships - Group 1: System & Access
@@ -339,6 +370,118 @@ namespace TaskManagement.Infrastructure.Data
                 .WithMany(u => u.TimeLogs)
                 .HasForeignKey(tl => tl.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
+        }
+
+        public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            // 1. Timezone Handling: Strictly save dates as UTC
+            var dateTimeProperties = ChangeTracker.Entries()
+                .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified)
+                .SelectMany(e => e.Properties)
+                .Where(p => p.Metadata.ClrType == typeof(DateTime) || p.Metadata.ClrType == typeof(DateTime?));
+
+            foreach (var prop in dateTimeProperties)
+            {
+                if (prop.CurrentValue is DateTime dt && dt.Kind != DateTimeKind.Utc)
+                {
+                    prop.CurrentValue = dt.ToUniversalTime();
+                }
+            }
+
+            // 2. Automatic Data Roll-up logic preparation
+            var timeLogEntries = ChangeTracker.Entries<TimeLog>()
+                .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified || e.State == EntityState.Deleted)
+                .ToList();
+
+            // Save the logs first
+            
+            // =============================================
+            // 2.5 Audit Logging (Module 6)
+            // =============================================
+            var pendingLogsActions = new List<Action<List<AuditLog>>>();
+            var pendingLogs = new List<AuditLog>();
+
+            if (_auditLogQueue != null)
+            {
+                var userIdClaim = _httpContextAccessor?.HttpContext?.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                if (Guid.TryParse(userIdClaim, out Guid parsedUserId) && parsedUserId != Guid.Empty)
+                {
+                    var blacklist = new[] { "PasswordHash", "SecretKey", "RefreshToken", "MatKhau" };
+                    var taskEntries = ChangeTracker.Entries<WorkTask>()
+                        .Where(e => e.State == EntityState.Modified || e.State == EntityState.Added)
+                        .ToList();
+
+                    foreach (var entry in taskEntries)
+                    {
+                        foreach (var prop in entry.Properties.Where(p => p.IsModified || entry.State == EntityState.Added))
+                        {
+                            var propName = prop.Metadata.Name;
+                            if (propName == "UpdatedAt" || propName == "CreatedAt" || propName == "RowVersion" || propName == "Id") 
+                                continue;
+
+                            var oldVal = entry.State == EntityState.Added ? null : entry.OriginalValues[propName]?.ToString();
+                            var newVal = entry.CurrentValues[propName]?.ToString();
+
+                            // Sensitive Data Masking
+                            if (Array.Exists(blacklist, b => b == propName))
+                            {
+                                oldVal = oldVal != null ? "******" : null;
+                                newVal = newVal != null ? "******" : null;
+                            }
+
+                            // Capture exact reference inside lambda to resolve ID after base.SaveChanges
+                            pendingLogsActions.Add(list => list.Add(new AuditLog
+                            {
+                                Id = Guid.NewGuid(),
+                                WorkTaskId = entry.Entity.Id, 
+                                UserId = parsedUserId,
+                                FieldChanged = propName,
+                                OldValue = oldVal,
+                                NewValue = newVal,
+                                CreatedAt = DateTime.UtcNow
+                            }));
+                        }
+                    }
+                }
+            }
+
+            var result = await base.SaveChangesAsync(cancellationToken);
+
+            // Execute Audit Log actions and enqueue
+            if (pendingLogsActions.Count > 0 && _auditLogQueue != null)
+            {
+                foreach (var action in pendingLogsActions) action(pendingLogs);
+                foreach (var log in pendingLogs)
+                {
+                    await _auditLogQueue.EnqueueAsync(log, cancellationToken);
+                }
+            }
+
+            // 3. Automatic Data Roll-up execution (Update Tasks and Parent Tasks)
+            if (timeLogEntries.Any())
+            {
+                var taskIds = timeLogEntries.Select(e => e.Entity.WorkTaskId).Distinct().ToList();
+                var tasks = await WorkTasks.Where(t => taskIds.Contains(t.Id)).ToListAsync(cancellationToken);
+
+                foreach (var task in tasks)
+                {
+                    task.TotalActualHours = await TimeLogs.Where(tl => tl.WorkTaskId == task.Id).SumAsync(tl => tl.Hours, cancellationToken);
+                }
+                await base.SaveChangesAsync(cancellationToken);
+
+                var parentIds = tasks.Where(t => t.ParentTaskId.HasValue).Select(t => t.ParentTaskId.Value).Distinct().ToList();
+                if (parentIds.Any())
+                {
+                    var parents = await WorkTasks.Where(t => parentIds.Contains(t.Id)).ToListAsync(cancellationToken);
+                    foreach (var parent in parents)
+                    {
+                        parent.TotalActualHours = await WorkTasks.Where(t => t.ParentTaskId == parent.Id).SumAsync(t => t.TotalActualHours, cancellationToken);
+                    }
+                    await base.SaveChangesAsync(cancellationToken);
+                }
+            }
+
+            return result;
         }
     }
 }

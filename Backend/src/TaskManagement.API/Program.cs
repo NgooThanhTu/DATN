@@ -16,6 +16,8 @@ builder.Services.AddOpenApi();
 
 // Đăng ký Custom Services từ Extension Methods
 builder.Services.AddAuthServices(builder.Configuration);
+builder.Services.AddWorkspaceServices();
+builder.Services.AddAuditLogServices();
 
 // 2. Khai báo Policy CORS
 var myAllowSpecificOrigins = "_myAllowSpecificOrigins";
@@ -89,8 +91,12 @@ app.UseDefaultFiles(); // Phải gọi dòng này trước
 app.UseStaticFiles();
 // 5. Nối các endpoint vào Controllers
 app.MapControllers();
+<<<<<<< HEAD
 // Hubs are currently disabled or deleted
 
+=======
+app.MapHub<TaskManagement.API.Hubs.KanbanHub>("/kanban-hub");
+>>>>>>> 48c51e8ea7724f864eee16b488d26cc33f3752ec
 
 // TỰ ĐỘNG MIGRATE VÀ SEED DỮ LIỆU KHI STARTUP (PM: Vui lòng không xóa đoạn này)
 using (var scope = app.Services.CreateScope())
@@ -99,10 +105,15 @@ using (var scope = app.Services.CreateScope())
     var context = services.GetRequiredService<ApplicationDbContext>();
     try 
     {
-        await context.Database.EnsureDeletedAsync();
-        await context.Database.EnsureCreatedAsync();
+        // QUAN TRỌNG: Không xóa DB mỗi lần khởi động
+        // await context.Database.EnsureDeletedAsync();
+        // await context.Database.EnsureCreatedAsync();
         // await context.Database.MigrateAsync();
+<<<<<<< HEAD
         // await DatabaseSeeder.SeedAsync(context);
+=======
+        // await DatabaseSeeder.SeedAsync(context); removed
+>>>>>>> 48c51e8ea7724f864eee16b488d26cc33f3752ec
     }
     catch (Exception ex)
     {

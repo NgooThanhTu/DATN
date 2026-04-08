@@ -8,5 +8,10 @@ export default [
     path: '/register',
     name: 'Register',
     component: () => import('../views/Register.vue')
+  },
+  {
+    path: '/auth/github/callback',
+    name: 'GitHubCallback',
+    component: () => import('../views/GitHubCallback.vue')
   }
 ]

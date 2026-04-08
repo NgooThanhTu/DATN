@@ -4,6 +4,7 @@ import authRoutes from './authRoutes'
 import dashboardRoutes from './dashboardRoutes'
 import spaceRoutes from './spaceRoutes'
 import aiRoutes from './aiRoutes'
+import logRoutes from './logRoutes'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -12,17 +13,19 @@ const router = createRouter({
     ...authRoutes,
     ...dashboardRoutes,
     ...spaceRoutes,
-    ...aiRoutes
+    ...aiRoutes,
+    ...logRoutes
   ]
 })
 
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('accessToken')
-  const publicPages = ['/login', '/register', '/']
+  // Cho phép các trang công khai không cần token
+  const publicPages = ['/login', '/register', '/', '/auth/github/callback']
   const authRequired = !publicPages.includes(to.path)
 
   if (authRequired && !token) {
-    return next({ 
+    return next({
       path: '/login',
       query: { redirect: to.fullPath }
     })

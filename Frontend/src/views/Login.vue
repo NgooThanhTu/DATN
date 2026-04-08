@@ -1,5 +1,5 @@
 <template>
-  <div class="auth-page">
+  <div class="auth-page" data-theme="light">
     <header class="auth-navbar">
       <div class="container nav-content">
         <router-link to="/" class="logo">
@@ -20,7 +20,7 @@
         
         <el-form class="auth-form" @submit.prevent="handleLogin" label-position="top">
           <el-form-item label="Email">
-            <el-input v-model="form.email" placeholder="name@company.com" size="large" />
+            <el-input v-model="form.email" placeholder="name@email.com" size="large" />
           </el-form-item>
           
           <el-form-item class="password-item">
@@ -52,28 +52,28 @@
           >
             Đăng nhập
           </el-button>
-
-
-          
-          <div class="divider">
-            <span>HOẶC TIẾP TỤC VỚI</span>
-          </div>
-          
-          <div class="social-login">
-            <GoogleLogin :callback="handleGoogleLogin" class="social-btn-wrapper">
-              <el-button plain class="social-btn">
-                <img :src="googleIcon" alt="Google" class="social-icon" /> Google
-              </el-button>
-            </GoogleLogin>
-            <el-button plain class="social-btn">
-              <img :src="githubIcon" alt="GitHub" class="social-icon" /> GitHub
-            </el-button>
-          </div>
-          
-          <p class="auth-footer-text">
-            Chưa có tài khoản? <router-link to="/register">Đăng ký</router-link>
-          </p>
         </el-form>
+
+        <div class="divider">
+          <span>HOẶC TIẾP TỤC VỚI</span>
+        </div>
+        
+        <div class="social-login">
+          <!-- Sử dụng slot custom để thiết kế nút Google GIỐNG HỆT nút GitHub -->
+          <GoogleLogin :callback="handleGoogleLogin" popup-type="TOKEN" class="social-btn-wrapper">
+            <el-button native-type="button" class="social-btn google-btn">
+              <img :src="googleIcon" alt="Google" class="social-icon" /> Google
+            </el-button>
+          </GoogleLogin>
+          
+          <el-button native-type="button" class="social-btn github-btn" @click="handleGitHubLogin">
+            <img :src="githubIcon" alt="GitHub" class="social-icon" /> GitHub
+          </el-button>
+        </div>
+        
+        <p class="auth-footer-text">
+          Chưa có tài khoản? <router-link to="/register">Đăng ký</router-link>
+        </p>
       </div>
     </div>
     
@@ -90,7 +90,7 @@ import googleIcon from '../assets/Icongoogle.png'
 import githubIcon from '../assets/Icongithub.png'
 import { useRouter } from 'vue-router'
 import axiosClient from '../api/axiosClient'
-import { ElMessage } from 'element-plus'
+
 
 const form = reactive({
   email: '',
@@ -143,10 +143,17 @@ const handleLogin = async () => {
 }
 
 const handleGoogleLogin = async (response) => {
+  console.log('Google Response:', response) // Debug log 
   isLoading.value = true
   try {
+    const token = response.access_token || response.credential
+    if (!token) {
+      ElMessage.error('Không nhận được token từ Google. Vui lòng thử lại.')
+      isLoading.value = false
+      return
+    }
     const res = await axiosClient.post('/auth/google-login', {
-      credential: response.credential
+      Credential: token
     })
     
     const { accessToken, fullName, email, systemRoles, id } = res.data.data
@@ -165,6 +172,14 @@ const handleGoogleLogin = async (response) => {
   } finally {
     isLoading.value = false
   }
+}
+
+const handleGitHubLogin = () => {
+  const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID || 'Ov23liYQdySKrDme697t'
+  const redirectUri = window.location.origin + '/auth/github/callback'
+  const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=user:email`
+  
+  window.location.href = githubAuthUrl
 }
 </script>
 
@@ -263,6 +278,11 @@ const handleGoogleLogin = async (response) => {
 .password-label {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+:deep(.password-item .el-form-item__label) {
   width: 100%;
 }
 
@@ -367,14 +387,37 @@ const handleGoogleLogin = async (response) => {
 
 .social-btn {
   flex: 1;
-  height: 44px;
+  height: 48px;
   border-radius: 10px;
   font-weight: 500;
+  font-size: 15px;
   color: #334155;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 10px;
+}
+
+.google-btn {
+  background-color: #ffffff;
+  border: 1px solid #60a5fa; /* Viền xanh dương nhạt như ảnh */
+}
+
+.google-btn:hover {
+  background-color: #eff6ff;
+  border-color: #3b82f6;
+  color: #1e3a8a;
+}
+
+.github-btn {
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1; /* Viền xám nhạt như ảnh */
+}
+
+.github-btn:hover {
+  background-color: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
 }
 
 .social-icon {
