@@ -1,4 +1,4 @@
-// Nhớ thêm thư viện này để dùng DbContext và SQL Server
+// Nhá»› thĂªm thÆ° viá»‡n nĂ y Ä‘á»ƒ dĂ¹ng DbContext vĂ  SQL Server
 using Microsoft.EntityFrameworkCore;
 
 
@@ -8,23 +8,23 @@ using TaskManagement.API.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Mở tính năng Controllers (Chuẩn bị cho các API Login, Task...)
+// 1. Má»Ÿ tĂ­nh nÄƒng Controllers (Chuáº©n bá»‹ cho cĂ¡c API Login, Task...)
 builder.Services.AddControllers();
 builder.Services.AddSignalR();
 
 builder.Services.AddOpenApi();
 
-// Đăng ký Custom Services từ Extension Methods
+// ÄÄƒng kĂ½ Custom Services tá»« Extension Methods
 builder.Services.AddAuthServices(builder.Configuration);
 
-// 2. Khai báo Policy CORS
+// 2. Khai bĂ¡o Policy CORS
 var myAllowSpecificOrigins = "_myAllowSpecificOrigins";
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(name: myAllowSpecificOrigins,
                       policy =>
                       {
-                          // Cho phép Vue.js gọi vào (các port dev server có thể khác nhau)
+                          // Cho phĂ©p Vue.js gá»i vĂ o (cĂ¡c port dev server cĂ³ thá»ƒ khĂ¡c nhau)
                           policy.WithOrigins("http://localhost:5173", "http://localhost:5174")
                               .AllowAnyHeader()
                               .AllowAnyMethod()
@@ -32,9 +32,9 @@ builder.Services.AddCors(options =>
                       });
 });
 
-// 3. CẤU HÌNH CODE-FIRST (ENTITY FRAMEWORK CORE)
-// Nếu có connection string sẽ dùng SQL Server; nếu không (ví dụ môi trường dev nhanh),
-// fallback sang InMemory DB để bạn có thể thử register/login dễ dàng.
+// 3. Cáº¤U HĂŒNH CODE-FIRST (ENTITY FRAMEWORK CORE)
+// Náº¿u cĂ³ connection string sáº½ dĂ¹ng SQL Server; náº¿u khĂ´ng (vĂ­ dá»¥ mĂ´i trÆ°á»ng dev nhanh),
+// fallback sang InMemory DB Ä‘á»ƒ báº¡n cĂ³ thá»ƒ thá»­ register/login dá»… dĂ ng.
 var defaultConnection = builder.Configuration.GetConnectionString("DefaultConnection");
 if (builder.Environment.IsDevelopment())
 {
@@ -62,37 +62,28 @@ else
 
 var app = builder.Build();
 
-// ---------------- CẤU HÌNH PIPELINE ----------------
+// ---------------- Cáº¤U HĂŒNH PIPELINE ----------------
 
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
 
-// app.UseHttpsRedirection(); // Tắt HTTPS redirect để Axios có thể gọi vào HTTP 5136 mà ko bị CORS lỗi
+// app.UseHttpsRedirection(); // Táº¯t HTTPS redirect Ä‘á»ƒ Axios cĂ³ thá»ƒ gá»i vĂ o HTTP 5136 mĂ  ko bá»‹ CORS lá»—i
 
-// Middleware for Google OAuth popup support
-app.Use(async (context, next) =>
-{
-    context.Response.Headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups";
-    context.Response.Headers["Cross-Origin-Embedder-Policy"] = "require-corp";
-    await next();
-});
-
-
-// 4. KÍCH HOẠT CORS (Vị trí cực kỳ quan trọng, phải đứng trước Authorization)
+// 4. KĂCH HOáº T CORS (Vá»‹ trĂ­ cá»±c ká»³ quan trá»ng, pháº£i Ä‘á»©ng trÆ°á»›c Authorization)
 app.UseCors(myAllowSpecificOrigins);
 
 app.UseAuthentication();
 app.UseAuthorization();
-app.UseDefaultFiles(); // Phải gọi dòng này trước
+app.UseDefaultFiles(); // Pháº£i gá»i dĂ²ng nĂ y trÆ°á»›c
 app.UseStaticFiles();
-// 5. Nối các endpoint vào Controllers
+// 5. Ná»‘i cĂ¡c endpoint vĂ o Controllers
 app.MapControllers();
 // Hubs are currently disabled or deleted
 
 
-// TỰ ĐỘNG MIGRATE VÀ SEED DỮ LIỆU KHI STARTUP (PM: Vui lòng không xóa đoạn này)
+// Tá»° Äá»˜NG MIGRATE VĂ€ SEED Dá»® LIá»†U KHI STARTUP (PM: Vui lĂ²ng khĂ´ng xĂ³a Ä‘oáº¡n nĂ y)
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
@@ -106,7 +97,7 @@ using (var scope = app.Services.CreateScope())
     }
     catch (Exception ex)
     {
-        Console.WriteLine("Lỗi khi Migrate/Seed: " + ex.Message);
+        Console.WriteLine("Lá»—i khi Migrate/Seed: " + ex.Message);
     }
 }
 

@@ -6,17 +6,20 @@ using TaskManagement.Domain.Entities;
 using System.Security.Cryptography;
 using System.Text;
 using Google.Apis.Auth;
+using Microsoft.Extensions.Configuration;
 namespace TaskManagement.Infrastructure.Services
 {
     public class AuthService : IAuthService
     {
         private readonly ApplicationDbContext _context;
         private readonly IJwtService _jwtService;
+        private readonly IConfiguration _configuration;
 
-        public AuthService(ApplicationDbContext context, IJwtService jwtService)
+        public AuthService(ApplicationDbContext context, IJwtService jwtService, IConfiguration configuration)
         {
             _context = context;
             _jwtService = jwtService;
+            _configuration = configuration;
         }
 
         public async Task<(AuthResponseDto response, string refreshToken)> LoginAsync(LoginRequestDto request)
@@ -56,9 +59,10 @@ namespace TaskManagement.Infrastructure.Services
 
         public async Task<(AuthResponseDto response, string refreshToken)> GoogleLoginAsync(GoogleLoginRequestDto request)
         {
+            var clientId = _configuration.GetSection("Google")["ClientId"] ?? "1008910270642-b5ic5oo3sb2rnemts5dp9sfaq025cud8.apps.googleusercontent.com";
             var settings = new GoogleJsonWebSignature.ValidationSettings
             {
-                Audience = new List<string> { "1008910270642-b5ic5oo3sb2rnemts5dp9sfaq025cud8.apps.googleusercontent.com" }
+                Audience = new List<string> { clientId }
             };
             var payload = await GoogleJsonWebSignature.ValidateAsync(request.Credential, settings);
             

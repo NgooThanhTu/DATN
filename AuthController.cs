@@ -28,7 +28,7 @@ namespace TaskManagement.API.Controllers
                 {
                     HttpOnly = true,
                     Secure = Request.IsHttps, // Set true only if request is HTTPS
-                    SameSite = SameSiteMode.Lax, // Changed to support Google OAuth
+                    SameSite = SameSiteMode.Lax, // Changed from Strict to support Google OAuth popup
                     Expires = DateTime.UtcNow.AddDays(7)
                 };
                 Response.Cookies.Append("refreshToken", refreshToken, cookieOptions);
@@ -53,7 +53,7 @@ namespace TaskManagement.API.Controllers
                 {
                     HttpOnly = true,
                     Secure = Request.IsHttps,
-                    SameSite = SameSiteMode.Lax, // Changed to support Google OAuth
+                    SameSite = SameSiteMode.Lax, // Changed from Strict to support Google OAuth popup
                     Expires = DateTime.UtcNow.AddDays(7)
                 };
                 Response.Cookies.Append("refreshToken", refreshToken, cookieOptions);
@@ -64,7 +64,7 @@ namespace TaskManagement.API.Controllers
             {
                 // Log exception server-side for easier debugging and return clearer message to client
                 Console.WriteLine("GoogleLogin failure: " + ex.ToString());
-                return BadRequest(new { statusCode = 400, message = "Không thể xác thực với Google: " + ex.Message });
+                return BadRequest(new { statusCode = 400, message = "KhĂ´ng thá»ƒ xĂ¡c thá»±c vá»›i Google: " + ex.Message });
             }
         }
 
@@ -74,7 +74,7 @@ namespace TaskManagement.API.Controllers
             try
             {
                 await _authService.RegisterAsync(request);
-                return Ok(new { statusCode = 200, message = "Đăng ký thành công" });
+                return Ok(new { statusCode = 200, message = "ÄÄƒng kĂ½ thĂ nh cĂ´ng" });
             }
             catch (InvalidOperationException ex)
             {
@@ -111,7 +111,7 @@ namespace TaskManagement.API.Controllers
                 {
                     HttpOnly = true,
                     Secure = Request.IsHttps,
-                    SameSite = SameSiteMode.Lax, // Changed to support Google OAuth
+                    SameSite = SameSiteMode.Lax, // Changed from Strict to support Google OAuth popup
                     Expires = DateTime.UtcNow.AddDays(7)
                 };
                 Response.Cookies.Append("refreshToken", newRefreshToken, cookieOptions);
@@ -145,4 +145,3 @@ namespace TaskManagement.API.Controllers
         }
     }
 }
-
