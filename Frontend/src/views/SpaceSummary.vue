@@ -1059,93 +1059,124 @@
                     @change="(evt) => handleDraggableChange(evt, group)"
                   >
                     <template #item="{ element: task }">
-                      <div class="list-row task-row sprint-task-row" style="display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; border-bottom: 1px solid var(--border-color); background: var(--bg-nav); cursor: pointer; transition: background 0.2s;">
-                        <div class="task-row-left" style="display: flex; align-items: center; gap: 12px; flex: 1;" @click="openTaskDetail(task)">
-                          <el-checkbox @click.stop style="margin-right: 4px;"></el-checkbox>
+                      <div class="task-node-wrapper">
+                        <div class="list-row task-row sprint-task-row" style="display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; border-bottom: 1px solid var(--border-color); background: var(--bg-nav); cursor: pointer; transition: background 0.2s;">
+                          <div class="task-row-left" style="display: flex; align-items: center; gap: 12px; flex: 1;" @click="openTaskDetail(task)">
+                            <el-checkbox @click.stop style="margin-right: 4px;"></el-checkbox>
+                            
+                            <!-- Priority Icon -->
+                            <div class="priority-trigger" @click.stop="() => {}">
+                              <el-dropdown trigger="click" @command="(val) => updateTaskField(task, 'priority', val)">
+                                <span style="font-size: 13px;">
+                                  <i class="fa-solid fa-angles-up" v-if="task.priority === 1" style="color: #ef4444;" title="Urgent"></i>
+                                  <i class="fa-solid fa-angle-up" v-else-if="task.priority === 2" style="color: #f97316;" title="High"></i>
+                                  <i class="fa-solid fa-minus" v-else-if="task.priority === 3" style="color: #3b82f6;" title="Normal"></i>
+                                  <i class="fa-solid fa-angle-down" v-else style="color: #94a3b8;" title="Low"></i>
+                                </span>
+                                <template #dropdown>
+                                  <el-dropdown-menu class="dark-dropdown">
+                                    <el-dropdown-item :command="1">1 (Urgent)</el-dropdown-item>
+                                    <el-dropdown-item :command="2">2 (High)</el-dropdown-item>
+                                    <el-dropdown-item :command="3">3 (Normal)</el-dropdown-item>
+                                    <el-dropdown-item :command="4">4 (Low)</el-dropdown-item>
+                                  </el-dropdown-menu>
+                                </template>
+                              </el-dropdown>
+                            </div>
+                            
+                            <span class="task-id" style="font-family: monospace; font-size: 13px; color: #94a3b8; font-weight: 500; display: flex; align-items: center; gap: 6px;">
+                              <i class="fa-solid fa-square-check" style="color: #3b82f6;"></i>
+                              {{ task.id.substring(0, 8).toUpperCase() }}
+                            </span>
+                            
+                            <span class="task-title" style="font-size: 14px; font-weight: 500; color: var(--text-primary);">{{ task.title }}</span>
+                          </div>
                           
-                          <!-- Priority Icon -->
-                          <div class="priority-trigger" @click.stop="() => {}">
-                            <el-dropdown trigger="click" @command="(val) => updateTaskField(task, 'priority', val)">
-                              <span style="font-size: 13px;">
-                                <i class="fa-solid fa-angles-up" v-if="task.priority === 1" style="color: #ef4444;" title="Urgent"></i>
-                                <i class="fa-solid fa-angle-up" v-else-if="task.priority === 2" style="color: #f97316;" title="High"></i>
-                                <i class="fa-solid fa-minus" v-else-if="task.priority === 3" style="color: #3b82f6;" title="Normal"></i>
-                                <i class="fa-solid fa-angle-down" v-else style="color: #94a3b8;" title="Low"></i>
-                              </span>
+                          <div class="task-row-right" style="display: flex; align-items: center; gap: 20px;">
+                            <!-- Comments bubble -->
+                            <el-popover placement="bottom-end" :width="440" trigger="click" popper-class="comment-popover-dark">
+                              <template #reference>
+                                <div class="comment-trigger-btn" @click.stop v-if="task.commentCount" style="display: flex; align-items: center; gap: 4px; color: #94a3b8; cursor: pointer;">
+                                  <i class="fa-regular fa-comment icon-btn" style="font-size: 13px;"></i>
+                                  <span style="font-size: 11px; font-weight: 700;">{{ task.commentCount }}</span>
+                                </div>
+                              </template>
+                              <div class="comment-popover-content">
+                                  <div class="comments-scroll-area">Bình luận...</div>
+                              </div>
+                            </el-popover>
+                          
+                            <!-- Story Point badge -->
+                            <div class="story-point-badge" v-if="task.storyPointEstimate || task.storyPoints" style="background: #334155; color: #cbd5e1; font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: 600;" title="Story Points">
+                              {{ task.storyPointEstimate || task.storyPoints }}
+                            </div>
+                            
+                            <!-- Branch icon -->
+                            <el-tooltip content="Create Branch" placement="top">
+                              <i class="fa-solid fa-code-branch" style="color: #64748b; font-size: 13px; cursor: pointer;"></i>
+                            </el-tooltip>
+                            
+                            <!-- Status Dropdown matching UI -->
+                            <el-dropdown trigger="click" @command="(val) => updateTaskField(task, 'statusName', val)">
+                              <div class="sprint-status-btn" :style="{ backgroundColor: task.statusName === 'DONE' ? '#166534' : group.statusBg || '#334155', color: group.statusColor || '#ffffff' }" style="display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: 700; cursor: pointer;">
+                                <span>{{ (task.statusName || 'TODO').toUpperCase() }}</span>
+                                <i class="fa-solid fa-chevron-down" style="font-size: 10px;"></i>
+                              </div>
                               <template #dropdown>
                                 <el-dropdown-menu class="dark-dropdown">
-                                  <el-dropdown-item :command="1">1 (Urgent)</el-dropdown-item>
-                                  <el-dropdown-item :command="2">2 (High)</el-dropdown-item>
-                                  <el-dropdown-item :command="3">3 (Normal)</el-dropdown-item>
-                                  <el-dropdown-item :command="4">4 (Low)</el-dropdown-item>
+                                  <el-dropdown-item command="TO DO">TO DO</el-dropdown-item>
+                                  <el-dropdown-item command="IN PROGRESS">IN PROGRESS</el-dropdown-item>
+                                  <el-dropdown-item command="DONE">DONE</el-dropdown-item>
+                                </el-dropdown-menu>
+                              </template>
+                            </el-dropdown>
+                            
+                            <!-- Assignee Avatar -->
+                            <el-dropdown trigger="click" @command="(val) => updateTaskField(task, 'assignedUserId', val)">
+                              <div class="assignee-trigger" style="width: 24px; height: 24px; border-radius: 50%; background: #334155; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+                                <div class="avatar-tiny" v-if="task.assigneeName" style="background: transparent; color: white;">{{ task.assigneeName.substring(0, 2).toUpperCase() }}</div>
+                                <i class="fa-solid fa-user-plus icon-btn" v-else style="font-size: 10px; color: #94a3b8;"></i>
+                              </div>
+                              <template #dropdown>
+                                <el-dropdown-menu class="dark-dropdown">
+                                  <el-dropdown-item :command="null">Chưa phân công</el-dropdown-item>
+                                  <el-dropdown-item v-for="member in projectMembers" :key="member.userId" :command="member.userId">
+                                    {{ member.fullName }}
+                                  </el-dropdown-item>
                                 </el-dropdown-menu>
                               </template>
                             </el-dropdown>
                           </div>
-                          
-                          <span class="task-id" style="font-family: monospace; font-size: 13px; color: #94a3b8; font-weight: 500; display: flex; align-items: center; gap: 6px;">
-                            <i class="fa-solid fa-square-check" style="color: #3b82f6;"></i>
-                            {{ task.id.substring(0, 8).toUpperCase() }}
-                          </span>
-                          
-                          <span class="task-title" style="font-size: 14px; font-weight: 500; color: var(--text-primary);">{{ task.title }}</span>
                         </div>
-                        
-                        <div class="task-row-right" style="display: flex; align-items: center; gap: 20px;">
-                          <!-- Comments bubble -->
-                          <el-popover placement="bottom-end" :width="440" trigger="click" popper-class="comment-popover-dark">
-                            <template #reference>
-                              <div class="comment-trigger-btn" @click.stop v-if="task.commentCount" style="display: flex; align-items: center; gap: 4px; color: #94a3b8; cursor: pointer;">
-                                <i class="fa-regular fa-comment icon-btn" style="font-size: 13px;"></i>
-                                <span style="font-size: 11px; font-weight: 700;">{{ task.commentCount }}</span>
-                              </div>
-                            </template>
-                            <div class="comment-popover-content">
-                                <div class="comments-scroll-area">Bình luận...</div>
-                            </div>
-                          </el-popover>
-                        
-                          <!-- Story Point badge -->
-                          <div class="story-point-badge" v-if="task.storyPointEstimate || task.storyPoints" style="background: #334155; color: #cbd5e1; font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: 600;" title="Story Points">
-                            {{ task.storyPointEstimate || task.storyPoints }}
-                          </div>
-                          
-                          <!-- Branch icon -->
-                          <el-tooltip content="Create Branch" placement="top">
-                            <i class="fa-solid fa-code-branch" style="color: #64748b; font-size: 13px; cursor: pointer;"></i>
-                          </el-tooltip>
-                          
-                          <!-- Status Dropdown matching UI -->
-                          <el-dropdown trigger="click" @command="(val) => updateTaskField(task, 'statusName', val)">
-                            <div class="sprint-status-btn" :style="{ backgroundColor: task.statusName === 'DONE' ? '#166534' : group.statusBg || '#334155', color: group.statusColor || '#ffffff' }" style="display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: 700; cursor: pointer;">
-                              <span>{{ (task.statusName || 'TODO').toUpperCase() }}</span>
-                              <i class="fa-solid fa-chevron-down" style="font-size: 10px;"></i>
-                            </div>
-                            <template #dropdown>
-                              <el-dropdown-menu class="dark-dropdown">
-                                <el-dropdown-item command="TO DO">TO DO</el-dropdown-item>
-                                <el-dropdown-item command="IN PROGRESS">IN PROGRESS</el-dropdown-item>
-                                <el-dropdown-item command="DONE">DONE</el-dropdown-item>
-                              </el-dropdown-menu>
-                            </template>
-                          </el-dropdown>
-                          
-                          <!-- Assignee Avatar -->
-                          <el-dropdown trigger="click" @command="(val) => updateTaskField(task, 'assignedUserId', val)">
-                            <div class="assignee-trigger" style="width: 24px; height: 24px; border-radius: 50%; background: #334155; display: flex; align-items: center; justify-content: center; cursor: pointer;">
-                              <div class="avatar-tiny" v-if="task.assigneeName" style="background: transparent; color: white;">{{ task.assigneeName.substring(0, 2).toUpperCase() }}</div>
-                              <i class="fa-solid fa-user-plus icon-btn" v-else style="font-size: 10px; color: #94a3b8;"></i>
-                            </div>
-                            <template #dropdown>
-                              <el-dropdown-menu class="dark-dropdown">
-                                <el-dropdown-item :command="null">Chưa phân công</el-dropdown-item>
-                                <el-dropdown-item v-for="member in projectMembers" :key="member.userId" :command="member.userId">
-                                  {{ member.fullName }}
-                                </el-dropdown-item>
-                              </el-dropdown-menu>
-                            </template>
-                          </el-dropdown>
+
+                        <!-- Subtasks Container -->
+                        <div v-if="task.showChildren || task.childTasks?.length > 0" class="subtasks-container" style="background: rgba(0,0,0,0.15);">
+                           <div v-for="subtask in task.childTasks" :key="subtask.id" class="subtask-row" style="display: flex; align-items: center; justify-content: space-between; padding: 6px 16px 6px 48px; border-bottom: 1px solid var(--border-color); font-size: 13px;" @click="openTaskDetail(subtask)">
+                               <div style="display: flex; align-items: center; gap: 8px;">
+                                   <i class="fa-solid fa-level-up-alt fa-rotate-90" style="color: #64748b; margin-right: 4px;"></i>
+                                   <span class="task-id" style="font-family: monospace; color: #94a3b8;">{{ subtask.id.substring(0, 8).toUpperCase() }}</span>
+                                   <span style="color: var(--text-primary);">{{ subtask.title }}</span>
+                               </div>
+                               <!-- Subtask status/actions -->
+                               <div style="display: flex; align-items: center; gap: 12px;">
+                                    <!-- Assignee Avatar -->
+                                    <div class="assignee-trigger" style="width: 20px; height: 20px; border-radius: 50%; background: #334155; display: flex; align-items: center; justify-content: center;">
+                                      <div class="avatar-tiny" v-if="subtask.assigneeName" style="background: transparent; color: white;">{{ subtask.assigneeName.substring(0, 2).toUpperCase() }}</div>
+                                      <i class="fa-solid fa-user icon-btn" v-else style="font-size: 9px; color: #94a3b8;"></i>
+                                    </div>
+                                    <div class="sprint-status-btn" style="padding: 2px 8px; border-radius: 4px; font-size: 10px; background: #334155; color: #fff;">
+                                      {{ (subtask.statusName || 'TODO').toUpperCase() }}
+                                    </div>
+                               </div>
+                           </div>
+                           
+                           <!-- Add Subtask Input -->
+                           <div class="add-subtask-row" style="padding: 6px 16px 6px 48px; display: flex; align-items: center; border-bottom: 1px solid var(--border-color);">
+                                <i class="fa-solid fa-plus" style="font-size: 10px; color: #64748b; margin-right: 8px;"></i>
+                                <input type="text" placeholder="Thêm subtask..." v-model="task.newSubtaskTitle" @keyup.enter="createSubtask(task)" style="background: transparent; border: none; outline: none; color: var(--text-primary); font-size: 13px; width: 100%;" />
+                           </div>
                         </div>
+
                       </div>
                     </template>
                   </draggable>
@@ -2124,7 +2155,26 @@ const fetchTasks = async () => {
   }
   try {
     const { data } = await axiosClient.get(`/projects/${projectId.value}/WorkTasks`)
-    tasks.value = data.data || data || []
+    let rawTasks = data.data || data || []
+
+    const taskMap = {}
+    rawTasks.forEach(t => {
+      t.childTasks = []
+      t.showChildren = true
+      t.newSubtaskTitle = ''
+      taskMap[t.id] = t
+    })
+    
+    const roots = []
+    rawTasks.forEach(t => {
+      if (t.parentTaskId && taskMap[t.parentTaskId]) {
+        taskMap[t.parentTaskId].childTasks.push(t)
+      } else {
+        roots.push(t)
+      }
+    })
+    
+    tasks.value = roots
   } catch (error) {
     if (error.response && error.response.status === 403) {
       ElMessage.error(error.response.data?.message || 'Bạn không có quyền truy cập dự án này.')
@@ -2134,6 +2184,27 @@ const fetchTasks = async () => {
       ElMessage.error('Không thể tải danh sách công việc')
     }
   }
+}
+
+const createSubtask = async (parentTask) => {
+    if (!parentTask.newSubtaskTitle?.trim()) return;
+    try {
+        const payload = {
+            title: parentTask.newSubtaskTitle,
+            projectId: projectId.value,
+            statusName: 'TO DO',
+            priority: 3,
+            assignedUserId: currentUser.id || null,
+            parentTaskId: parentTask.id
+        }
+        await axiosClient.post(`/projects/${projectId.value}/WorkTasks`, payload)
+        parentTask.newSubtaskTitle = ''
+        await fetchTasks()
+        ElMessage.success('Tạo Subtask thành công!')
+    } catch (e) {
+        ElMessage.error('Không thể tạo Subtask')
+        console.error(e)
+    }
 }
 
 const fetchComments = async (taskId) => {

@@ -19,9 +19,14 @@ namespace TaskManagement.Domain.Entities
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
         public bool IsDeleted { get; set; } = false;
+        public Guid? ProjectTemplateId { get; set; }
+        public ProjectTemplate? ProjectTemplate { get; set; }
+        public string? TemplateType { get; set; }
+        public string? NavigationConfig { get; set; }
 
         // Navigation properties
         public ICollection<ProjectMember> ProjectMembers { get; set; } = new List<ProjectMember>();
+        public ICollection<ProjectDepartmentRole> ProjectDepartmentRoles { get; set; } = new List<ProjectDepartmentRole>();
         public ICollection<Sprint> Sprints { get; set; } = new List<Sprint>();
         public ICollection<TaskType> TaskTypes { get; set; } = new List<TaskType>();
         public ICollection<TaskStatus> TaskStatuses { get; set; } = new List<TaskStatus>();

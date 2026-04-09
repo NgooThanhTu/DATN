@@ -13,9 +13,11 @@ namespace TaskManagement.Domain.Entities
         // New properties
         public bool IsActive { get; set; } = true;
         public bool IsDeleted { get; set; } = false;
+        public bool Require2FA { get; set; } = false;
 
         public User? Manager { get; set; }
         public ICollection<DepartmentMember> DepartmentMembers { get; set; } = new List<DepartmentMember>();
         public ICollection<Project> Projects { get; set; } = new List<Project>();
+        public ICollection<ProjectDepartmentRole> ProjectDepartmentRoles { get; set; } = new List<ProjectDepartmentRole>();
     }
 }

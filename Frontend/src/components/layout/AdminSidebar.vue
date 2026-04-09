@@ -1,14 +1,15 @@
 <template>
   <aside class="admin-sidebar shadow-sm">
     <div class="sidebar-header">
-      <h2>Nexus Admin</h2>
+      <img :src="logoImg" alt="SprintA Logo" class="nav-logo" />
+      <h2>SprintA<span style="font-size: 14px; font-weight: 500; color: #64748b; margin-left: 6px">Admin</span></h2>
     </div>
 
     <div class="back-link">
-      <router-link to="/" class="flex items-center gap-2">
+      <a href="/" target="_blank" class="flex items-center gap-2">
         <i class="fa-solid fa-arrow-left"></i>
         <span>Back to Projects</span>
-      </router-link>
+      </a>
     </div>
 
     <el-menu
@@ -51,6 +52,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
+import logoImg from '@/assets/logo_QLCV.png'
 
 const route = useRoute()
 
@@ -71,13 +73,23 @@ const activeMenu = computed(() => {
 
 .sidebar-header {
   padding: 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nav-logo {
+  height: 28px;
+  width: auto;
 }
 
 .sidebar-header h2 {
   font-size: 20px;
-  font-weight: 600;
+  font-weight: 700;
   color: #1e293b;
   margin: 0;
+  display: flex;
+  align-items: baseline;
 }
 
 .back-link {

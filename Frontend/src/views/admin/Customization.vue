@@ -1,240 +1,264 @@
 <template>
   <AdminLayout>
-    <div class="admin-page-header">
-      <h1>Customization</h1>
-      <p class="subtitle">Customize your workspace appearance with custom colors or choose from pre-built templates</p>
-    </div>
-
-    <div class="tabs-container">
-      <div class="tab-buttons">
-        <button class="tab-btn active">
-          <i class="fa-solid fa-palette mr-2"></i> Custom Colors
-        </button>
-        <button class="tab-btn">
-          <i class="fa-solid fa-wand-magic-sparkles mr-2"></i> Templates
-        </button>
+    <div class="admin-page-container">
+    <div class="page-header">
+      <div class="breadcrumb">
+        <i class="fa-solid fa-palette"></i> System / Customization
       </div>
+      <h1 class="page-title">Giao diện (Customization)</h1>
+      <p class="page-subtitle">Tùy biến màu sắc và trải nghiệm giao diện cho toàn bộ tổ chức.</p>
     </div>
 
-    <div class="customization-card">
-      <h3 class="card-title">Custom Color Settings</h3>
-      
-      <div class="colors-grid">
-        <!-- Row 1 -->
-        <div class="color-setting">
-          <label>Background Color</label>
-          <div class="color-picker-wrapper">
-            <el-color-picker v-model="colors.background" />
-            <span class="color-hex">{{ colors.background }}</span>
-          </div>
-        </div>
-        <div class="color-setting">
-          <label>Text Color</label>
-          <div class="color-picker-wrapper">
-            <el-color-picker v-model="colors.text" />
-            <span class="color-hex">{{ colors.text }}</span>
+    <div class="form-container" v-loading="isLoading">
+      <div class="settings-card">
+        <h2 class="card-title">Màu sắc Hệ thống (Color Palette)</h2>
+        <p class="section-desc">Thay đổi thông số màu này sẽ áp dụng ngay lập tức cho tất cả người dùng.</p>
+
+        <div class="theme-presets mt-24" style="margin-bottom: 32px;">
+          <h3 style="font-size: 15px; margin-bottom: 12px; color: var(--text-primary)">Sử dụng mẫu hệ màu (Templates)</h3>
+          <div class="preset-buttons" style="display: flex; gap: 12px; flex-wrap: wrap;">
+             <el-button type="default" plain @click="applyTemplate('default')">Dark Default</el-button>
+             <el-button type="default" plain @click="applyTemplate('light')">Light Classic</el-button>
+             <el-button type="default" plain @click="applyTemplate('oceanic')">Oceanic Blue</el-button>
+             <el-button type="default" plain @click="applyTemplate('monochrome')">Monochrome</el-button>
           </div>
         </div>
 
-        <!-- Row 2 -->
-        <div class="color-setting">
-          <label>Card Background</label>
-          <div class="color-picker-wrapper">
-            <el-color-picker v-model="colors.cardBackground" />
-            <span class="color-hex">{{ colors.cardBackground }}</span>
-          </div>
-        </div>
-        <div class="color-setting">
-          <label>Border Color</label>
-          <div class="color-picker-wrapper">
-            <el-color-picker v-model="colors.border" />
-            <span class="color-hex">{{ colors.border }}</span>
-          </div>
-        </div>
-
-        <!-- Row 3 -->
-        <div class="color-setting">
-          <label>Header Background</label>
-          <div class="color-picker-wrapper">
-            <el-color-picker v-model="colors.headerBackground" />
-            <span class="color-hex">{{ colors.headerBackground }}</span>
-          </div>
-        </div>
-        <div class="color-setting">
-          <label>Sidebar Background</label>
-          <div class="color-picker-wrapper">
-            <el-color-picker v-model="colors.sidebarBackground" />
-            <span class="color-hex">{{ colors.sidebarBackground }}</span>
-          </div>
-        </div>
-
-        <!-- Row 4 -->
-        <div class="color-setting">
-          <label>Sprint Container Background</label>
-          <div class="color-picker-wrapper">
-            <el-color-picker v-model="colors.sprintBackground" />
-            <span class="color-hex">{{ colors.sprintBackground }}</span>
+        
+        <div class="color-grid mt-24">
+          <div class="color-setting" v-for="(color, key) in themeColors" :key="key">
+            <span class="color-label">{{ color.label }}</span>
+            <div class="color-picker-wrapper">
+              <el-color-picker v-model="color.value" :predefine="predefineColors" @change="previewColor(key, color.value)" />
+              <span class="color-hex">{{ color.value }}</span>
+            </div>
+            <span class="color-variable">{{ color.variable }}</span>
           </div>
         </div>
       </div>
 
-      <div class="action-buttons">
-        <el-button type="primary" class="apply-btn">Apply Custom Colors</el-button>
-        <el-button class="reset-btn">Reset to Default</el-button>
+      <div class="action-footer">
+        <el-button @click="resetToDefault">Khôi phục mặc định</el-button>
+        <el-button type="primary" :loading="isSaving" @click="saveTheme">Lưu hệ màu</el-button>
       </div>
     </div>
+  </div>
   </AdminLayout>
 </template>
 
 <script setup>
-import { reactive } from 'vue'
 import AdminLayout from '@/components/layout/AdminLayout.vue'
+import { ref, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
+import axiosClient from '@/api/axiosClient'
 
-const colors = reactive({
-  background: '#e8eaed',
-  text: '#1f2937',
-  cardBackground: '#ffffff',
-  border: '#e5e7eb',
-  headerBackground: '#ffffff',
-  sidebarBackground: '#ffffff',
-  sprintBackground: '#f3f4f6'
+const isLoading = ref(false)
+const isSaving = ref(false)
+
+const predefineColors = [
+  '#0f172a', // dark blue
+  '#1e293b',
+  '#1d2125', // nexus default
+  '#22272b',
+  '#2c3338',
+  '#8b949e',
+  '#3b82f6',
+  '#10b981',
+  '#f59e0b',
+  '#ef4444'
+]
+
+// Define theme structure
+// Variables must match index.css root variables
+const themeColors = ref({
+  bgLayout: { label: 'Nền Màn hình (Background)', variable: '--bg-layout', value: '#1d2125', default: '#1d2125' },
+  bgCard: { label: 'Màu Khối (Card/Panel)', variable: '--bg-card', value: '#22272b', default: '#22272b' },
+  bgHover: { label: 'Màu nền di chuột (Hover)', variable: '--bg-hover', value: '#2c3338', default: '#2c3338' },
+  borderColor: { label: 'Màu viền (Border)', variable: '--border-color', value: '#38414a', default: '#38414a' },
+  textPrimary: { label: 'Màu chữ chính', variable: '--text-primary', value: '#e2e8f0', default: '#e2e8f0' }
 })
+
+const applyTemplate = (type) => {
+  const templates = {
+    default: { bgLayout: '#1d2125', bgCard: '#22272b', bgHover: '#2c3338', borderColor: '#38414a', textPrimary: '#e2e8f0' },
+    light: { bgLayout: '#f8fafc', bgCard: '#ffffff', bgHover: '#f1f5f9', borderColor: '#e2e8f0', textPrimary: '#0f172a' },
+    oceanic: { bgLayout: '#0f172a', bgCard: '#1e293b', bgHover: '#334155', borderColor: '#475569', textPrimary: '#f8fafc' },
+    monochrome: { bgLayout: '#000000', bgCard: '#111111', bgHover: '#222222', borderColor: '#333333', textPrimary: '#ffffff' }
+  };
+  
+  if (templates[type]) {
+    for (const key in templates[type]) {
+      if (themeColors.value[key]) {
+        themeColors.value[key].value = templates[type][key];
+        previewColor(key, templates[type][key]);
+      }
+    }
+  }
+}
+
+onMounted(async () => {
+  await fetchTheme()
+})
+
+const fetchTheme = async () => {
+  isLoading.value = true
+  try {
+    const res = await axiosClient.get('/settings/ThemeSettings')
+    const data = res.data.data || {}
+    
+    // Load from DB if exists
+    for (const key in themeColors.value) {
+      if (data[key]) {
+        themeColors.value[key].value = data[key]
+      }
+    }
+    
+    applyThemeToDocument()
+  } catch (err) {
+    console.error(err)
+    ElMessage.error('Không thể tải cấu hình Hệ màu.')
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const previewColor = (key, val) => {
+  const variable = themeColors.value[key].variable
+  document.documentElement.style.setProperty(variable, val)
+}
+
+const applyThemeToDocument = () => {
+  for (const key in themeColors.value) {
+    document.documentElement.style.setProperty(themeColors.value[key].variable, themeColors.value[key].value)
+  }
+}
+
+const resetToDefault = () => {
+  for (const key in themeColors.value) {
+    themeColors.value[key].value = themeColors.value[key].default
+    previewColor(key, themeColors.value[key].default)
+  }
+}
+
+const saveTheme = async () => {
+  isSaving.value = true
+  try {
+    const payload = { Settings: {} }
+    for (const key in themeColors.value) {
+      payload.Settings[key] = themeColors.value[key].value
+    }
+    
+    await axiosClient.put('/settings/ThemeSettings', payload)
+    ElMessage.success('Đã lưu và cập nhật Theme Toàn Hệ Thống.')
+  } catch (err) {
+    console.error(err)
+    ElMessage.error('Có lỗi xảy ra khi lưu Theme.')
+  } finally {
+    isSaving.value = false
+  }
+}
 </script>
 
 <style scoped>
-.admin-page-header {
+
+
+.page-header {
   margin-bottom: 24px;
 }
 
-.admin-page-header h1 {
-  font-size: 24px;
-  font-weight: 500;
-  color: #1e293b;
-  margin: 0 0 8px 0;
-}
-
-.subtitle {
-  color: #64748b;
-  margin: 0;
-  font-size: 14px;
-}
-
-.tabs-container {
-  margin-bottom: 24px;
-}
-
-.tab-buttons {
+.breadcrumb {
+  font-size: 13px;
+  color: #8b949e;
+  margin-bottom: 8px;
   display: flex;
+  align-items: center;
   gap: 8px;
 }
 
-.tab-btn {
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  padding: 10px 20px;
-  border-radius: 8px;
-  color: #475569;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
+.page-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
 }
 
-.tab-btn:hover {
-  background: #f8fafc;
+.page-subtitle {
+  font-size: 14px;
+  color: #8b949e;
 }
 
-.tab-btn.active {
-  background: #0d9488;
-  color: #ffffff;
-  border-color: #0d9488;
-  box-shadow: inset 2px 2px 5px rgba(0,0,0,0.1);
-}
-
-.customization-card {
-  background: #ffffff;
+.settings-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
   border-radius: 12px;
-  padding: 32px;
-  box-shadow: 8px 8px 16px rgba(0,0,0,0.05), -8px -8px 16px rgba(255,255,255,0.8);
-  max-width: 900px;
+  padding: 24px;
 }
 
 .card-title {
   font-size: 18px;
-  font-weight: 500;
-  color: #1e293b;
-  margin: 0 0 24px 0;
-}
-
-.colors-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px;
-  margin-bottom: 32px;
-}
-
-.color-setting label {
-  display: block;
-  font-size: 14px;
-  font-weight: 500;
-  color: #1e293b;
+  font-weight: 600;
+  color: var(--text-primary);
   margin-bottom: 8px;
+}
+
+.section-desc {
+  font-size: 13px;
+  color: #8b949e;
+  margin-bottom: 20px;
+}
+
+.mt-24 {
+  margin-top: 24px;
+}
+
+.color-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.color-setting {
+  background-color: var(--bg-layout);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.color-label {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 14px;
 }
 
 .color-picker-wrapper {
   display: flex;
   align-items: center;
-  gap: 16px;
-  background-color: #ffffff;
-  border-radius: 8px;
-  padding: 8px 16px;
-  box-shadow: inset 2px 2px 5px rgba(0,0,0,0.05), inset -2px -2px 5px rgba(255,255,255,0.8);
+  gap: 12px;
 }
 
 .color-hex {
   font-family: monospace;
-  font-size: 14px;
-  color: #475569;
-}
-
-/* Customizing the el-color-picker visual to match UI reference better */
-:deep(.el-color-picker__trigger) {
-  border: 1px solid #e5e7eb;
+  background-color: var(--bg-hover);
+  padding: 4px 8px;
   border-radius: 4px;
-  padding: 2px;
+  font-size: 13px;
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
 }
 
-.action-buttons {
+.color-variable {
+  font-size: 12px;
+  color: #8b949e;
+  font-family: monospace;
+}
+
+.action-footer {
+  margin-top: 32px;
   display: flex;
-  gap: 16px;
-}
-
-.apply-btn {
-  background-color: #0d9488 !important;
-  border-color: #0d9488 !important;
-  border-radius: 8px;
-  font-weight: 500;
-  padding: 20px 24px;
-  font-size: 15px;
-  box-shadow: 4px 4px 10px rgba(13, 148, 136, 0.3), -2px -2px 6px rgba(255,255,255,0.7);
-}
-
-.apply-btn:hover {
-  background-color: #0f766e !important;
-}
-
-.reset-btn {
-  background-color: #ffffff !important;
-  border-color: #e5e7eb !important;
-  color: #475569 !important;
-  border-radius: 8px;
-  font-weight: 500;
-  padding: 20px 24px;
-  font-size: 15px;
-  box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
-}
-
-.reset-btn:hover {
-  background-color: #f8fafc !important;
+  justify-content: flex-end;
+  gap: 12px;
 }
 </style>

@@ -1,7 +1,12 @@
 <template>
   <AdminLayout>
     <div class="admin-page-header">
-      <h1>Organization Profile</h1>
+      <div class="header-title-section">
+        <div class="breadcrumb">
+          <i class="fa-regular fa-building"></i> Organization / Profile
+        </div>
+        <h1 class="page-title">Hồ sơ Tổ chức (Organization Profile)</h1>
+      </div>
     </div>
 
     <div class="admin-form-card">
@@ -68,9 +73,18 @@ const form = ref({
   margin-bottom: 24px;
 }
 
-.admin-page-header h1 {
+.breadcrumb {
+  font-size: 13px;
+  color: #8b949e;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-title {
   font-size: 24px;
-  font-weight: 500;
+  font-weight: 600;
   color: #1e293b;
   margin: 0;
 }

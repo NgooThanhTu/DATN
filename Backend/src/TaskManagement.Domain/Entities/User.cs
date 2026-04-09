@@ -20,6 +20,10 @@ namespace TaskManagement.Domain.Entities
 
         // Soft Delete
         public bool IsDeleted { get; set; } = false;
+        public bool Is2FAEnabled { get; set; } = false;
+        public string? OrganizationId { get; set; }
+        public Organization? Organization { get; set; }
+
         // Navigation properties
         public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
         public ICollection<Department> ManagedDepartments { get; set; } = new List<Department>();

@@ -91,6 +91,18 @@ namespace TaskManagement.Infrastructure.Services
                     throw new ArgumentException("Phòng ban không tồn tại.");
             }
 
+            string? templateType = null;
+            string? navConfig = null;
+            if (dto.ProjectTemplateId.HasValue)
+            {
+                var template = await _context.ProjectTemplates.FirstOrDefaultAsync(t => t.Id == dto.ProjectTemplateId.Value);
+                if (template != null)
+                {
+                    templateType = template.TemplateCode;
+                    navConfig = template.DefaultNavigationConfig;
+                }
+            }
+
             var project = new Project
             {
                 Id = Guid.NewGuid(),
@@ -101,6 +113,9 @@ namespace TaskManagement.Infrastructure.Services
                 Status = true,
                 CreatorId = creatorId,
                 DepartmentId = dto.DepartmentId,
+                ProjectTemplateId = dto.ProjectTemplateId,
+                TemplateType = templateType,
+                NavigationConfig = navConfig,
                 IsDeleted = false,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
@@ -114,6 +129,28 @@ namespace TaskManagement.Infrastructure.Services
                 new TaskManagement.Domain.Entities.TaskStatus { Id = Guid.NewGuid(), ProjectId = project.Id, Name = "IN PROGRESS", Position = 2 },
                 new TaskManagement.Domain.Entities.TaskStatus { Id = Guid.NewGuid(), ProjectId = project.Id, Name = "DONE", Position = 3 }
             );
+
+            // Tự động sinh TaskType dựa theo Template
+            if (templateType == "IT_SERVICE")
+            {
+                _context.TaskTypes.AddRange(
+                    new TaskManagement.Domain.Entities.TaskType { Id = Guid.NewGuid(), ProjectId = project.Id, Name = "Ticket lỗi", ColorCode = "#FF0000" },
+                    new TaskManagement.Domain.Entities.TaskType { Id = Guid.NewGuid(), ProjectId = project.Id, Name = "Yêu cầu thiết bị", ColorCode = "#00FF00" }
+                );
+            }
+            else if (templateType == "SOFTWARE_DEV")
+            {
+                _context.TaskTypes.AddRange(
+                    new TaskManagement.Domain.Entities.TaskType { Id = Guid.NewGuid(), ProjectId = project.Id, Name = "Bug", ColorCode = "#FF0000" },
+                    new TaskManagement.Domain.Entities.TaskType { Id = Guid.NewGuid(), ProjectId = project.Id, Name = "Feature", ColorCode = "#0000FF" }
+                );
+            }
+            else
+            {
+                _context.TaskTypes.Add(
+                    new TaskManagement.Domain.Entities.TaskType { Id = Guid.NewGuid(), ProjectId = project.Id, Name = "Task", ColorCode = "#3b82f6" }
+                );
+            }
 
             // Add the creator as the PROJECT_MANAGER
             var projectMember = new TaskManagement.Domain.Entities.ProjectMember

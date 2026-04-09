@@ -127,13 +127,21 @@
             <div class="form-row">
               <div class="field-label">Cộng tác với bạn</div>
               <div class="field-input-wrapper">
-                <p class="field-hint">Giúp người khác nắm được thời điểm và cách thức cộng tác với bạn</p>
+                <el-input v-model="profileData.collaboration" type="textarea" :rows="3" placeholder="Giúp người khác nắm được thời điểm và cách thức cộng tác với bạn" />
                 <div class="field-privacy">
                   <el-dropdown trigger="click">
                     <span class="privacy-select"><i class="fa-solid fa-globe"></i> Bất kỳ ai <i class="fa-solid fa-chevron-down"></i></span>
                     <template #dropdown><el-dropdown-menu><el-dropdown-item>Bất kỳ ai</el-dropdown-item></el-dropdown-menu></template>
                   </el-dropdown>
                 </div>
+              </div>
+            </div>
+
+            <!-- Save Action -->
+            <div class="form-row">
+              <div class="field-label"></div>
+              <div class="field-input-wrapper" style="margin-top: 16px;">
+                <el-button type="primary" :loading="isSaving" @click="saveProfile">Lưu thay đổi</el-button>
               </div>
             </div>
           </div>
@@ -162,9 +170,14 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import logoImg from '../assets/logo_QLCV.png'
 import NexusLayout from '@/components/layout/NexusLayout.vue'
+import axiosClient from '@/api/axiosClient'
+import { ElMessage } from 'element-plus'
+
+const isLoading = ref(false)
+const isSaving = ref(false)
 
 const profileData = ref({
   fullName: '',
@@ -172,8 +185,56 @@ const profileData = ref({
   jobTitle: '',
   department: '',
   organization: '',
-  email: ''
+  email: '',
+  collaboration: ''
 })
+
+onMounted(async () => {
+  await fetchProfile()
+})
+
+const fetchProfile = async () => {
+  try {
+    isLoading.value = true
+    const response = await axiosClient.get('/users/me')
+    const data = response.data.data
+    profileData.value = {
+      fullName: data.fullName,
+      publicName: data.publicName,
+      jobTitle: data.jobTitle,
+      department: data.departmentName,
+      organization: data.organizationName,
+      email: data.email,
+      collaboration: data.collaborationRules
+    }
+    // Update avatar display if needed
+  } catch (err) {
+    console.error('Lỗi khi tải profile', err)
+    ElMessage.error('Không thể tải thông tin cá nhân.')
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const saveProfile = async () => {
+  try {
+    isSaving.value = true
+    await axiosClient.put('/users/profile', {
+      fullName: profileData.value.fullName,
+      publicName: profileData.value.publicName,
+      jobTitle: profileData.value.jobTitle,
+      departmentName: profileData.value.department,
+      organizationName: profileData.value.organization,
+      collaborationRules: profileData.value.collaboration
+    })
+    ElMessage.success('Đã lưu thông tin hồ sơ.')
+  } catch (err) {
+    console.error('Lỗi khi lưu profile', err)
+    ElMessage.error('Lưu thông tin thất bại.')
+  } finally {
+    isSaving.value = false
+  }
+}
 </script>
 
 <style scoped>

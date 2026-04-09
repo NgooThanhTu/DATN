@@ -9,6 +9,8 @@ namespace TaskManagement.Domain.Entities
         public string? Email { get; set; }
         public string? Website { get; set; }
         public string? CompanySize { get; set; }
+        public string? Domain { get; set; }
+        public bool IsDomainVerified { get; set; } = false;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     }
