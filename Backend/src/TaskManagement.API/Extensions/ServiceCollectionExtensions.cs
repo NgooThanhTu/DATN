@@ -17,17 +17,12 @@ namespace TaskManagement.API.Extensions
             services.AddScoped<IAuthService, AuthService>();
             services.AddScoped<IProjectMemberService, ProjectMemberService>();
             services.AddScoped<IWorkTaskService, WorkTaskService>();
-<<<<<<< HEAD
-            services.AddScoped<IWorkTaskNotificationService, TaskManagement.Infrastructure.Services.MockWorkTaskNotificationService>();
-            // services.AddScoped<IFileService, FileService>();
-=======
             services.AddScoped<IEmailService, EmailService>();
             services.AddScoped<IOtpService, OtpService>();
             
             services.AddMemoryCache();
             services.AddHttpContextAccessor();
             services.AddHttpClient();
->>>>>>> 48c51e8ea7724f864eee16b488d26cc33f3752ec
 
             // Cấu hình JWT Authentication
             var jwtConfig = configuration.GetSection("Jwt");

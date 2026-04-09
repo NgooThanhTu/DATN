@@ -29,6 +29,7 @@
       </button>
 
       <NotificationsDropdown class="nav-item" />
+      <SettingsDropdown class="nav-item" />
       <UserDropdown class="nav-item" />
     </div>
   </header>
@@ -39,6 +40,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import logoImg from '@/assets/logo_QLCV.png'
 import NotificationsDropdown from '@/components/NotificationsDropdown.vue'
+import SettingsDropdown from '@/components/SettingsDropdown.vue'
 import UserDropdown from '@/components/UserDropdown.vue'
 
 const router = useRouter()

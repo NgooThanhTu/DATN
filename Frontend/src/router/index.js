@@ -5,6 +5,7 @@ import dashboardRoutes from './dashboardRoutes'
 import spaceRoutes from './spaceRoutes'
 import aiRoutes from './aiRoutes'
 import logRoutes from './logRoutes'
+import adminRoutes from './adminRoutes'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -14,7 +15,8 @@ const router = createRouter({
     ...dashboardRoutes,
     ...spaceRoutes,
     ...aiRoutes,
-    ...logRoutes
+    ...logRoutes,
+    ...adminRoutes
   ]
 })
 

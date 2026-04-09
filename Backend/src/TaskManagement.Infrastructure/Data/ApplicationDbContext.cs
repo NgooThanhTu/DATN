@@ -24,8 +24,11 @@ namespace TaskManagement.Infrastructure.Data
         public DbSet<UserRole> UserRoles { get; set; }
         public DbSet<Permission> Permissions { get; set; }
         public DbSet<RolePermission> RolePermissions { get; set; }
+        public DbSet<SystemSetting> SystemSettings { get; set; }
+        public DbSet<SystemAuditLog> SystemAuditLogs { get; set; }
 
         // Group 2: Organization
+        public DbSet<Organization> Organizations { get; set; }
         public DbSet<Department> Departments { get; set; }
         public DbSet<DepartmentMember> DepartmentMembers { get; set; }
 
@@ -301,6 +304,12 @@ namespace TaskManagement.Infrastructure.Data
                 .WithMany(u => u.Notifications)
                 .HasForeignKey(n => n.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<SystemAuditLog>()
+                .HasOne(sal => sal.User)
+                .WithMany(u => u.SystemAuditLogs)
+                .HasForeignKey(sal => sal.UserId)
+                .OnDelete(DeleteBehavior.SetNull);
 
             // =============================================
             // 7. Relationships - Group 5: Gamification

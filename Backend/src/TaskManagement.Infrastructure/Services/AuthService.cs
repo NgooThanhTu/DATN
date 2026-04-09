@@ -9,10 +9,7 @@ using System.Text.Json;
 using System.Net.Http.Headers;
 using Google.Apis.Auth;
 using Microsoft.Extensions.Configuration;
-<<<<<<< HEAD
-=======
 
->>>>>>> 48c51e8ea7724f864eee16b488d26cc33f3752ec
 namespace TaskManagement.Infrastructure.Services
 {
     public class AuthService : IAuthService
@@ -20,22 +17,14 @@ namespace TaskManagement.Infrastructure.Services
         private readonly ApplicationDbContext _context;
         private readonly IJwtService _jwtService;
         private readonly IConfiguration _configuration;
-<<<<<<< HEAD
-
-        public AuthService(ApplicationDbContext context, IJwtService jwtService, IConfiguration configuration)
-=======
         private readonly IOtpService _otpService;
 
         public AuthService(ApplicationDbContext context, IJwtService jwtService, IConfiguration configuration, IOtpService otpService)
->>>>>>> 48c51e8ea7724f864eee16b488d26cc33f3752ec
         {
             _context = context;
             _jwtService = jwtService;
             _configuration = configuration;
-<<<<<<< HEAD
-=======
             _otpService = otpService;
->>>>>>> 48c51e8ea7724f864eee16b488d26cc33f3752ec
         }
 
         public async Task<(AuthResponseDto response, string refreshToken)> LoginAsync(LoginRequestDto request)
@@ -75,15 +64,6 @@ namespace TaskManagement.Infrastructure.Services
 
         public async Task<(AuthResponseDto response, string refreshToken)> GoogleLoginAsync(GoogleLoginRequestDto request)
         {
-<<<<<<< HEAD
-            var clientId = _configuration.GetSection("Google")["ClientId"] ?? "1008910270642-b5ic5oo3sb2rnemts5dp9sfaq025cud8.apps.googleusercontent.com";
-            var settings = new GoogleJsonWebSignature.ValidationSettings
-            {
-                Audience = new List<string> { clientId }
-            };
-            var payload = await GoogleJsonWebSignature.ValidateAsync(request.Credential, settings);
-            
-=======
             if (string.IsNullOrEmpty(request.Credential))
             {
                 throw new ArgumentException("Thiếu token xác thực từ Google (Credential is empty). Vui lòng thử lại.");
@@ -124,8 +104,6 @@ namespace TaskManagement.Infrastructure.Services
                     ?? throw new UnauthorizedAccessException("Không thể lấy email từ Google.");
                 name = userInfo.TryGetProperty("name", out var nameEl) ? nameEl.GetString() ?? email : email;
             }
-
->>>>>>> 48c51e8ea7724f864eee16b488d26cc33f3752ec
             var user = await _context.Users
                 .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
