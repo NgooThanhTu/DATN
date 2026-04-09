@@ -10,59 +10,10 @@ namespace TaskManagement.API.Controllers
     public class AuthController : ControllerBase
     {
         private readonly IAuthService _authService;
-        private readonly IOtpService _otpService;
-        private readonly IEmailService _emailService;
 
-        public AuthController(IAuthService authService, IOtpService otpService, IEmailService emailService)
+        public AuthController(IAuthService authService)
         {
             _authService = authService;
-            _otpService = otpService;
-            _emailService = emailService;
-        }
-
-        /// <summary>
-        /// Gửi mã OTP 6 ký tự (chữ+số) đến email người dùng
-        /// </summary>
-        [HttpPost("send-otp")]
-        public async Task<IActionResult> SendOtp([FromBody] SendOtpRequestDto request)
-        {
-            try
-            {
-                // Tạo mã OTP ngẫu nhiên 6 ký tự
-                var otpCode = _otpService.GenerateOtp();
-
-                // Lưu OTP vào cache (hết hạn sau 5 phút)
-                _otpService.StoreOtp(request.Email, otpCode);
-
-                // Gửi email chứa OTP (hiện tại đang in ra Console, bỏ comment trong EmailService để gửi thật)
-                await _emailService.SendOtpEmailAsync(request.Email, otpCode);
-
-                return Ok(new { statusCode = 200, message = "Đã gửi mã OTP đến email của bạn." });
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { statusCode = 400, message = ex.Message });
-            }
-        }
-
-        /// <summary>
-        /// Xác thực mã OTP mà người dùng nhập vào
-        /// </summary>
-        [HttpPost("verify-otp")]
-        public IActionResult VerifyOtp([FromBody] VerifyOtpRequestDto request)
-        {
-            var isValid = _otpService.ValidateOtp(request.Email, request.OtpCode);
-
-            if (!isValid)
-            {
-                return BadRequest(new { statusCode = 400, message = "Mã OTP không hợp lệ hoặc đã hết hạn.", verified = false });
-            }
-
-            // OTP hợp lệ → tạo lại OTP mới và lưu lại để dùng khi register (xác minh lần cuối)
-            var newOtp = _otpService.GenerateOtp();
-            _otpService.StoreOtp(request.Email, newOtp);
-
-            return Ok(new { statusCode = 200, message = "Xác thực OTP thành công.", verified = true, otpToken = newOtp });
         }
 
         [HttpPost("login")]
@@ -77,7 +28,7 @@ namespace TaskManagement.API.Controllers
                 {
                     HttpOnly = true,
                     Secure = Request.IsHttps, // Set true only if request is HTTPS
-                    SameSite = SameSiteMode.Lax, // Changed to support Google OAuth
+                    SameSite = SameSiteMode.Lax, // Changed from Strict to support Google OAuth popup
                     Expires = DateTime.UtcNow.AddDays(7)
                 };
                 Response.Cookies.Append("refreshToken", refreshToken, cookieOptions);
@@ -102,7 +53,7 @@ namespace TaskManagement.API.Controllers
                 {
                     HttpOnly = true,
                     Secure = Request.IsHttps,
-                    SameSite = SameSiteMode.Lax, // Changed to support Google OAuth
+                    SameSite = SameSiteMode.Lax, // Changed from Strict to support Google OAuth popup
                     Expires = DateTime.UtcNow.AddDays(7)
                 };
                 Response.Cookies.Append("refreshToken", refreshToken, cookieOptions);
@@ -113,32 +64,7 @@ namespace TaskManagement.API.Controllers
             {
                 // Log exception server-side for easier debugging and return clearer message to client
                 Console.WriteLine("GoogleLogin failure: " + ex.ToString());
-                return BadRequest(new { statusCode = 400, message = "Không thể xác thực với Google: " + ex.Message });
-            }
-        }
-
-        [HttpPost("github-login")]
-        public async Task<IActionResult> GitHubLogin([FromBody] GitHubLoginRequestDto request)
-        {
-            try
-            {
-                var (response, refreshToken) = await _authService.GitHubLoginAsync(request);
-
-                // Set Refresh Token as HttpOnly Cookie
-                var cookieOptions = new CookieOptions
-                {
-                    HttpOnly = true,
-                    Secure = Request.IsHttps,
-                    SameSite = SameSiteMode.Strict,
-                    Expires = DateTime.UtcNow.AddDays(7)
-                };
-                Response.Cookies.Append("refreshToken", refreshToken, cookieOptions);
-
-                return Ok(new { statusCode = 200, message = "Success", data = response });
-            }
-            catch (Exception ex)
-            {
-                return Unauthorized(new { statusCode = 401, message = ex.Message });
+                return BadRequest(new { statusCode = 400, message = "KhĂ´ng thá»ƒ xĂ¡c thá»±c vá»›i Google: " + ex.Message });
             }
         }
 
@@ -148,7 +74,7 @@ namespace TaskManagement.API.Controllers
             try
             {
                 await _authService.RegisterAsync(request);
-                return Ok(new { statusCode = 200, message = "Đăng ký thành công" });
+                return Ok(new { statusCode = 200, message = "ÄÄƒng kĂ½ thĂ nh cĂ´ng" });
             }
             catch (InvalidOperationException ex)
             {
@@ -185,7 +111,7 @@ namespace TaskManagement.API.Controllers
                 {
                     HttpOnly = true,
                     Secure = Request.IsHttps,
-                    SameSite = SameSiteMode.Lax, // Changed to support Google OAuth
+                    SameSite = SameSiteMode.Lax, // Changed from Strict to support Google OAuth popup
                     Expires = DateTime.UtcNow.AddDays(7)
                 };
                 Response.Cookies.Append("refreshToken", newRefreshToken, cookieOptions);
@@ -219,4 +145,3 @@ namespace TaskManagement.API.Controllers
         }
     }
 }
-

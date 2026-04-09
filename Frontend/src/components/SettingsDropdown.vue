@@ -6,28 +6,35 @@
     <template #dropdown>
       <el-dropdown-menu class="jira-settings-menu">
         <div class="settings-content-wrapper">
-          <div class="settings-section">
-            <h4 class="settings-section-title">Cài đặt quản trị Jira</h4>
-            
-            <div class="settings-item" v-if="isAdmin" @click="handleCommand('audit')">
-              <div class="settings-item-icon">
-                <i class="fa-solid fa-clock-rotate-left"></i>
-              </div>
-              <div class="settings-item-info">
-                <div class="item-name">Audit log (Nhật ký kiểm tra)</div>
-                <div class="item-desc">Theo dõi và quản lý nhật ký hoạt động hệ thống.</div>
-              </div>
+          <div class="settings-list">
+            <div class="settings-menu-item" @click="handleCommand('/admin/audit-log')">
+              <span class="item-text">Audit Log</span>
             </div>
 
-            <div class="settings-item" @click="handleCommand('users')">
-              <div class="settings-item-icon">
-                <i class="fa-solid fa-users-gear"></i>
-              </div>
-              <div class="settings-item-info">
-                <div class="item-name">Quản lý người dùng</div>
-                <div class="item-desc">Quản lý người dùng, nhóm và yêu cầu truy cập.</div>
-                <i class="fa-solid fa-arrow-up-right-from-square external-icon"></i>
-              </div>
+            <div class="settings-menu-item" @click="handleCommand('/admin/users')">
+              <span class="item-text">User Management</span>
+            </div>
+
+            <div class="settings-menu-header">
+              <span class="item-text">Organization</span>
+            </div>
+            
+            <div class="settings-menu-item indented" @click="handleCommand('/admin/organization/profile')">
+              <span class="item-text">Profile</span>
+            </div>
+            
+            <div class="settings-menu-item indented" @click="handleCommand('/admin/organization/contact')">
+              <span class="item-text">Contact</span>
+            </div>
+
+            <div class="menu-divider"></div>
+
+            <div class="settings-menu-item" @click="handleCommand('/admin/configuration')">
+              <span class="item-text">Configuration</span>
+            </div>
+
+            <div class="settings-menu-item" @click="handleCommand('/admin/customization')">
+              <span class="item-text">Customization</span>
             </div>
           </div>
         </div>
@@ -49,89 +56,59 @@ const isAdmin = computed(() => {
   return roles.includes('Admin') || roles.includes('admin')
 })
 
-const handleCommand = (cmd) => {
-  if (cmd === 'audit') {
-    if (!isAdmin.value) {
-      ElMessage.error('Bạn không có quyền truy cập trang Audit Log.')
-      return
-    }
-    router.push('/audit-log')
-  } else if (cmd === 'users') {
-    router.push('/user-management')
-  } else {
-    console.log('Settings command:', cmd)
-  }
+const handleCommand = (path) => {
+  // Use a named target so the browser reuses the same tab for all Admin links
+  const routeData = router.resolve({ path })
+  window.open(routeData.href, 'NexusAdminWindow')
 }
 </script>
 
 <style scoped>
 .jira-settings-menu {
-  width: 320px !important;
-  background-color: var(--bg-card) !important;
-  border: none !important;
+  width: 240px !important;
+  background-color: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 8px !important;
   padding: 8px 0 !important;
-  color: var(--text-secondary);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
 }
 
-.settings-content-wrapper {
-  padding: 8px 0;
-}
-
-.settings-section-title {
-  padding: 0 16px;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  margin-bottom: 8px;
-  letter-spacing: 0.5px;
-}
-
-.settings-item {
+.settings-list {
   display: flex;
-  padding: 10px 16px;
+  flex-direction: column;
+}
+
+.settings-menu-item {
+  padding: 10px 20px;
   cursor: pointer;
-  transition: all 0.2s;
-  position: relative;
+  color: #1e293b;
+  font-size: 14px;
+  font-weight: 400;
 }
 
-.settings-item:hover {
-  background-color: var(--hover-bg);
+.settings-menu-item:hover {
+  background-color: #f1f5f9;
 }
 
-.settings-item-icon {
-  width: 32px;
-  min-width: 32px;
-  display: flex;
-  justify-content: center;
-  margin-top: 2px;
-  font-size: 16px;
-  color: var(--text-secondary);
+.settings-menu-header {
+  padding: 10px 20px 4px 20px;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 400;
 }
 
-.settings-item-info {
-  flex: 1;
+.settings-menu-item.indented {
+  padding-left: 36px;
 }
 
-.item-name {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-primary);
-  margin-bottom: 2px;
+.menu-divider {
+  height: 1px;
+  background-color: #f1f5f9;
+  margin: 6px 0;
 }
 
-.item-desc {
-  font-size: 11px;
-  line-height: 1.4;
-  color: var(--text-muted);
-}
-
-.external-icon {
-  position: absolute;
-  right: 16px;
-  top: 12px;
-  font-size: 10px;
-  color: var(--text-muted);
+.item-text {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
 }
 
 .settings-nav-icon {

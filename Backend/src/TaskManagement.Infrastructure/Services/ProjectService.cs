@@ -115,6 +115,17 @@ namespace TaskManagement.Infrastructure.Services
                 new TaskManagement.Domain.Entities.TaskStatus { Id = Guid.NewGuid(), ProjectId = project.Id, Name = "DONE", Position = 3 }
             );
 
+            // Add the creator as the PROJECT_MANAGER
+            var projectMember = new TaskManagement.Domain.Entities.ProjectMember
+            {
+                ProjectId = project.Id,
+                UserId = creatorId,
+                ProjectRole = "PROJECT_MANAGER",
+                JoinedAt = DateTime.UtcNow,
+                Status = true
+            };
+            _context.ProjectMembers.Add(projectMember);
+
             await _context.SaveChangesAsync();
 
             return (await GetByIdAsync(project.Id))!;

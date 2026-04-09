@@ -104,7 +104,6 @@ namespace TaskManagement.Infrastructure.Services
                     ?? throw new UnauthorizedAccessException("Không thể lấy email từ Google.");
                 name = userInfo.TryGetProperty("name", out var nameEl) ? nameEl.GetString() ?? email : email;
             }
-
             var user = await _context.Users
                 .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
