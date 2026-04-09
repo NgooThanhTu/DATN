@@ -131,7 +131,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed, onUnmounted } from 'vue'
+import { ref, reactive, onMounted, computed, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import axiosClient from '@/api/axiosClient'
 import { ElMessage } from 'element-plus'
@@ -176,6 +176,12 @@ const toggleMenu = (menu) => {
 const spaces = ref([])
 const showSpacesMenu = ref(false)
 const spacesExpanded = ref(route.path.includes('/space'))
+
+watch(() => route.path, (newPath) => {
+  if (newPath.includes('/space')) {
+    spacesExpanded.value = true;
+  }
+})
 
 const fetchSpaces = async () => {
   try {

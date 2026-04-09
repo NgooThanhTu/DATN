@@ -4,6 +4,38 @@
 </template>
 
 <script setup>
+import { onMounted } from 'vue'
+import axiosClient from '@/api/axiosClient'
+
+onMounted(async () => {
+  const token = localStorage.getItem('accessToken')
+  if (token) {
+    try {
+      const res = await axiosClient.get('/settings/ThemeSettings')
+      const data = res.data?.data
+      if (data) {
+        for (const key in data) {
+          // Map backend camelCase keys to CSS variables if we know them
+          // We stored them with EXACTly same keys from Customization.vue
+          // For safety, only map known variables or if the key structure matches.
+          // In Customization.vue: 'bgLayout' -> '--bg-layout'
+          const cssVarMap = {
+            'bgLayout': '--bg-layout',
+            'bgCard': '--bg-card',
+            'bgHover': '--bg-hover',
+            'borderColor': '--border-color',
+            'textPrimary': '--text-primary'
+          }
+          if (cssVarMap[key]) {
+            document.documentElement.style.setProperty(cssVarMap[key], data[key])
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load global theme', e)
+    }
+  }
+})
 </script>
 
 <style>

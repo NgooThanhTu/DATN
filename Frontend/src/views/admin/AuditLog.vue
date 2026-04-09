@@ -1,22 +1,38 @@
 <template>
   <AdminLayout>
     <div class="admin-page-header">
-      <h1>Audit Log</h1>
+      <div class="header-title-section">
+        <div class="breadcrumb">
+          <i class="fa-solid fa-file-lines"></i> System / Audit Log
+        </div>
+        <h1 class="page-title">Nhật ký Hệ thống (Audit Log)</h1>
+      </div>
       <div class="header-actions">
-        <el-radio-group v-model="timeFilter" class="custom-radio-group">
-          <el-radio-button label="All Time" />
-          <el-radio-button label="24h" />
-          <el-radio-button label="30d" />
+        <el-input v-model="searchQuery" placeholder="Search logs..." style="width: 220px; margin-right: 12px" @input="debounceSearch" clearable />
+        
+        <el-select v-model="selectedProjectId" placeholder="All Projects" style="width: 180px; margin-right: 12px" @change="fetchLogs" clearable>
+           <el-option v-for="p in projects" :key="p.id" :label="p.name" :value="p.id" />
+        </el-select>
+
+        <el-radio-group v-model="timeFilter" class="custom-radio-group" @change="fetchLogs">
+          <el-radio-button label="All Time" value="all" />
+          <el-radio-button label="24h" value="24h" />
+          <el-radio-button label="30d" value="30d" />
         </el-radio-group>
       </div>
     </div>
 
-    <div class="admin-card">
+    <div class="admin-card" v-loading="loading">
       <el-table :data="logs" style="width: 100%" class="admin-table" :show-header="true">
         <el-table-column prop="timestamp" label="TIMESTAMP" min-width="150" />
-        <el-table-column prop="user" label="USER" min-width="200" />
-        <el-table-column prop="action" label="ACTION" min-width="150" />
-        <el-table-column prop="resource" label="RESOURCE" min-width="220" />
+        <el-table-column prop="user" label="USER" min-width="180" />
+        <el-table-column prop="action" label="ACTION" min-width="120" />
+        <el-table-column prop="resource" label="RESOURCE" min-width="260">
+           <template #default="scope">
+             <div style="font-weight: 500; font-size: 13px;">{{ scope.row.resource }}</div>
+             <div style="color: #64748b; font-size: 12px;">{{ scope.row.targetId }}</div>
+           </template>
+        </el-table-column>
         
         <el-table-column prop="status" label="STATUS" min-width="120">
           <template #default="scope">
@@ -26,28 +42,84 @@
             </div>
           </template>
         </el-table-column>
-        
-        <el-table-column prop="ip" label="IP ADDRESS" min-width="150" />
       </el-table>
+
+      <div class="pagination-container" v-if="total > 0">
+        <el-pagination
+          v-model:current-page="currentPage"
+          layout="prev, pager, next"
+          :total="total"
+          :page-size="20"
+          @current-change="handlePageChange"
+          class="custom-pagination"
+        />
+      </div>
     </div>
   </AdminLayout>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import AdminLayout from '@/components/layout/AdminLayout.vue'
+import axiosClient from '@/api/axiosClient'
 
-const timeFilter = ref('All Time')
+const timeFilter = ref('all')
+const selectedProjectId = ref(null)
+const searchQuery = ref('')
+const loading = ref(false)
+const currentPage = ref(1)
+const total = ref(0)
+const logs = ref([])
+const projects = ref([])
 
-const logs = ref([
-  { timestamp: '2026-04-03\n14:32:15', user: 'admin@nexus.io', action: 'User Created', resource: 'john.doe@company.com', status: 'Success', ip: '192.168.1.100' },
-  { timestamp: '2026-04-03\n14:18:42', user: 'manager@nexus.io', action: 'Role Updated', resource: 'jane.smith@company.com', status: 'Success', ip: '192.168.1.101' },
-  { timestamp: '2026-04-03\n13:55:30', user: 'admin@nexus.io', action: 'Login Failed', resource: 'unknown@company.com', status: 'Warning', ip: '203.0.113.45' },
-  { timestamp: '2026-04-03\n13:42:18', user: 'editor@nexus.io', action: 'Document Edited', resource: 'project-specs.pdf', status: 'Success', ip: '192.168.1.102' },
-  { timestamp: '2026-04-03\n13:15:05', user: 'admin@nexus.io', action: 'Settings Changed', resource: 'Security Policy', status: 'Success', ip: '192.168.1.100' },
-  { timestamp: '2026-04-03\n12:58:33', user: 'user@nexus.io', action: 'Access Denied', resource: '/admin/settings', status: 'Warning', ip: '198.51.100.23' },
-  { timestamp: '2026-04-03\n12:30:12', user: 'admin@nexus.io', action: 'User Deleted', resource: 'old.user@company.com', status: 'Success', ip: '192.168.1.100' }
-])
+let searchTimeout = null
+const debounceSearch = () => {
+    clearTimeout(searchTimeout)
+    searchTimeout = setTimeout(() => {
+        currentPage.value = 1
+        fetchLogs()
+    }, 500)
+}
+
+const handlePageChange = (page) => {
+    currentPage.value = page
+    fetchLogs()
+}
+
+const fetchProjects = async () => {
+    try {
+        const res = await axiosClient.get('/projects')
+        projects.value = res.data.data || []
+    } catch(e) {
+        console.error(e)
+    }
+}
+
+const fetchLogs = async () => {
+    loading.value = true
+    try {
+        const params = {
+            page: currentPage.value,
+            limit: 20
+        }
+        if (timeFilter.value !== 'all') params.timeFilter = timeFilter.value
+        if (selectedProjectId.value) params.projectId = selectedProjectId.value
+        if (searchQuery.value) params.search = searchQuery.value
+
+        const res = await axiosClient.get('/auditlogs', { params })
+        logs.value = res.data.data.items
+        total.value = res.data.data.total
+    } catch(e) {
+        console.error(e)
+    } finally {
+        loading.value = false
+    }
+}
+
+onMounted(() => {
+    fetchProjects()
+    fetchLogs()
+})
 </script>
 
 <style scoped>
@@ -58,24 +130,36 @@ const logs = ref([
   margin-bottom: 24px;
 }
 
-.admin-page-header h1 {
+.breadcrumb {
+  font-size: 13px;
+  color: #8b949e;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-title {
   font-size: 24px;
-  font-weight: 500;
+  font-weight: 600;
   color: #1e293b;
   margin: 0;
+}
+.header-actions {
+  display: flex;
+  align-items: center;
 }
 
 .admin-card {
   background: #ffffff;
   border-radius: 12px;
   padding: 24px;
-  /* Light Neumorphism Box Shadow */
   box-shadow: 8px 8px 16px rgba(0,0,0,0.05), -8px -8px 16px rgba(255,255,255,0.8);
 }
 
 :deep(.admin-table th.el-table__cell) {
   background-color: transparent !important;
-  color: #0d9488 !important; /* Primary Teal */
+  color: #0d9488 !important;
   font-weight: 700;
   font-size: 12px;
   text-transform: uppercase;
@@ -130,5 +214,11 @@ const logs = ref([
   background-color: #f8fafc;
   color: #0d9488;
   box-shadow: inset 2px 2px 5px rgba(0,0,0,0.05), inset -2px -2px 5px rgba(255,255,255,0.8);
+}
+
+.pagination-container {
+  display: flex;
+  justify-content: center;
+  margin-top: 24px;
 }
 </style>

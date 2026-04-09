@@ -34,7 +34,9 @@ namespace TaskManagement.Infrastructure.Data
 
         // Group 3: Core Work Management
         public DbSet<Project> Projects { get; set; }
+        public DbSet<ProjectTemplate> ProjectTemplates { get; set; }
         public DbSet<ProjectMember> ProjectMembers { get; set; }
+        public DbSet<ProjectDepartmentRole> ProjectDepartmentRoles { get; set; }
         public DbSet<Sprint> Sprints { get; set; }
         public DbSet<TaskType> TaskTypes { get; set; }
         public DbSet<TaskManagement.Domain.Entities.TaskStatus> TaskStatuses { get; set; }
@@ -379,6 +381,12 @@ namespace TaskManagement.Infrastructure.Data
                 .WithMany(u => u.TimeLogs)
                 .HasForeignKey(tl => tl.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // =============================================
+            // 10. Applying custom configurations
+            // =============================================
+            modelBuilder.ApplyConfiguration(new Configurations.ProjectTemplateConfiguration());
+            modelBuilder.ApplyConfiguration(new Configurations.ProjectDepartmentRoleConfiguration());
         }
 
         public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
