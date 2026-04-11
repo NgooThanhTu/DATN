@@ -343,15 +343,14 @@ onUnmounted(() => {
   color: var(--text-primary);
 }
 
-/* Active State requested by User: xanh nhạt background + xanh icon */
 .nav-link.active, .nav-link.router-link-exact-active {
-  background-color: rgba(59, 130, 246, 0.1);
-  color: #3b82f6;
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
   font-weight: 600;
 }
 
 .nav-link.active i {
-  color: #3b82f6;
+  color: var(--text-primary);
 }
 
 .arrow {
@@ -406,9 +405,9 @@ onUnmounted(() => {
   color: var(--text-primary);
 }
 .action-btn.active {
-  background-color: rgba(0, 82, 204, 0.08); /* Jira active blue tint background */
-  border: 1px solid #0052cc; /* Blue border */
-  color: #0052cc !important;
+  background-color: var(--bg-hover);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary) !important;
 }
 
 .context-popup {

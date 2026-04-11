@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TaskManagement.Infrastructure.Data;
 using TaskManagement.Application.DTOs.Auth;
+using TaskManagement.Application.Interfaces;
 using System.Security.Claims;
 using System;
 using System.Threading.Tasks;
@@ -16,10 +17,14 @@ namespace TaskManagement.API.Controllers
     public class UsersController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly IOtpService _otpService;
+        private readonly IEmailService _emailService;
 
-        public UsersController(ApplicationDbContext context)
+        public UsersController(ApplicationDbContext context, IOtpService otpService, IEmailService emailService)
         {
             _context = context;
+            _otpService = otpService;
+            _emailService = emailService;
         }
 
         [HttpGet("me")]
@@ -67,7 +72,9 @@ namespace TaskManagement.API.Controllers
                     jobTitle = extra.JobTitle,
                     departmentName = extra.DepartmentName,
                     organizationName = extra.OrganizationName,
-                    collaborationRules = extra.CollaborationRules
+                    collaborationRules = extra.CollaborationRules,
+                    hasPassword = !string.IsNullOrEmpty(user.PasswordHash),
+                    is2FaEnabled = user.Is2FAEnabled
                 }
             });
         }
@@ -124,6 +131,107 @@ namespace TaskManagement.API.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(new { statusCode = 200, message = "Profile updated successfully" });
+        }
+
+        public class ChangePasswordRequest
+        {
+            public string OldPassword { get; set; } = string.Empty;
+            public string NewPassword { get; set; } = string.Empty;
+            public bool LogoutOthers { get; set; } = false;
+        }
+
+        [HttpPut("change-password")]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out Guid userId))
+                return Unauthorized(new { statusCode = 401, message = "Unauthorized." });
+
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null) return NotFound(new { message = "User not found" });
+
+            if (string.IsNullOrEmpty(user.PasswordHash)) 
+                return BadRequest(new { statusCode = 400, message = "Tài khoản của bạn được liên kết qua Google/Github. Không thể đổi mật khẩu." });
+
+            bool isValidOld = BCrypt.Net.BCrypt.Verify(request.OldPassword, user.PasswordHash);
+            if (!isValidOld) return BadRequest(new { statusCode = 400, message = "Mật khẩu hiện tại không chính xác." });
+
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+            user.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new { statusCode = 200, message = "Đổi mật khẩu thành công" });
+        }
+
+        [HttpPost("send-set-password-otp")]
+        public async Task<IActionResult> SendSetPasswordOtp()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out Guid userId))
+                return Unauthorized(new { statusCode = 401, message = "Unauthorized." });
+
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null) return NotFound(new { message = "User not found" });
+
+            if (!string.IsNullOrEmpty(user.PasswordHash))
+                return BadRequest(new { message = "Tài khoản đã có mật khẩu." });
+
+            var otpCode = _otpService.GenerateOtp();
+            _otpService.StoreOtp(user.Email, otpCode);
+            await _emailService.SendOtpEmailAsync(user.Email, otpCode);
+
+            return Ok(new { statusCode = 200, message = "Đã gửi mã OTP đến email của bạn." });
+        }
+
+        public class SetPasswordRequest
+        {
+            public string OtpCode { get; set; } = string.Empty;
+            public string NewPassword { get; set; } = string.Empty;
+        }
+
+        [HttpPost("set-password-with-otp")]
+        public async Task<IActionResult> SetPasswordWithOtp([FromBody] SetPasswordRequest request)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out Guid userId))
+                return Unauthorized(new { statusCode = 401, message = "Unauthorized." });
+
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null) return NotFound(new { message = "User not found" });
+
+            if (!string.IsNullOrEmpty(user.PasswordHash))
+                return BadRequest(new { message = "Tài khoản đã có mật khẩu." });
+
+            var isValid = _otpService.ValidateOtp(user.Email, request.OtpCode);
+            if (!isValid)
+                return BadRequest(new { statusCode = 400, message = "Mã OTP không hợp lệ hoặc đã hết hạn." });
+
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+            user.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new { statusCode = 200, message = "Tạo mật khẩu thành công." });
+        }
+
+        public class Toggle2FARequest { public bool Enable { get; set; } }
+
+        [HttpPost("toggle-2fa")]
+        public async Task<IActionResult> Toggle2FA([FromBody] Toggle2FARequest request)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out Guid userId))
+                return Unauthorized(new { statusCode = 401, message = "Unauthorized." });
+
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null) return NotFound(new { message = "User not found" });
+
+            user.Is2FAEnabled = request.Enable;
+            user.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+            return Ok(new { statusCode = 200, message = request.Enable ? "Đã bật 2FA." : "Đã tắt 2FA.", is2FaEnabled = user.Is2FAEnabled });
         }
     }
 }

@@ -162,6 +162,19 @@ namespace TaskManagement.Infrastructure.Services
                 Status = true
             };
             _context.ProjectMembers.Add(projectMember);
+            
+            // Add System Audit Log
+            var auditLog = new TaskManagement.Domain.Entities.SystemAuditLog
+            {
+                Id = Guid.NewGuid(),
+                UserId = creatorId,
+                Action = "CREATE_PROJECT",
+                Resource = $"Project: {project.Name}",
+                Status = "Success",
+                Details = $"User {creatorId} created project {project.Name}",
+                CreatedAt = DateTime.UtcNow
+            };
+            _context.SystemAuditLogs.Add(auditLog);
 
             await _context.SaveChangesAsync();
 

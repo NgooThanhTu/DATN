@@ -25,8 +25,18 @@ export default [
     component: () => import('../views/admin/Configuration.vue')
   },
   {
-    path: '/admin/customization',
-    name: 'AdminCustomization',
-    component: () => import('../views/admin/Customization.vue')
+    path: '/admin/security/2fa',
+    name: 'AdminSecurity2FA',
+    component: () => import('../views/admin/security/TwoFactorAuth.vue')
+  },
+  {
+    path: '/admin/security/password',
+    name: 'AdminSecurityPassword',
+    component: () => import('../views/admin/security/ChangePassword.vue')
+  },
+  {
+    path: '/admin/security/ip-whitelist',
+    name: 'AdminSecurityIpWhitelist',
+    component: () => import('../views/admin/security/IpWhitelist.vue')
   }
 ]

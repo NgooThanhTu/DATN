@@ -6,10 +6,14 @@
           <i class="fa-solid fa-users"></i> System / User Management
         </div>
         <h1 class="page-title">Quản lý Người dùng (User Management)</h1>
+        <p class="page-subtitle">Quản lý tài khoản, phân quyền và theo dõi hoạt động của người dùng.</p>
       </div>
-      <div v-else class="header-title-section" style="display: flex; align-items: center; gap: 12px">
-        <el-button @click="backToProjects" plain circle><i class="fa-solid fa-arrow-left"></i></el-button>
-        <h1 class="page-title" style="margin-bottom: 0">{{ selectedProject?.name }} - Members</h1>
+      <div v-else class="header-title-section" style="display: flex; flex-direction: column; gap: 4px; max-width: 80%;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <el-button @click="backToProjects" plain circle style="flex-shrink: 0;"><i class="fa-solid fa-arrow-left"></i></el-button>
+          <h1 class="page-title" style="margin-bottom: 0">{{ selectedProject?.name }} - Members</h1>
+        </div>
+        <p class="page-subtitle" style="margin-left: 46px;">{{ selectedProject?.description || 'Dự án này chưa có mô tả nào.' }}</p>
       </div>
       
       <div class="header-actions" v-if="viewMode === 'users'">
@@ -21,19 +25,23 @@
     </div>
 
     <!-- VIEW 1: PROJECTS GRID -->
-    <div class="projects-grid" v-if="viewMode === 'projects'" v-loading="loading">
-      <div class="project-card" v-for="p in projects" :key="p.id" @click="openProject(p)">
-        <div class="project-icon">
-          <i class="fa-solid fa-layer-group"></i>
+    <div class="admin-card" v-if="viewMode === 'projects'" v-loading="loading">
+      <div class="projects-grid">
+        <div class="project-card-square" v-for="p in projects" :key="p.id" @click="openProject(p)">
+          <div class="card-header">
+            <div class="project-icon">
+              <i class="fa-solid fa-layer-group"></i>
+            </div>
+            <i class="fa-solid fa-arrow-right arrow-icon"></i>
+          </div>
+          <div class="project-content-square">
+            <div class="project-name">{{ p.name }}</div>
+            <div class="project-desc">{{ p.description || 'No description' }}</div>
+          </div>
         </div>
-        <div class="project-content">
-          <div class="project-name">{{ p.name }}</div>
-          <div class="project-desc">{{ p.description || 'No description' }}</div>
+        <div v-if="!loading && projects.length === 0" style="text-align: center; color: #94a3b8; width: 100%; padding: 40px;">
+          Chưa có dự án nào.
         </div>
-        <i class="fa-solid fa-chevron-right arrow-icon"></i>
-      </div>
-      <div v-if="!loading && projects.length === 0" style="text-align: center; color: #94a3b8; width: 100%; padding: 40px;">
-        Chưa có dự án nào.
       </div>
     </div>
 
@@ -219,13 +227,30 @@ onMounted(() => {
 .page-title {
   font-size: 24px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-primary);
   margin: 0;
+}
+
+.page-subtitle {
+  font-size: 14px;
+  color: #8b949e;
+  margin-top: 4px;
+  margin-bottom: 0;
 }
 
 .header-actions {
   display: flex;
   align-items: center;
+}
+
+.admin-card {
+  background: var(--bg-card);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.05);
 }
 
 .add-user-btn {
@@ -242,10 +267,13 @@ onMounted(() => {
 }
 
 .users-list-card {
-  background: #ffffff;
+  background: var(--bg-card);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 12px 24px;
-  box-shadow: 8px 8px 16px rgba(0,0,0,0.05), -8px -8px 16px rgba(255,255,255,0.8);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.05);
 }
 
 .user-row {
@@ -269,7 +297,7 @@ onMounted(() => {
 
 .user-name {
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-primary);
   font-size: 15px;
   margin-bottom: 4px;
 }
@@ -317,78 +345,106 @@ onMounted(() => {
 
 .action-btn {
   border: none;
-  background-color: #ffffff;
-  box-shadow: inset 2px 2px 5px rgba(0,0,0,0.05), inset -2px -2px 5px rgba(255,255,255,0.7);
+  background-color: transparent;
   color: #64748b;
 }
 
 .action-btn:hover {
   color: #0d9488;
-  box-shadow: 2px 2px 5px rgba(0,0,0,0.1), -2px -2px 5px rgba(255,255,255,0.8);
+  background-color: rgba(13, 148, 136, 0.1);
 }
 
 .projects-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(4, 1fr);
   gap: 20px;
 }
-
-.project-card {
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 24px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  cursor: pointer;
-  box-shadow: 8px 8px 16px rgba(0,0,0,0.05), -8px -8px 16px rgba(255,255,255,0.8);
-  border: 1px solid #f8fafc;
-  transition: all 0.2s ease;
+@media (max-width: 1200px) {
+  .projects-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 900px) {
+  .projects-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 600px) {
+  .projects-grid { grid-template-columns: 1fr; }
 }
 
-.project-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 10px 10px 20px rgba(0,0,0,0.08), -10px -10px 20px rgba(255,255,255,0.9);
-  border-color: #cbd5e1;
+.project-card-square {
+  background: var(--bg-card);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 16px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+  border: 1px solid var(--border-color);
+  transition: all 0.2s ease;
+  aspect-ratio: 1 / 0.9;
+}
+
+.project-card-square:hover {
+  transform: translateY(-4px);
+  background: var(--bg-hover);
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  width: 100%;
 }
 
 .project-icon {
-  width: 52px;
-  height: 52px;
-  border-radius: 14px;
-  background-color: #f0fdfa;
-  color: #0d9488;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  color: var(--text-primary);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 22px;
+  background-color: var(--bg-hover);
 }
 
-.project-content {
+.project-content-square {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  margin-top: 16px;
 }
 
 .project-name {
   font-weight: 600;
-  color: #1e293b;
-  font-size: 16px;
-  margin-bottom: 4px;
+  color: var(--text-primary);
+  font-size: 17px;
+  margin-bottom: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .project-desc {
   color: #64748b;
-  font-size: 13px;
+  font-size: 13.5px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  line-height: 1.5;
 }
 
 .arrow-icon {
-  color: #cbd5e1;
-  font-size: 14px;
+  color: var(--text-muted);
+  font-size: 16px;
+  transition: transform 0.2s, color 0.2s;
+  padding: 4px;
 }
-.project-card:hover .arrow-icon {
-  color: #0d9488;
+.project-card-square:hover .arrow-icon {
+  color: var(--text-primary);
+  transform: translateX(4px);
 }
 </style>

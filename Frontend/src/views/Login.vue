@@ -15,10 +15,24 @@
 
     <div class="auth-container">
       <div class="auth-card">
-        <h1 class="auth-title">Chào mừng trở lại</h1>
-        <p class="auth-subtitle">Đăng nhập để tiếp tục quản lý công việc của bạn với SprintA.</p>
+        <h1 class="auth-title">{{ requires2FA ? 'Xác minh 2 bước' : 'Chào mừng trở lại' }}</h1>
+        <p class="auth-subtitle">{{ requires2FA ? 'Nhập mã 6 số (OTP) vừa được gửi đến email của bạn để tiếp tục.' : 'Đăng nhập để tiếp tục quản lý công việc của bạn với SprintA.' }}</p>
         
-        <el-form class="auth-form" @submit.prevent="handleLogin" label-position="top">
+        <!-- 2FA OTP Form -->
+        <el-form v-if="requires2FA" class="auth-form" @submit.prevent="handleLogin2FA" label-position="top">
+           <el-form-item label="Mã bảo mật (OTP)">
+             <el-input v-model="otpCode" placeholder="Nhập 6 số..." size="large" />
+           </el-form-item>
+           
+           <el-button type="primary" native-type="submit" class="auth-btn" size="large" :loading="isLoading">Xác thực OTP</el-button>
+           
+           <div class="divider"></div>
+           <p class="auth-footer-text">
+             Chưa nhận được mã? <a href="#" @click.prevent="handleLogin">Gửi lại</a> hoặc <a href="#" @click.prevent="requires2FA = false">Quay lại</a>
+           </p>
+        </el-form>
+
+        <el-form v-else class="auth-form" @submit.prevent="handleLogin" label-position="top">
           <el-form-item label="Email">
             <el-input v-model="form.email" placeholder="name@email.com" size="large" />
           </el-form-item>
@@ -54,26 +68,28 @@
           </el-button>
         </el-form>
 
-        <div class="divider">
-          <span>HOẶC TIẾP TỤC VỚI</span>
-        </div>
-        
-        <div class="social-login">
-          <!-- Sử dụng slot custom để thiết kế nút Google GIỐNG HỆT nút GitHub -->
-          <GoogleLogin :callback="handleGoogleLogin" popup-type="TOKEN" class="social-btn-wrapper">
-            <el-button native-type="button" class="social-btn google-btn">
-              <img :src="googleIcon" alt="Google" class="social-icon" /> Google
-            </el-button>
-          </GoogleLogin>
+        <div v-if="!requires2FA">
+          <div class="divider">
+            <span>HOẶC TIẾP TỤC VỚI</span>
+          </div>
           
-          <el-button native-type="button" class="social-btn github-btn" @click="handleGitHubLogin">
-            <img :src="githubIcon" alt="GitHub" class="social-icon" /> GitHub
-          </el-button>
+          <div class="social-login">
+            <!-- Sử dụng slot custom để thiết kế nút Google GIỐNG HỆT nút GitHub -->
+            <GoogleLogin :callback="handleGoogleLogin" popup-type="TOKEN" class="social-btn-wrapper">
+              <el-button native-type="button" class="social-btn google-btn">
+                <img :src="googleIcon" alt="Google" class="social-icon" /> Google
+              </el-button>
+            </GoogleLogin>
+            
+            <el-button native-type="button" class="social-btn github-btn" @click="handleGitHubLogin">
+              <img :src="githubIcon" alt="GitHub" class="social-icon" /> GitHub
+            </el-button>
+          </div>
+          
+          <p class="auth-footer-text">
+            Chưa có tài khoản? <router-link to="/register">Đăng ký</router-link>
+          </p>
         </div>
-        
-        <p class="auth-footer-text">
-          Chưa có tài khoản? <router-link to="/register">Đăng ký</router-link>
-        </p>
       </div>
     </div>
     
@@ -101,8 +117,8 @@ const form = reactive({
 const router = useRouter()
 
 const isLoading = ref(false)
-
-
+const requires2FA = ref(false)
+const otpCode = ref('')
 
 const handleLogin = async () => {
   if (!form.email || !form.password) {
@@ -116,6 +132,12 @@ const handleLogin = async () => {
       email: form.email,
       password: form.password
     })
+
+    if (response.data.requires2FA) {
+      requires2FA.value = true
+      ElMessage.success('Tài khoản được bảo vệ. Vui lòng kiểm tra email để lấy mã OTP.')
+      return
+    }
 
     const { accessToken, fullName, email, systemRoles, id } = response.data.data
     
@@ -131,12 +153,37 @@ const handleLogin = async () => {
   } catch (error) {
     console.error('Login error:', error)
     let errorMsg = error.response?.data?.message || 'Email hoặc mật khẩu không chính xác'
-    const errors = error.response?.data?.errors
-    if (errors) {
-      const firstKey = Object.keys(errors)[0]
-      errorMsg = errors[firstKey][0]
-    }
     ElMessage.error(errorMsg)
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const handleLogin2FA = async () => {
+  if (!otpCode.value) {
+    ElMessage.warning('Vui lòng nhập mã OTP')
+    return
+  }
+  
+  isLoading.value = true
+  try {
+    const response = await axiosClient.post('/auth/login-2fa', {
+      email: form.email,
+      password: form.password,
+      otpCode: otpCode.value
+    })
+
+    const { accessToken, fullName, email, systemRoles, id } = response.data.data
+    
+    localStorage.setItem('accessToken', accessToken)
+    localStorage.setItem('user', JSON.stringify({ id, fullName, email, systemRoles }))
+    
+    ElMessage.success('Đăng nhập thành công!')
+    
+    const redirect = router.currentRoute.value.query.redirect
+    router.push(redirect || '/dashboard')
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || 'OTP không hợp lệ')
   } finally {
     isLoading.value = false
   }

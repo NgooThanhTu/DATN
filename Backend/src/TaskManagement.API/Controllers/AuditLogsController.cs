@@ -18,6 +18,23 @@ namespace TaskManagement.API.Controllers
             _context = context;
         }
 
+        private class LogItemModel
+        {
+            public Guid Id { get; set; }
+            public DateTime CreatedAt { get; set; }
+            public string? FullName { get; set; }
+            public string? Email { get; set; }
+            public string? OldValue { get; set; }
+            public string? NewValue { get; set; }
+            public string? FieldChanged { get; set; }
+            public string? TaskTitle { get; set; }
+            public Guid TaskId { get; set; }
+            public string? ProjectName { get; set; }
+            public string Type { get; set; } = string.Empty;
+            public string? Action { get; set; }
+            public string? Status { get; set; }
+        }
+
         [HttpGet]
         public async Task<IActionResult> GetAuditLogs(
             [FromQuery] Guid? projectId, 
@@ -89,16 +106,9 @@ namespace TaskManagement.API.Controllers
                         query = query.Where(al => al.CreatedAt >= now.AddDays(-30));
                 }
 
-                var skip = (page - 1) * limit;
-
-                query = query.OrderByDescending(al => al.CreatedAt);
-
-                var total = await query.CountAsync();
-                
-                var rawLogs = await query
-                    .Skip(skip)
-                    .Take(limit)
-                    .Select(al => new {
+                var rawTaskLogs = await query
+                    .OrderByDescending(al => al.CreatedAt)
+                    .Select(al => new LogItemModel {
                         Id = al.Id,
                         CreatedAt = al.CreatedAt,
                         FullName = al.User.FullName,
@@ -108,29 +118,90 @@ namespace TaskManagement.API.Controllers
                         FieldChanged = al.FieldChanged,
                         TaskTitle = al.WorkTask.Title,
                         TaskId = al.WorkTaskId,
-                        ProjectName = al.WorkTask.Project.Name
+                        ProjectName = al.WorkTask.Project.Name,
+                        Type = "Task"
                     })
+                    .Take(limit * page)
                     .ToListAsync();
-                    
-                var logs = rawLogs.Select(al => new {
-                        id = "LOG-" + al.Id.ToString().Substring(0, 8).ToUpper(),
-                        timestamp = al.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss"),
-                        user = al.FullName ?? al.Email,
-                        action = string.IsNullOrEmpty(al.OldValue) && al.NewValue != null ? "create" : "update",
-                        resource = $"[{al.ProjectName}] {al.TaskTitle}",
-                        targetId = al.TaskTitle.Length > 10 ? "TASK-" + al.TaskTitle.Substring(0, 10) : "TASK-" + al.TaskTitle,
-                        projectName = al.ProjectName,
-                        status = "success",
-                        summary = $"Thay đổi trường '{al.FieldChanged}'",
-                        details = new {
-                            field = al.FieldChanged,
-                            oldValue = al.OldValue,
-                            newValue = al.NewValue,
-                            taskId = al.TaskId
-                        }
-                    }).ToList();
 
-                return Ok(new { statusCode = 200, message = "Success", data = new { items = logs, total } });
+                var allRawLogs = new List<LogItemModel>(rawTaskLogs);
+                var totalTasks = await query.CountAsync();
+                int totalSystemLogs = 0;
+
+                if (isAdmin && !projectId.HasValue && !taskId.HasValue) 
+                {
+                    var sysQuery = _context.SystemAuditLogs.Include(s => s.User).AsQueryable();
+                    if (!string.IsNullOrEmpty(search)) {
+                        var s = search.ToLower();
+                        sysQuery = sysQuery.Where(al => al.Action.ToLower().Contains(s) || al.Resource.ToLower().Contains(s) || (al.User != null && al.User.Email.ToLower().Contains(s)));
+                    }
+                    if (!string.IsNullOrEmpty(timeFilter)) {
+                        var now = DateTime.UtcNow;
+                        if (timeFilter == "24h") sysQuery = sysQuery.Where(al => al.CreatedAt >= now.AddHours(-24));
+                        else if (timeFilter == "30d") sysQuery = sysQuery.Where(al => al.CreatedAt >= now.AddDays(-30));
+                    }
+                    
+                    totalSystemLogs = await sysQuery.CountAsync();
+                    var rawSysLogs = await sysQuery
+                        .OrderByDescending(al => al.CreatedAt)
+                        .Select(al => new LogItemModel {
+                            Id = al.Id,
+                            CreatedAt = al.CreatedAt,
+                            FullName = al.User != null ? al.User.FullName : null,
+                            Email = al.User != null ? al.User.Email : null,
+                            OldValue = "",
+                            NewValue = "",
+                            FieldChanged = al.Details ?? al.Action,
+                            TaskTitle = al.Resource,
+                            TaskId = Guid.Empty,
+                            ProjectName = "System",
+                            Type = "System",
+                            Action = al.Action,
+                            Status = al.Status
+                        })
+                        .Take(limit * page)
+                        .ToListAsync();
+                    allRawLogs.AddRange(rawSysLogs);
+                }
+
+                // Sort and Paginate
+                var skip = (page - 1) * limit;
+                var sortedRawLogs = allRawLogs.OrderByDescending(l => l.CreatedAt)
+                                              .Skip(skip)
+                                              .Take(limit)
+                                              .ToList();
+
+                var logs = sortedRawLogs.Select(al => {
+                    if (al.Type == "Task") {
+                        return new {
+                            id = "LOG-" + al.Id.ToString().Substring(0, 8).ToUpper(),
+                            timestamp = al.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss"),
+                            user = al.FullName ?? al.Email,
+                            action = string.IsNullOrEmpty(al.OldValue) && al.NewValue != null ? "create" : "update",
+                            resource = $"[{al.ProjectName}] {al.TaskTitle}",
+                            targetId = !string.IsNullOrEmpty(al.TaskTitle) && al.TaskTitle.Length > 10 ? "TASK-" + al.TaskTitle.Substring(0, 10) : "TASK-" + al.TaskTitle,
+                            projectName = al.ProjectName,
+                            status = "success",
+                            summary = $"Thay đổi trường '{al.FieldChanged}'"
+                        };
+                    } else {
+                        return new {
+                            id = "SYS-" + al.Id.ToString().Substring(0, 8).ToUpper(),
+                            timestamp = al.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss"),
+                            user = al.FullName ?? al.Email ?? "System",
+                            action = al.Action?.ToLower() ?? "system",
+                            resource = al.TaskTitle,
+                            targetId = "SYSTEM",
+                            projectName = al.ProjectName,
+                            status = al.Status?.ToLower() ?? "success",
+                            summary = al.FieldChanged
+                        };
+                    }
+                }).ToList();
+
+                int totalCount = totalTasks + totalSystemLogs;
+
+                return Ok(new { statusCode = 200, message = "Success", data = new { items = logs, total = totalCount } });
             }
             catch (Exception ex)
             {

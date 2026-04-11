@@ -20,6 +20,7 @@ onMounted(async () => {
           // For safety, only map known variables or if the key structure matches.
           // In Customization.vue: 'bgLayout' -> '--bg-layout'
           const cssVarMap = {
+            'bgImage': '--bg-image',
             'bgLayout': '--bg-layout',
             'bgCard': '--bg-card',
             'bgHover': '--bg-hover',

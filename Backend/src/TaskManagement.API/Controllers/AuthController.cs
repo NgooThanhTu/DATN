@@ -70,14 +70,48 @@ namespace TaskManagement.API.Controllers
         {
             try
             {
-                var (response, refreshToken) = await _authService.LoginAsync(request);
+                var result = await _authService.LoginAsync(request);
+
+                if (result.requires2FA)
+                {
+                    return Ok(new { statusCode = 200, message = "Requires 2FA", requires2FA = true });
+                }
 
                 // Set Refresh Token as HttpOnly Cookie
                 var cookieOptions = new CookieOptions
                 {
                     HttpOnly = true,
-                    Secure = Request.IsHttps, // Set true only if request is HTTPS
-                    SameSite = SameSiteMode.Lax, // Changed to support Google OAuth
+                    Secure = Request.IsHttps,
+                    SameSite = SameSiteMode.Lax,
+                    Expires = DateTime.UtcNow.AddDays(7)
+                };
+                Response.Cookies.Append("refreshToken", result.refreshToken!, cookieOptions);
+
+                return Ok(new { statusCode = 200, message = "Success", data = result.response });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(new { statusCode = 401, message = ex.Message });
+            }
+        }
+
+        public class Login2FARequestDto : LoginRequestDto
+        {
+            public string OtpCode { get; set; } = string.Empty;
+        }
+
+        [HttpPost("login-2fa")]
+        public async Task<IActionResult> Login2FA([FromBody] Login2FARequestDto request)
+        {
+            try
+            {
+                var (response, refreshToken) = await _authService.Login2FAAsync(request.Email, request.Password, request.OtpCode);
+
+                var cookieOptions = new CookieOptions
+                {
+                    HttpOnly = true,
+                    Secure = Request.IsHttps,
+                    SameSite = SameSiteMode.Lax,
                     Expires = DateTime.UtcNow.AddDays(7)
                 };
                 Response.Cookies.Append("refreshToken", refreshToken, cookieOptions);

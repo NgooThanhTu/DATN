@@ -18,27 +18,59 @@ namespace TaskManagement.Infrastructure.Services
         private readonly IJwtService _jwtService;
         private readonly IConfiguration _configuration;
         private readonly IOtpService _otpService;
+        private readonly IEmailService _emailService;
 
-        public AuthService(ApplicationDbContext context, IJwtService jwtService, IConfiguration configuration, IOtpService otpService)
+        public AuthService(ApplicationDbContext context, IJwtService jwtService, IConfiguration configuration, IOtpService otpService, IEmailService emailService)
         {
             _context = context;
             _jwtService = jwtService;
             _configuration = configuration;
             _otpService = otpService;
+            _emailService = emailService;
         }
 
-        public async Task<(AuthResponseDto response, string refreshToken)> LoginAsync(LoginRequestDto request)
+        public async Task<(AuthResponseDto? response, string? refreshToken, bool requires2FA)> LoginAsync(LoginRequestDto request)
         {
             var user = await _context.Users
                 .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
                 .FirstOrDefaultAsync(u => u.Email == request.Email && !u.IsDeleted);
 
-            if (user == null || !VerifyPassword(request.Password, user.PasswordHash))
+            if (user == null || string.IsNullOrEmpty(user.PasswordHash) || !VerifyPassword(request.Password, user.PasswordHash))
             {
                 throw new UnauthorizedAccessException("Email hoặc mật khẩu không chính xác.");
             }
 
+            if (user.Is2FAEnabled)
+            {
+                var otpCode = _otpService.GenerateOtp();
+                _otpService.StoreOtp(user.Email, otpCode);
+                await _emailService.SendOtpEmailAsync(user.Email, otpCode);
+                return (null, null, true);
+            }
+
+            return await GenerateTokensForUser(user);
+        }
+
+        public async Task<(AuthResponseDto response, string refreshToken)> Login2FAAsync(string email, string password, string otp)
+        {
+            var user = await _context.Users
+                .Include(u => u.UserRoles)
+                .ThenInclude(ur => ur.Role)
+                .FirstOrDefaultAsync(u => u.Email == email && !u.IsDeleted);
+
+            if (user == null || string.IsNullOrEmpty(user.PasswordHash) || !VerifyPassword(password, user.PasswordHash))
+                throw new UnauthorizedAccessException("Email hoặc mật khẩu không chính xác.");
+
+            if (!_otpService.ValidateOtp(email, otp))
+                throw new UnauthorizedAccessException("Mã OTP không hợp lệ hoặc đã hết hạn.");
+
+            var tokens = await GenerateTokensForUser(user);
+            return (tokens.response!, tokens.refreshToken!);
+        }
+
+        private async Task<(AuthResponseDto? response, string? refreshToken, bool requires2FA)> GenerateTokensForUser(User user)
+        {
             var roles = user.UserRoles.Select(ur => ur.Role.Name).ToList();
 
             var accessToken = _jwtService.GenerateAccessToken(user, roles);
@@ -59,7 +91,7 @@ namespace TaskManagement.Infrastructure.Services
                 SystemRoles = roles.ToArray()
             };
 
-            return (response, refreshToken);
+            return (response, refreshToken, false);
         }
 
         public async Task<(AuthResponseDto response, string refreshToken)> GoogleLoginAsync(GoogleLoginRequestDto request)

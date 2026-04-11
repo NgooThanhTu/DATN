@@ -12,34 +12,38 @@
   --bg-sidebar: #f4f5f7;
   --bg-content: #ffffff;
   --bg-secondary: #f8f9fa;
-  --bg-card: #ffffff;
+  --bg-card: rgba(255, 255, 255, 0.85); /* glass effect ready */
   --text-primary: #172b4d;
   --text-secondary: #44546f;
   --text-muted: #626f84;
-  --border-color: #dfe1e6;
-  --hover-bg: #ebecf0;
-  --active-bg: #e9f2ff;
-  --input-bg: #ffffff;
-  --scrollbar-bg: #f4f5f7;
-  --scrollbar-thumb: #dcdfe4;
+  --border-color: rgba(223, 225, 230, 0.5); /* semi-transparent border */
+  --hover-bg: rgba(235, 236, 240, 0.8);
+  --active-bg: rgba(233, 242, 255, 0.8);
+  --input-bg: rgba(255, 255, 255, 0.9);
+  --scrollbar-bg: transparent;
+  --scrollbar-thumb: rgba(220, 223, 228, 0.7);
+  --bg-image: none;
+  --glass-blur: 8px;
 }
 
 /* Dark theme styles */
 [data-theme='dark'] {
   --bg-layout: #020617;
-  --bg-nav: #020617;
-  --bg-sidebar: #020617;
-  --bg-content: #1d2125;
-  --bg-secondary: #22272b;
-  --bg-card: #22272b;
+  --bg-nav: rgba(2, 6, 23, 0.85);
+  --bg-sidebar: rgba(2, 6, 23, 0.85);
+  --bg-content: rgba(29, 33, 37, 0.85);
+  --bg-secondary: rgba(34, 39, 43, 0.85);
+  --bg-card: rgba(34, 39, 43, 0.75);
   --text-primary: #f4f5f7;
   --text-secondary: #8c9bab;
   --text-muted: #738496;
-  --border-color: #334155;
-  --hover-bg: #2c333a;
-  --active-bg: #1e293b;
-  --scrollbar-bg: #1d2125;
-  --scrollbar-thumb: #3e4c5b;
+  --border-color: rgba(51, 65, 85, 0.5);
+  --hover-bg: rgba(44, 51, 58, 0.8);
+  --active-bg: rgba(30, 41, 59, 0.8);
+  --scrollbar-bg: transparent;
+  --scrollbar-thumb: rgba(62, 76, 91, 0.7);
+  --bg-image: none;
+  --glass-blur: 12px;
 }
 
 * {
@@ -51,9 +55,13 @@
 body {
   font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   color: var(--text-primary);
-  background-color: var(--bg-content);
+  background-color: var(--bg-layout);
+  background-image: var(--bg-image);
+  background-size: cover;
+  background-attachment: fixed;
+  background-position: center;
   -webkit-font-smoothing: antialiased;
-  transition: background-color 0.3s ease, color 0.3s ease;
+  transition: background-color 0.3s ease, color 0.3s ease, background-image 0.5s ease;
 }
 
 .section-padding {
@@ -78,6 +86,8 @@ h1, h2, h3 {
 /* Jira-inspired Card */
 .jira-card, .glass-card {
   background: var(--bg-card);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   border: 1px solid var(--border-color);
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
@@ -144,4 +154,35 @@ h1, h2, h3 {
   --el-pagination-bg-color: transparent !important;
   --el-pagination-hover-color: #3b82f6 !important;
   color: var(--text-secondary) !important;
+}
+
+/* Color picker OK button styling to make it stand out */
+.el-color-dropdown__btn {
+  background-color: var(--el-color-primary) !important;
+  color: #ffffff !important;
+  border-color: var(--el-color-primary) !important;
+  font-weight: 600;
+  padding: 4px 16px;
+  border-radius: 4px;
+}
+.el-color-dropdown__btn:hover {
+  opacity: 0.8;
+}
+
+/* Glass Input Global Pattern */
+.glass-input .el-input__wrapper,
+.glass-input.el-select .el-select__wrapper {
+  background-color: var(--bg-hover) !important;
+  box-shadow: none !important;
+  border-radius: 8px;
+  border: 1px solid var(--border-color) !important;
+}
+
+.glass-input .el-input__inner,
+.glass-input .el-select__placeholder {
+  color: var(--text-primary) !important;
+}
+
+.el-table__empty-text {
+  color: var(--text-primary) !important;
 }
