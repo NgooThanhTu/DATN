@@ -105,20 +105,23 @@ const toggleAI = () => {
 }
 
 const toggleCreate = () => {
-  createVisible.value = !createVisible.value
+  createSpaceVisible.value = !createSpaceVisible.value
 }
 
 const toggleCreateSpace = () => {
   createSpaceVisible.value = !createSpaceVisible.value
 }
 
-const handleSpaceCreated = () => {
-  // Reload viewport to fetch latest spaces
-  window.location.reload()
+const handleSpaceCreated = (newSpace) => {
+  if (newSpace && newSpace.id) {
+    window.location.href = `/space/${newSpace.id}`;
+  } else {
+    window.location.reload();
+  }
 }
 
 const handleProjectCreated = (newProject) => {
-  console.log('Task/Project created:', newProject)
+  console.log('Task created:', newProject)
 }
 </script>
 
@@ -153,7 +156,7 @@ const handleProjectCreated = (newProject) => {
 
 .content-area {
   flex: 1;
-  background-color: var(--bg-content);
+  background: transparent;
   padding: 24px;
   overflow-y: auto;
   border-top-left-radius: 20px;

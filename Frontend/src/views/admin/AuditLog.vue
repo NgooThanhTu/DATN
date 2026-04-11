@@ -6,11 +6,12 @@
           <i class="fa-solid fa-file-lines"></i> System / Audit Log
         </div>
         <h1 class="page-title">Nhật ký Hệ thống (Audit Log)</h1>
+        <p class="page-subtitle">Theo dõi và tra cứu các hoạt động, sự kiện quan trọng trong hệ thống.</p>
       </div>
       <div class="header-actions">
-        <el-input v-model="searchQuery" placeholder="Search logs..." style="width: 220px; margin-right: 12px" @input="debounceSearch" clearable />
+        <el-input v-model="searchQuery" class="glass-input" placeholder="Search logs..." style="width: 220px; margin-right: 12px" @input="debounceSearch" clearable />
         
-        <el-select v-model="selectedProjectId" placeholder="All Projects" style="width: 180px; margin-right: 12px" @change="fetchLogs" clearable>
+        <el-select v-model="selectedProjectId" class="glass-input" placeholder="All Projects" style="width: 180px; margin-right: 12px" @change="fetchLogs" clearable>
            <el-option v-for="p in projects" :key="p.id" :label="p.name" :value="p.id" />
         </el-select>
 
@@ -142,8 +143,15 @@ onMounted(() => {
 .page-title {
   font-size: 24px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-primary);
   margin: 0;
+}
+
+.page-subtitle {
+  font-size: 14px;
+  color: #8b949e;
+  margin-top: 4px;
+  margin-bottom: 0;
 }
 .header-actions {
   display: flex;
@@ -151,27 +159,36 @@ onMounted(() => {
 }
 
 .admin-card {
-  background: #ffffff;
+  background: var(--bg-card);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 24px;
-  box-shadow: 8px 8px 16px rgba(0,0,0,0.05), -8px -8px 16px rgba(255,255,255,0.8);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.05);
 }
 
 :deep(.admin-table th.el-table__cell) {
   background-color: transparent !important;
-  color: #0d9488 !important;
+  color: var(--text-primary) !important;
+  opacity: 0.8;
   font-weight: 700;
   font-size: 12px;
   text-transform: uppercase;
-  border-bottom: 2px solid #f1f5f9;
+  border-bottom: 2px solid var(--border-color);
 }
 
 :deep(.admin-table td.el-table__cell) {
   padding: 16px 0;
-  color: #475569;
+  color: var(--text-primary);
+  background-color: transparent !important;
   font-size: 14px;
-  border-bottom: 1px solid #f8fafc;
+  border-bottom: 1px solid var(--border-color);
   white-space: pre-line;
+}
+
+:deep(.el-table), :deep(.el-table__inner-wrapper), :deep(.el-table tr) {
+  background-color: transparent !important;
 }
 
 .status-cell {
@@ -198,12 +215,13 @@ onMounted(() => {
 /* Custom Radio Group matching image */
 :deep(.custom-radio-group .el-radio-button__inner) {
   border: none !important;
-  background-color: #ffffff;
-  box-shadow: 2px 2px 5px rgba(0,0,0,0.05), -2px -2px 5px rgba(255,255,255,0.8);
-  color: #64748b;
+  background-color: var(--bg-hover);
+  box-shadow: none;
+  color: var(--text-primary);
   border-radius: 6px !important;
   margin-left: 8px;
   font-weight: 500;
+  border: 1px solid var(--border-color) !important;
 }
 
 :deep(.custom-radio-group .el-radio-button:first-child .el-radio-button__inner) {
@@ -211,9 +229,10 @@ onMounted(() => {
 }
 
 :deep(.custom-radio-group .el-radio-button__original-radio:checked + .el-radio-button__inner) {
-  background-color: #f8fafc;
+  background-color: rgba(13, 148, 136, 0.2);
   color: #0d9488;
-  box-shadow: inset 2px 2px 5px rgba(0,0,0,0.05), inset -2px -2px 5px rgba(255,255,255,0.8);
+  box-shadow: none;
+  border: 1px solid #0d9488 !important;
 }
 
 .pagination-container {

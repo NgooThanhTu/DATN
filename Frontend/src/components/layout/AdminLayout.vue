@@ -17,14 +17,14 @@ import AdminSidebar from './AdminSidebar.vue'
 .admin-layout {
   display: flex;
   min-height: 100vh;
-  background-color: var(--bg-layout);
+  background-color: transparent;
   color: var(--text-primary);
   font-family: 'Inter', system-ui, sans-serif;
 }
 
 .admin-content {
   flex: 1;
-  background-color: #e8eaed; /* Match the Light Neumorphism background from Figma */
+  background-color: transparent;
   padding: 32px 48px;
   overflow-y: auto;
   height: 100vh;

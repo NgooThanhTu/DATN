@@ -3,52 +3,52 @@
     <div class="admin-page-header">
       <div class="header-title-section">
         <div class="breadcrumb">
-          <i class="fa-regular fa-building"></i> Organization / Profile
+          <i class="fa-regular fa-user"></i> Admin / Profile
         </div>
-        <h1 class="page-title">Hồ sơ Tổ chức (Organization Profile)</h1>
+        <h1 class="page-title">Hồ sơ cá nhân (Admin Profile)</h1>
       </div>
     </div>
 
-    <div class="admin-form-card">
+    <div class="admin-form-card" v-loading="isLoading">
       <div class="form-group">
-        <label>Organization Name</label>
-        <el-input v-model="form.name" class="neumorphic-input" />
-      </div>
-
-      <div class="form-group">
-        <label>Organization ID</label>
-        <el-input v-model="form.id" class="neumorphic-input" disabled />
-        <div class="helper-text">This is your unique organization identifier and cannot be changed.</div>
+        <label>Họ tên (Full Name)</label>
+        <el-input v-model="form.fullName" class="neumorphic-input" />
       </div>
 
       <div class="form-group">
-        <label>Primary Contact Email</label>
-        <el-input v-model="form.email" class="neumorphic-input" />
+        <label>Tên công khai (Public Name)</label>
+        <el-input v-model="form.publicName" class="neumorphic-input" />
       </div>
 
       <div class="form-group">
-        <label>Website</label>
-        <el-input v-model="form.website" class="neumorphic-input" />
+        <label>Chức danh (Job Title)</label>
+        <el-input v-model="form.jobTitle" class="neumorphic-input" />
       </div>
 
       <div class="form-group">
-        <label>Company Size</label>
-        <el-input v-model="form.companySize" class="neumorphic-input" />
+        <label>Phòng ban (Department)</label>
+        <el-input v-model="form.departmentName" class="neumorphic-input" />
       </div>
 
-      <div class="warning-alert">
-        <div class="alert-header">
-          <i class="fa-solid fa-triangle-exclamation"></i>
-          <span>Transferring Applications</span>
-        </div>
-        <div class="alert-body">
-          Changing the organization owner will transfer all applications and settings to the new owner. This action requires verification from both parties.
-        </div>
+      <div class="form-group">
+        <label>Tổ chức (Organization)</label>
+        <el-input v-model="form.organizationName" class="neumorphic-input" />
       </div>
 
-      <div class="form-actions">
-        <el-button type="primary" class="save-btn">
-          <i class="fa-regular fa-floppy-disk mr-2"></i> Save Changes
+      <div class="form-group">
+        <label>Cộng tác với bạn (Collaboration Rules)</label>
+        <el-input v-model="form.collaborationRules" type="textarea" :rows="3" class="neumorphic-input" placeholder="Giúp người khác nắm được thời điểm và cách thức cộng tác với bạn" />
+      </div>
+
+      <div class="form-group">
+        <label>Địa chỉ email</label>
+        <el-input v-model="form.email" class="neumorphic-input" disabled />
+        <div class="helper-text">Email không thể thay đổi trực tiếp tại đây. Nó chỉ được xem bởi bạn và quản trị viên.</div>
+      </div>
+
+      <div class="form-actions" style="margin-top: 32px">
+        <el-button type="primary" class="save-btn" :loading="isSaving" @click="saveProfile">
+          <i class="fa-regular fa-floppy-disk mr-2"></i> Lưu thay đổi
         </el-button>
       </div>
     </div>
@@ -56,16 +56,69 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import AdminLayout from '@/components/layout/AdminLayout.vue'
+import axiosClient from '@/api/axiosClient'
+import { ElMessage } from 'element-plus'
+
+const isLoading = ref(false)
+const isSaving = ref(false)
 
 const form = ref({
-  name: 'Nexus Corporation',
-  id: 'org_8f3kd92jd0s',
-  email: 'admin@nexuscorp.com',
-  website: 'https://nexuscorp.com',
-  companySize: '51-200 employees'
+  fullName: '',
+  publicName: '',
+  jobTitle: '',
+  departmentName: '',
+  organizationName: '',
+  email: '',
+  collaborationRules: ''
 })
+
+onMounted(async () => {
+  await fetchProfile()
+})
+
+const fetchProfile = async () => {
+  try {
+    isLoading.value = true
+    const response = await axiosClient.get('/users/me')
+    const data = response.data.data || response.data
+    form.value = {
+      fullName: data.fullName || '',
+      publicName: data.publicName || '',
+      jobTitle: data.jobTitle || '',
+      departmentName: data.departmentName || '',
+      organizationName: data.organizationName || '',
+      email: data.email || '',
+      collaborationRules: data.collaborationRules || ''
+    }
+  } catch (err) {
+    console.error('Lỗi khi tải profile', err)
+    ElMessage.error('Không thể tải thông tin cá nhân.')
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const saveProfile = async () => {
+  try {
+    isSaving.value = true
+    await axiosClient.put('/users/profile', {
+      fullName: form.value.fullName,
+      publicName: form.value.publicName,
+      jobTitle: form.value.jobTitle,
+      departmentName: form.value.departmentName,
+      organizationName: form.value.organizationName,
+      collaborationRules: form.value.collaborationRules
+    })
+    ElMessage.success('Đã lưu thông tin hồ sơ.')
+  } catch (err) {
+    console.error('Lỗi khi lưu profile', err)
+    ElMessage.error('Lưu thông tin thất bại.')
+  } finally {
+    isSaving.value = false
+  }
+}
 </script>
 
 <style scoped>
@@ -85,15 +138,18 @@ const form = ref({
 .page-title {
   font-size: 24px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-primary);
   margin: 0;
 }
 
 .admin-form-card {
-  background: #ffffff;
+  background: var(--bg-card);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 32px;
-  box-shadow: 8px 8px 16px rgba(0,0,0,0.05), -8px -8px 16px rgba(255,255,255,0.8);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.05);
   max-width: 800px;
 }
 
@@ -105,56 +161,43 @@ const form = ref({
   display: block;
   font-size: 14px;
   font-weight: 500;
-  color: #1e293b;
+  color: var(--text-primary);
   margin-bottom: 8px;
 }
 
 .helper-text {
   font-size: 12px;
-  color: #0d9488; /* Cyan-teal color like image */
+  color: #0d9488;
   margin-top: 8px;
 }
 
-:deep(.neumorphic-input .el-input__wrapper) {
-  background-color: #ffffff;
-  box-shadow: inset 2px 2px 5px rgba(0,0,0,0.05), inset -2px -2px 5px rgba(255,255,255,0.8) !important;
+:deep(.neumorphic-input .el-input__wrapper),
+:deep(.neumorphic-input .el-textarea__inner) {
+  background-color: var(--bg-hover) !important;
+  box-shadow: none !important;
   border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+:deep(.neumorphic-input .el-input__wrapper) {
   padding: 8px 16px;
 }
 
+:deep(.neumorphic-input .el-textarea__inner) {
+  padding: 12px 16px;
+  font-family: inherit;
+  color: var(--text-primary) !important;
+}
+
 :deep(.neumorphic-input.is-disabled .el-input__wrapper) {
-  background-color: #f8fafc;
+  background-color: var(--bg-layout) !important;
+  opacity: 0.7;
 }
 
 :deep(.neumorphic-input .el-input__inner) {
-  color: #475569;
+  color: var(--text-primary) !important;
   height: 24px;
   line-height: 24px;
-}
-
-.warning-alert {
-  background-color: #fffbeb;
-  border: 1px solid #fde68a;
-  border-radius: 8px;
-  padding: 16px;
-  margin-top: 32px;
-  margin-bottom: 32px;
-}
-
-.alert-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #b45309;
-  font-weight: 600;
-  font-size: 14px;
-  margin-bottom: 4px;
-}
-
-.alert-body {
-  color: #b45309;
-  font-size: 13px;
-  line-height: 1.5;
 }
 
 .form-actions {
@@ -169,7 +212,7 @@ const form = ref({
   font-weight: 500;
   padding: 20px 24px;
   font-size: 15px;
-  box-shadow: 4px 4px 10px rgba(13, 148, 136, 0.3), -2px -2px 6px rgba(255,255,255,0.7);
+  color: white;
 }
 
 .save-btn:hover {

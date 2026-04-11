@@ -5,88 +5,89 @@
       <div class="breadcrumb">
         <i class="fa-solid fa-gear"></i> System / Configuration
       </div>
-      <h1 class="page-title">Cấu hình Hệ thống (General Configuration)</h1>
-      <p class="page-subtitle">Thiết lập các thông số cơ bản cho hệ thống và quy tắc bảo mật.</p>
+      <h1 class="page-title">Cấu hình Hệ thống (System Configuration)</h1>
+      <p class="page-subtitle">Quản lý giao diện toàn cục và theo dõi hiệu suất hệ thống.</p>
     </div>
 
     <div class="form-container" v-loading="isLoading">
-      <!-- System Settings -->
+      
+      <!-- Customization Section -->
       <div class="settings-card">
-        <h2 class="card-title">Hệ thống & Hiển thị</h2>
-        
-        <div class="setting-row input-row">
-          <div class="setting-info">
-            <span class="setting-label">Tên Hệ Thống (System Name)</span>
-            <span class="setting-desc">Tên hiển thị trên tiêu đề của trình duyệt.</span>
-          </div>
-          <el-input v-model="settings.systemName" placeholder="Quantum Nexus" style="width: 300px" />
-        </div>
+        <h2 class="card-title">Thiết kế Màu sắc Phân tầng (Global Theme Palette)</h2>
+        <p class="section-desc">Thiết lập này sẽ quyết định ngôn ngữ màu sắc và hệ thống kính mờ Layering (Glass) cho toàn bộ trang Web.</p>
 
-        <div class="divider"></div>
+        <el-tabs v-model="activeTab" class="theme-tabs mt-24">
+          <!-- TAB 1: PRESETS -->
+          <el-tab-pane label="Mẫu màu có sẵn / Đã lưu" name="presets">
+            <div style="margin-top: 16px; margin-bottom: 24px;">
+              <h3 style="font-size: 15px; margin-bottom: 12px; color: var(--text-primary)">Khám phá và Chọn Hệ màu trong danh sách (Combobox)</h3>
+              <div style="display: flex; gap: 12px; max-width: 400px">
+                 <el-select v-model="selectedPreset" filterable placeholder="Tìm kiếm và chọn tên hệ màu..." style="flex: 1" class="glass-input" @change="applyTemplatePreset">
+                    <el-option v-for="p in templates" :key="p.name" :label="p.name" :value="p.name"></el-option>
+                 </el-select>
+              </div>
+            </div>
 
-        <div class="setting-row input-row">
-          <div class="setting-info">
-            <span class="setting-label">Múi giờ mặc định (Timezone)</span>
-            <span class="setting-desc">Múi giờ chuẩn dùng để tính toán thời gian cho dự án.</span>
-          </div>
-          <el-select v-model="settings.timezone" style="width: 300px">
-            <el-option label="Asia/Ho_Chi_Minh (GMT+7)" value="Asia/Ho_Chi_Minh"></el-option>
-            <el-option label="UTC" value="UTC"></el-option>
-            <el-option label="America/New_York (EST)" value="America/New_York"></el-option>
-          </el-select>
-        </div>
+            <div class="action-footer">
+              <el-button @click="resetToDefault">Khôi phục mặc định</el-button>
+            </div>
+          </el-tab-pane>
 
-        <div class="divider"></div>
+          <!-- TAB 2: CUSTOM COLOR -->
+          <el-tab-pane label="Màu tự thiết kế" name="custom">
+            <div style="margin-top: 16px; margin-bottom: 12px;">
+               <h3 style="font-size: 14px; margin-bottom: 8px; color: var(--text-primary)">Tự do phối màu theo sở thích:</h3>
+               <p style="font-size: 13px; color: var(--text-secondary); margin: 0">Bạn có thể tự chọn từng vùng màu. Sau đó có thể áp dụng hoặc lưu vào danh sách yêu thích.</p>
+            </div>
+            
+            <div class="color-grid mt-24">
+              <div class="color-setting" v-for="(color, key) in themeColors" :key="key">
+                <span class="color-label">{{ color.label }}</span>
+                <div v-if="key === 'bgImage'" class="input-wrapper">
+                   <el-select v-model="color.value" @change="onCustomColorChange(key, color.value)" placeholder="Chọn kiểu nền" style="width: 100%" class="glass-input">
+                      <el-option label="Không dùng nền" value="none"></el-option>
+                      <el-option label="Màn đêm Huyền bí (Tím)" value="linear-gradient(135deg, #1e0030 0%, #3a005c 100%)"></el-option>
+                      <el-option label="Đại dương Sâu thẳm (Xanh)" value="linear-gradient(135deg, #0b1c31 0%, #0d324d 100%)"></el-option>
+                      <el-option label="Hoàng hôn Rực rỡ (Cam-Đỏ)" value="linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)"></el-option>
+                   </el-select>
+                </div>
+                <div v-else class="color-picker-wrapper">
+                  <el-color-picker v-model="color.value" :predefine="predefineColors" show-alpha @change="onCustomColorChange(key, color.value)" />
+                </div>
+              </div>
+            </div>
 
-        <div class="setting-row input-row">
-          <div class="setting-info">
-            <span class="setting-label">Định dạng ngày (Date Format)</span>
-          </div>
-          <el-select v-model="settings.dateFormat" style="width: 300px">
-            <el-option label="DD/MM/YYYY" value="DD/MM/YYYY"></el-option>
-            <el-option label="MM/DD/YYYY" value="MM/DD/YYYY"></el-option>
-            <el-option label="YYYY-MM-DD" value="YYYY-MM-DD"></el-option>
-          </el-select>
-        </div>
+            <div class="action-footer">
+              <el-button @click="resetToDefault">Khôi phục màu Mặc định</el-button>
+              <el-button plain type="success" :loading="isSaving" @click="saveAndAddFavorite">Lưu vào DS Yêu thích</el-button>
+            </div>
+          </el-tab-pane>
+        </el-tabs>
+
       </div>
 
-      <!-- Security Settings -->
+      <!-- Performance Metrics Section -->
       <div class="settings-card mt-24">
-        <h2 class="card-title">Bảo mật (Security)</h2>
-
-        <div class="setting-row input-row">
-          <div class="setting-info">
-            <span class="setting-label">Thời gian hết hạn phiên (Session Timeout)</span>
-            <span class="setting-desc">Số phút trước khi tự động đăng xuất nếu không có tương tác.</span>
-          </div>
-          <el-input-number v-model="settings.sessionTimeoutMin" :min="15" :max="1440" style="width: 150px" />
+        <div class="card-header-icon" style="display: flex; align-items: center; gap: 12px; margin-bottom: 24px;">
+           <div class="icon-box" style="width: 40px; height: 40px; background: rgba(59, 130, 246, 0.1); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #3b82f6;">
+             <i class="fa-solid fa-chart-line" style="font-size: 18px;"></i>
+           </div>
+           <h2 class="card-title" style="margin: 0; font-size: 20px;">Performance Metrics</h2>
         </div>
 
-        <div class="divider"></div>
-
-        <div class="setting-row">
-          <div class="setting-info">
-            <span class="setting-label">Chính sách Mật khẩu (Password Policy)</span>
-            <span class="setting-desc">Bắt buộc mật khẩu bao gồm chữ hoa, số và ký tự đặc biệt.</span>
-          </div>
-          <el-switch v-model="settings.strictPassword" />
-        </div>
-
-        <div class="divider"></div>
-
-        <div class="setting-row">
-          <div class="setting-info">
-            <span class="setting-label">Bắt buộc xác thực 2 lớp (Force 2FA)</span>
-            <span class="setting-desc">Bắt buộc mọi người dùng kích hoạt 2FA.</span>
-          </div>
-          <el-switch v-model="settings.force2FA" active-color="#f87171" inactive-color="#4b5563" />
+        <div class="metric-container" style="background: var(--bg-hover); border: 1px solid var(--border-color); border-radius: 12px; padding: 24px;">
+           <div style="display: flex; justify-content: space-between; margin-bottom: 30px;">
+             <span style="font-size: 14px; font-weight: 500; color: var(--text-primary);">API Response Time</span>
+             <span style="font-size: 18px; font-weight: 600; color: #0d9488;">127ms</span>
+           </div>
+           
+           <!-- Simulated Bar Chart -->
+           <div class="chart-bars" style="display: flex; align-items: flex-end; gap: 8px; height: 60px;">
+              <div v-for="(h, idx) in chartHeights" :key="idx" class="bar" :style="{ height: h + '%', width: '100%', background: 'linear-gradient(180deg, #14b8a6 0%, #0d9488 100%)', borderRadius: '4px 4px 0 0', opacity: 0.9, transition: 'height 0.5s ease' }"></div>
+           </div>
         </div>
       </div>
 
-      <div class="action-footer">
-        <el-button @click="fetchSettings">Hủy</el-button>
-        <el-button type="primary" :loading="isSaving" @click="saveSettings">Lưu cài đặt</el-button>
-      </div>
     </div>
   </div>
   </AdminLayout>
@@ -94,64 +95,187 @@
 
 <script setup>
 import AdminLayout from '@/components/layout/AdminLayout.vue'
-import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ref, onMounted, onUnmounted } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import axiosClient from '@/api/axiosClient'
 
+const activeTab = ref('presets')
 const isLoading = ref(false)
 const isSaving = ref(false)
+const selectedPreset = ref('')
 
-const settings = ref({
-  systemName: 'Quantum Nexus',
-  timezone: 'Asia/Ho_Chi_Minh',
-  dateFormat: 'DD/MM/YYYY',
-  sessionTimeoutMin: 60,
-  strictPassword: true,
-  force2FA: false
+const predefineColors = [
+  '#0f172a',
+  '#1e293b',
+  'rgba(255,255,255,0.05)',
+  'rgba(255,255,255,0.1)',
+  'rgba(255,255,255,0.85)',
+  'rgba(29,33,37,0.85)'
+]
+
+// Theme configuration matching root variables
+const themeColors = ref({
+  bgImage: { label: 'Ảnh nền toàn trang / Gradient', variable: '--bg-image', value: 'linear-gradient(135deg, #1e0030 0%, #3a005c 100%)', default: 'none' },
+  bgLayout: { label: 'Màu nền chân trang (Background)', variable: '--bg-layout', value: '#1e0030', default: '#f4f5f7' },
+  bgCard: { label: 'Màu các khung khối chứa nội dung', variable: '--bg-card', value: 'rgba(255, 255, 255, 0.05)', default: 'rgba(255, 255, 255, 0.85)' },
+  bgHover: { label: 'Màu nền khi rê chuột (Hover) / Nhấn', variable: '--bg-hover', value: 'rgba(255, 255, 255, 0.1)', default: 'rgba(235, 236, 240, 0.8)' },
+  borderColor: { label: 'Màu của đường viền phân tách', variable: '--border-color', value: 'rgba(255, 255, 255, 0.1)', default: 'rgba(223, 225, 230, 0.5)' },
+  textPrimary: { label: 'Màu chữ chính', variable: '--text-primary', value: '#ffffff', default: '#172b4d' }
 })
 
-onMounted(async () => {
-  await fetchSettings()
-})
+const defaultTemplates = [
+  { name: 'Zing Purple (Gốc)', bgImage: 'linear-gradient(135deg, #1e0030 0%, #3a005c 100%)', bgLayout: '#1e0030', bgCard: 'rgba(255, 255, 255, 0.05)', bgHover: 'rgba(255, 255, 255, 0.1)', borderColor: 'rgba(255, 255, 255, 0.1)', textPrimary: '#ffffff' },
+  { name: 'Deep Ocean (Xanh biển)', bgImage: 'linear-gradient(135deg, #0b1c31 0%, #0d324d 100%)', bgLayout: '#0b1c31', bgCard: 'rgba(255, 255, 255, 0.05)', bgHover: 'rgba(255, 255, 255, 0.1)', borderColor: 'rgba(255, 255, 255, 0.1)', textPrimary: '#ffffff' },
+  { name: 'Light Glass (Sáng)', bgImage: 'none', bgLayout: '#f4f5f7', bgCard: 'rgba(255, 255, 255, 0.85)', bgHover: 'rgba(235, 236, 240, 0.8)', borderColor: 'rgba(223, 225, 230, 0.5)', textPrimary: '#172b4d' },
+  { name: 'Dark Glass (Tối)', bgImage: 'none', bgLayout: '#020617', bgCard: 'rgba(34, 39, 43, 0.75)', bgHover: 'rgba(44, 51, 58, 0.8)', borderColor: 'rgba(51, 65, 85, 0.5)', textPrimary: '#f4f5f7' }
+];
 
-const fetchSettings = async () => {
-  isLoading.value = true
+const templates = ref([...defaultTemplates])
+
+// Simulated data for chart
+const chartHeights = ref([30, 45, 35, 48, 40, 50, 45, 55, 50, 60, 58, 65])
+
+const applyTemplatePreset = async (name) => {
+  const t = templates.value.find(x => x.name === name);
+  if (t) {
+    for (const key in themeColors.value) {
+      if (t[key] !== undefined) {
+        themeColors.value[key].value = t[key];
+        previewColor(key, t[key]);
+      }
+    }
+    await saveThemeToBackend(true);
+  }
+}
+
+const saveThemeToBackend = async (showMsg = true) => {
   try {
-    const res = await axiosClient.get('/settings/GeneralConfig')
-    const data = res.data.data || {}
+    const payload = { Settings: {} }
+    for (const key in themeColors.value) {
+      payload.Settings[key] = themeColors.value[key].value
+    }
     
-    if (data.systemName) settings.value.systemName = data.systemName
-    if (data.timezone) settings.value.timezone = data.timezone
-    if (data.dateFormat) settings.value.dateFormat = data.dateFormat
-    if (data.sessionTimeoutMin) settings.value.sessionTimeoutMin = parseInt(data.sessionTimeoutMin) || 60
-    if (data.strictPassword) settings.value.strictPassword = data.strictPassword === 'true'
-    if (data.force2FA) settings.value.force2FA = data.force2FA === 'true'
+    const customPresets = templates.value.filter(t => !defaultTemplates.find(d => d.name === t.name))
+    payload.Settings['SavedPresets'] = JSON.stringify(customPresets)
+    
+    await axiosClient.put('/settings/ThemeSettings', payload)
+    if (showMsg) {
+       ElMessage.success('Hệ màu đã được tự động lưu và áp dụng toàn cục!')
+    }
   } catch (err) {
     console.error(err)
-    ElMessage.error('Không thể tải cấu hình Hệ thống.')
+    if (showMsg) ElMessage.error('Có lỗi xảy ra khi tự động lưu hệ màu.')
+  }
+}
+
+// Global click-out trigger for auto-saving color picker
+const handleColorClickOut = (e) => {
+  const popup = document.querySelector('.el-color-dropdown');
+  if (popup && !popup.contains(e.target)) {
+    // Ensuring it wasn't a click on a color picker trigger
+    if (!e.target.closest('.el-color-picker')) {
+      const okBtn = popup.querySelector('.el-color-dropdown__btn');
+      if (okBtn) okBtn.click();
+    }
+  }
+}
+
+onMounted(async () => {
+  await fetchTheme()
+  document.addEventListener('mousedown', handleColorClickOut, true)
+  setInterval(() => {
+    chartHeights.value = chartHeights.value.map(h => {
+       const change = Math.floor(Math.random() * 20) - 10;
+       return Math.max(20, Math.min(100, h + change));
+    })
+  }, 2000)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('mousedown', handleColorClickOut, true)
+})
+
+const fetchTheme = async () => {
+  isLoading.value = true
+  try {
+    const res = await axiosClient.get('/settings/ThemeSettings')
+    const data = res.data.data || {}
+    
+    // Load saved custom templates
+    if (data.SavedPresets) {
+      const parsed = JSON.parse(data.SavedPresets)
+      templates.value = [...parsed, ...defaultTemplates]
+    }
+
+    for (const key in themeColors.value) {
+      if (data[key]) {
+        themeColors.value[key].value = data[key]
+      }
+    }
+    
+    applyThemeToDocument()
+  } catch (err) {
+    console.error(err)
   } finally {
     isLoading.value = false
   }
 }
 
-const saveSettings = async () => {
-  isSaving.value = true
+const previewColor = (key, val) => {
+  const variable = themeColors.value[key].variable
+  document.documentElement.style.setProperty(variable, val)
+}
+
+const onCustomColorChange = async (key, val) => {
+  previewColor(key, val);
+  // Auto-save on custom color change silently to prevent spamming generic success message
+  await saveThemeToBackend(false);
+}
+
+const applyThemeToDocument = () => {
+  for (const key in themeColors.value) {
+    document.documentElement.style.setProperty(themeColors.value[key].variable, themeColors.value[key].value)
+  }
+}
+
+const resetToDefault = async () => {
+  for (const key in themeColors.value) {
+    themeColors.value[key].value = themeColors.value[key].default
+    previewColor(key, themeColors.value[key].default)
+  }
+  selectedPreset.value = ''
+  await saveThemeToBackend(true);
+}
+
+const saveAndAddFavorite = async () => {
   try {
-    const payload = {
-      Settings: {
-        systemName: settings.value.systemName,
-        timezone: settings.value.timezone,
-        dateFormat: settings.value.dateFormat,
-        sessionTimeoutMin: settings.value.sessionTimeoutMin.toString(),
-        strictPassword: settings.value.strictPassword ? 'true' : 'false',
-        force2FA: settings.value.force2FA ? 'true' : 'false'
-      }
-    }
-    await axiosClient.put('/settings/GeneralConfig', payload)
-    ElMessage.success('Đã lưu cấu hình Hệ thống thành công.')
+     const { value: presetName } = await ElMessageBox.prompt('Lưu và Đặt tên cho Hệ màu của bạn:', 'Lưu Hệ Màu', {
+       confirmButtonText: 'Lưu vào Yêu thích',
+       cancelButtonText: 'Hủy',
+       inputPattern: /.+/,
+       inputErrorMessage: 'Tên không được trống',
+       inputPlaceholder: 'Ví dụ: Hệ màu của tui'
+     })
+     
+     if (presetName) {
+        isSaving.value = true
+        const customObj = { name: presetName }
+        for (const key in themeColors.value) {
+           customObj[key] = themeColors.value[key].value
+        }
+        
+        // Add to combobox list
+        templates.value.unshift(customObj)
+        selectedPreset.value = presetName
+        
+        await saveThemeToBackend(false)
+        ElMessage.success(`Đã tự động lưu Hệ màu và thêm [${presetName}] vào danh sách!`)
+     }
   } catch (err) {
-    console.error(err)
-    ElMessage.error('Có lỗi xảy ra khi lưu cấu hình.')
+    if (err !== 'cancel') {
+       console.error(err)
+       ElMessage.error('Có lỗi xảy ra khi lưu.')
+    }
   } finally {
     isSaving.value = false
   }
@@ -159,8 +283,6 @@ const saveSettings = async () => {
 </script>
 
 <style scoped>
-
-
 .page-header {
   margin-bottom: 24px;
 }
@@ -188,53 +310,67 @@ const saveSettings = async () => {
 
 .settings-card {
   background-color: var(--bg-card);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 24px;
-}
-
-.mt-24 {
-  margin-top: 24px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
 
 .card-title {
   font-size: 18px;
   font-weight: 600;
   color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.section-desc {
+  font-size: 13px;
+  color: #8b949e;
   margin-bottom: 20px;
 }
 
-.setting-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.mt-24 {
+  margin-top: 24px;
 }
 
-.setting-info {
+.color-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.color-setting {
+  background-color: rgba(128, 128, 128, 0.1);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 12px;
 }
 
-.setting-label {
+.color-label {
   font-weight: 600;
   color: var(--text-primary);
   font-size: 14px;
 }
 
-.setting-desc {
-  font-size: 13px;
-  color: #8b949e;
-}
-
-.divider {
-  height: 1px;
-  background-color: var(--border-color);
-  margin: 20px 0;
-}
-
-.input-row {
+.color-picker-wrapper {
+  display: flex;
   align-items: center;
+  gap: 12px;
+}
+
+.color-hex {
+  font-family: monospace;
+  background-color: rgba(128, 128, 128, 0.15);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
 }
 
 .action-footer {

@@ -41,10 +41,15 @@
         <span>Configuration</span>
       </el-menu-item>
 
-      <el-menu-item index="/admin/customization">
-        <i class="fa-solid fa-palette menu-icon"></i>
-        <span>Customization</span>
-      </el-menu-item>
+      <el-sub-menu index="/admin/security">
+        <template #title>
+          <i class="fa-solid fa-shield-halved menu-icon"></i>
+          <span>Security</span>
+        </template>
+        <el-menu-item index="/admin/security/2fa">Xác thực 2 bước</el-menu-item>
+        <el-menu-item index="/admin/security/password">Đổi mật khẩu</el-menu-item>
+        <el-menu-item index="/admin/security/ip-whitelist">IP cho phép</el-menu-item>
+      </el-sub-menu>
     </el-menu>
   </aside>
 </template>
@@ -64,10 +69,12 @@ const activeMenu = computed(() => {
 <style scoped>
 .admin-sidebar {
   width: 250px;
-  background-color: #ffffff;
+  background-color: var(--bg-card);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #eaeaea;
+  border-right: 1px solid var(--border-color);
   z-index: 10;
 }
 
@@ -86,7 +93,7 @@ const activeMenu = computed(() => {
 .sidebar-header h2 {
   font-size: 20px;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--text-primary);
   margin: 0;
   display: flex;
   align-items: baseline;
@@ -97,18 +104,19 @@ const activeMenu = computed(() => {
 }
 
 .back-link a {
-  color: #475569;
+  color: var(--text-secondary);
   text-decoration: none;
   font-size: 14px;
   font-weight: 500;
 }
 
 .back-link a:hover {
-  color: #1e293b;
+  color: var(--text-primary);
 }
 
 .admin-menu {
   border-right: none;
+  background-color: transparent;
 }
 
 .menu-icon {
@@ -116,7 +124,11 @@ const activeMenu = computed(() => {
   text-align: center;
   margin-right: 8px;
   font-size: 16px;
-  color: #64748b;
+  color: var(--text-secondary);
+}
+
+:deep(.el-menu) {
+  background-color: transparent !important;
 }
 
 :deep(.el-menu-item) {
@@ -124,7 +136,8 @@ const activeMenu = computed(() => {
   line-height: 44px;
   margin: 4px 12px;
   border-radius: 6px;
-  color: #475569;
+  color: var(--text-primary) !important;
+  background-color: transparent !important;
 }
 
 :deep(.el-sub-menu__title) {
@@ -132,20 +145,21 @@ const activeMenu = computed(() => {
   line-height: 44px;
   margin: 4px 12px;
   border-radius: 6px;
-  color: #475569;
+  color: var(--text-primary) !important;
+  background-color: transparent !important;
 }
 
 :deep(.el-menu-item.is-active) {
-  background-color: #f0fdfa; /* Teal 50 */
-  color: #0d9488; /* Teal 600 */
-  font-weight: 500;
+  background-color: color-mix(in srgb, var(--bg-layout) 15%, var(--text-primary) 85%) !important;
+  color: var(--bg-layout) !important;
+  font-weight: 700;
 }
 
 :deep(.el-menu-item.is-active .menu-icon) {
-  color: #0d9488;
+  color: var(--bg-layout) !important;
 }
 
 :deep(.el-menu-item:hover), :deep(.el-sub-menu__title:hover) {
-  background-color: #f8fafc;
+  background-color: var(--bg-hover) !important;
 }
 </style>

@@ -1,0 +1,259 @@
+<template>
+  <AdminLayout>
+    <div class="admin-page-container">
+      <div class="page-header">
+        <div class="breadcrumb">
+          <i class="fa-solid fa-shield-halved"></i> Security / IP Whitelist
+        </div>
+        <h1 class="page-title">Danh sách IP cho phép</h1>
+        <p class="page-subtitle">Kiểm soát bảo mật nâng cao: Giới hạn truy cập hệ thống chỉ từ các mạng được tin tưởng.</p>
+      </div>
+
+      <div class="settings-card mb-24">
+         <div class="header-flex">
+            <div>
+              <h3 class="card-title">Quản lý IP Danh Sách Trắng (Whitelisted IPs)</h3>
+              <p class="section-desc">Khi tính năng này bật, bất kỳ đăng nhập nào từ IP không có trong danh sách sẽ bị từ chối.</p>
+            </div>
+            <div class="switch-wrapper">
+               <span class="switch-label">Kích hoạt bảo vệ bằng IP:</span>
+               <el-switch v-model="isEnabled" active-color="#10b981" inactive-color="#475569" />
+            </div>
+         </div>
+
+         <div class="divider"></div>
+
+         <div class="ip-action-bar mb-24">
+            <div class="current-ip-info">
+               IP hiện tại của bạn: <strong class="text-highlight">113.160.100.22</strong>
+            </div>
+            <div class="action-buttons">
+               <el-button @click="addCurrentIp" type="default" plain>
+                 <i class="fa-solid fa-laptop-house mr-2"></i> Thêm IP Hiện Tại
+               </el-button>
+               <el-button type="primary">
+                 <i class="fa-solid fa-plus mr-2"></i> Thêm IP Mới
+               </el-button>
+            </div>
+         </div>
+
+         <el-table :data="whitelistedIps" class="glass-table" :class="{ 'disabled-table': !isEnabled }" style="width: 100%">
+            <el-table-column prop="ip" label="Địa chỉ IP" width="200" />
+            <el-table-column prop="note" label="Ghi chú" />
+            <el-table-column prop="addedBy" label="Người thêm" width="200" />
+            <el-table-column prop="date" label="Ngày lưu" width="180" />
+            <el-table-column label="Thao tác" width="120" align="right">
+              <template #default="scope">
+                <el-button type="danger" link @click="removeIp(scope.$index)">Xóa</el-button>
+              </template>
+            </el-table-column>
+         </el-table>
+      </div>
+
+      <div class="settings-card">
+         <h3 class="card-title">Nhật ký truy cập (Recent Access Log)</h3>
+         <p class="section-desc">Lịch sử đăng nhập 30 ngày gần nhất để phát hiện thiết bị và địa điểm bất thường.</p>
+         
+         <el-table :data="accessLogs" class="glass-table" style="width: 100%">
+            <el-table-column prop="time" label="Thời gian" width="180" />
+            <el-table-column prop="ip" label="Địa chỉ IP" width="180">
+              <template #default="{ row }">
+                 <span class="ip-font">{{ row.ip }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="location" label="Khu vực (Ước tính)" />
+            <el-table-column prop="device" label="Truy cập từ" />
+            <el-table-column label="Trạng thái" width="150" align="center">
+              <template #default="{ row }">
+                 <el-tag :type="row.risk === 'An Toàn' ? 'success' : (row.risk === 'IP Mới' ? 'warning' : 'danger')" effect="dark" size="small">
+                   {{ row.risk }}
+                 </el-tag>
+              </template>
+            </el-table-column>
+         </el-table>
+      </div>
+    </div>
+  </AdminLayout>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+import AdminLayout from '@/components/layout/AdminLayout.vue'
+import { ElMessage } from 'element-plus'
+
+const isEnabled = ref(false)
+
+const whitelistedIps = ref([
+  { ip: '113.160.100.22', note: 'Văn phòng chính (Hà Nội)', addedBy: 'Quản trị viên', date: '10/04/2026' },
+  { ip: '14.161.40.112', note: 'Nhà riêng (Giám đốc)', addedBy: 'Quản trị viên', date: '05/04/2026' }
+])
+
+const accessLogs = ref([
+  { time: '11/04/2026 08:30:12', ip: '113.160.100.22', location: 'Hanoi, VN', device: 'Chrome / Windows', risk: 'An Toàn' },
+  { time: '10/04/2026 19:45:00', ip: '14.161.40.112', location: 'Hanoi, VN', device: 'Safari / MacOS', risk: 'An Toàn' },
+  { time: '09/04/2026 02:11:05', ip: '43.224.23.11', location: 'Singapore, SG', device: 'Firefox / Linux', risk: 'IP Mới' },
+])
+
+const addCurrentIp = () => {
+  if (!isEnabled.value) {
+    ElMessage.warning('Vui lòng kích hoạt tính năng IP Whitelisting trước.');
+    return;
+  }
+  const exists = whitelistedIps.value.find(x => x.ip === '113.160.100.22');
+  if(!exists){
+    whitelistedIps.value.push({
+      ip: '113.160.100.22',
+      note: 'Thêm tự động (Thiết bị hiện tại)',
+      addedBy: 'Bạn',
+      date: '11/04/2026'
+    })
+    ElMessage.success('Đã thêm IP hiện tại vào danh sách an toàn.');
+  } else {
+    ElMessage.info('IP hiện tại đã có trong danh sách.');
+  }
+}
+
+const removeIp = (idx) => {
+  whitelistedIps.value.splice(idx, 1);
+  ElMessage.success('Đã xóa IP khỏi danh sách.');
+}
+</script>
+
+<style scoped>
+.page-header {
+  margin-bottom: 24px;
+}
+
+.breadcrumb {
+  font-size: 13px;
+  color: #8b949e;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.page-subtitle {
+  font-size: 14px;
+  color: #8b949e;
+}
+
+.settings-card {
+  background-color: var(--bg-card);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 32px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
+}
+
+.mb-24 { margin-bottom: 24px; }
+.mr-2 { margin-right: 8px; }
+
+.header-flex {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.card-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.section-desc {
+  font-size: 13px;
+  color: #8b949e;
+}
+
+.switch-wrapper {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  background: var(--bg-secondary);
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.switch-label {
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.divider {
+  height: 1px;
+  background-color: var(--border-color);
+  margin: 24px 0;
+}
+
+.ip-action-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.current-ip-info {
+  font-size: 14px;
+  color: var(--text-primary);
+  background: rgba(13, 148, 136, 0.1);
+  border-left: 3px solid #0d9488;
+  padding: 8px 16px;
+  border-radius: 4px;
+}
+
+.text-highlight {
+  color: #0d9488;
+  font-family: monospace;
+  font-size: 15px;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 12px;
+}
+
+:deep(.glass-table) {
+  background-color: transparent !important;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+}
+
+:deep(.glass-table th.el-table__cell) {
+  background-color: rgba(0,0,0,0.02) !important;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+:deep(.glass-table td.el-table__cell) {
+  border-bottom: 1px solid var(--border-color);
+  background-color: transparent !important;
+}
+
+:deep(.glass-table .el-table__row:hover > td) {
+  background-color: var(--hover-bg) !important;
+}
+
+.disabled-table {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.ip-font {
+  font-family: monospace;
+  font-weight: 500;
+  font-size: 14px;
+}
+</style>

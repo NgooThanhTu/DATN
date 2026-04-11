@@ -96,9 +96,9 @@ const handleSubmit = async () => {
       departmentId: null
     }
     
-    await axiosClient.post('/projects', payload)
+    const response = await axiosClient.post('/projects', payload)
     ElMessage.success(`Tạo không gian "${form.value.name}" thành công!`)
-    emit('created')
+    emit('created', response.data.data || response.data)
     handleClose()
   } catch (error) {
     console.error('Create space error:', error)
