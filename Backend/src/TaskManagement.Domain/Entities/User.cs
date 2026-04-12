@@ -44,9 +44,11 @@ namespace TaskManagement.Domain.Entities
         public ICollection<AITrainingDataset> AITrainingDatasets { get; set; } = new List<AITrainingDataset>();
         public ICollection<TimeLog> TimeLogs { get; set; } = new List<TimeLog>();
         public ICollection<SystemAuditLog> SystemAuditLogs { get; set; } = new List<SystemAuditLog>();
-
         // === Workspace-level navigation ===
         public ICollection<WorkspaceMember> WorkspaceMemberships { get; set; } = new List<WorkspaceMember>();
         public ICollection<Workspace> OwnedWorkspaces { get; set; } = new List<Workspace>();
+        
+        // Concurrent Sessions
+        public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
     }
 }

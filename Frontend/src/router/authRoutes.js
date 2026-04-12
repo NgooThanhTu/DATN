@@ -13,5 +13,10 @@ export default [
     path: '/auth/github/callback',
     name: 'GitHubCallback',
     component: () => import('../views/GitHubCallback.vue')
+  },
+  {
+    path: '/accept-invite',
+    name: 'AcceptInvite',
+    component: () => import('../views/AcceptInvite.vue')
   }
 ]

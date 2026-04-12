@@ -470,9 +470,9 @@ namespace TaskManagement.Infrastructure.Services
                 TaskStatusId = wt.TaskStatusId,
                 StatusName = NormalizeStatusName(wt.TaskStatus?.Name),
                 ReporterId = wt.ReporterId,
-                ReporterName = wt.Reporter?.FullName ?? "",
+                ReporterName = wt.Reporter != null ? wt.Reporter.FullName : "",
                 AssignedUserId = wt.AssignedUserId,
-                AssigneeName = wt.AssignedUser?.FullName,
+                AssigneeName = wt.AssignedUser != null ? wt.AssignedUser.FullName : null,
                 Priority = wt.Priority,
                 StoryPoints = wt.StoryPoints,
                 DueDate = wt.DueDate,
@@ -484,6 +484,75 @@ namespace TaskManagement.Infrastructure.Services
                 SortOrder = wt.SortOrder,
                 SequenceId = wt.SequenceId
             };
+        }
+
+        public async Task<List<WorkTaskResponseDto>> SearchTasksAsync(Guid userId, string? query, string? status, Guid? assigneeId, int? priority)
+        {
+            // TÌM CÁC PROJECT MÀ USER CÓ QUYỀN
+            var userProjectIds = await _context.ProjectMembers
+                .Where(pm => pm.UserId == userId)
+                .Select(pm => pm.ProjectId)
+                .ToListAsync();
+
+            var dbQuery = _context.WorkTasks
+                .Include(wt => wt.TaskStatus)
+                .Include(wt => wt.TaskType)
+                .Include(wt => wt.Reporter)
+                .Include(wt => wt.AssignedUser)
+                .Where(wt => userProjectIds.Contains(wt.ProjectId) && !wt.IsDeleted);
+
+            // Filtering
+            if (!string.IsNullOrEmpty(query))
+            {
+                string lowerQuery = query.ToLower();
+                dbQuery = dbQuery.Where(wt => 
+                    wt.Title.ToLower().Contains(lowerQuery) || 
+                    (wt.Description != null && wt.Description.ToLower().Contains(lowerQuery)));
+            }
+
+            if (!string.IsNullOrEmpty(status))
+            {
+                string lowerStatus = status.ToLower();
+                dbQuery = dbQuery.Where(wt => wt.TaskStatus.Name.ToLower() == lowerStatus);
+            }
+
+            if (assigneeId.HasValue)
+            {
+                dbQuery = dbQuery.Where(wt => wt.AssignedUserId == assigneeId.Value);
+            }
+
+            if (priority.HasValue)
+            {
+                dbQuery = dbQuery.Where(wt => wt.Priority == priority.Value);
+            }
+
+            var results = await dbQuery
+                .OrderByDescending(wt => wt.CreatedAt)
+                .Select(wt => new WorkTaskResponseDto
+                {
+                    Id = wt.Id,
+                    Title = wt.Title,
+                    Description = wt.Description,
+                    ProjectId = wt.ProjectId,
+                    SprintId = wt.SprintId,
+                    TaskTypeId = wt.TaskTypeId,
+                    TypeName = wt.TaskType.Name,
+                    TaskStatusId = wt.TaskStatusId,
+                    StatusName = wt.TaskStatus.Name,
+                    ReporterId = wt.ReporterId,
+                    ReporterName = wt.Reporter.FullName,
+                    AssignedUserId = wt.AssignedUserId,
+                    AssigneeName = wt.AssignedUser.FullName,
+                    Priority = wt.Priority,
+                    StoryPoints = wt.StoryPoints,
+                    DueDate = wt.DueDate,
+                    CreatedAt = wt.CreatedAt
+                })
+                .ToListAsync();
+
+            foreach (var r in results) r.StatusName = NormalizeStatusName(r.StatusName);
+
+            return results;
         }
 
         private async Task<TaskManagement.Domain.Entities.TaskStatus> ResolveTaskStatusAsync(string? statusName, Guid projectId)
@@ -547,10 +616,18 @@ namespace TaskManagement.Infrastructure.Services
             }
             if (taskType == null)
             {
-                taskType = await _context.TaskTypes.FirstOrDefaultAsync();
+                taskType = new TaskManagement.Domain.Entities.TaskType
+                {
+                    Id = Guid.NewGuid(),
+                    Name = string.IsNullOrEmpty(typeName) ? "Task" : typeName,
+                    ProjectId = projectId,
+                    ColorCode = "#3b82f6"
+                };
+                _context.TaskTypes.Add(taskType);
+                await _context.SaveChangesAsync();
             }
 
-            return taskType?.Id ?? throw new InvalidOperationException("Không tìm thấy loại tác vụ nào.");
+            return taskType.Id;
         }
     }
 }

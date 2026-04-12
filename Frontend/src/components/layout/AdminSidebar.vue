@@ -6,9 +6,9 @@
     </div>
 
     <div class="back-link">
-      <a href="/" target="_blank" class="flex items-center gap-2">
+      <a href="#" @click.prevent="goBack" class="flex items-center gap-2">
         <i class="fa-solid fa-arrow-left"></i>
-        <span>Back to Projects</span>
+        <span>Back to App</span>
       </a>
     </div>
 
@@ -56,10 +56,19 @@
 
 <script setup>
 import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import logoImg from '@/assets/logo_QLCV.png'
 
 const route = useRoute()
+const router = useRouter()
+
+const goBack = () => {
+  if (window.history.state && window.history.state.back) {
+    router.back()
+  } else {
+    router.push('/dashboard')
+  }
+}
 
 const activeMenu = computed(() => {
   return route.path

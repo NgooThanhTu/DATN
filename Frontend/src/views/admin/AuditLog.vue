@@ -15,11 +15,17 @@
            <el-option v-for="p in projects" :key="p.id" :label="p.name" :value="p.id" />
         </el-select>
 
-        <el-radio-group v-model="timeFilter" class="custom-radio-group" @change="fetchLogs">
-          <el-radio-button label="All Time" value="all" />
-          <el-radio-button label="24h" value="24h" />
-          <el-radio-button label="30d" value="30d" />
-        </el-radio-group>
+        <el-date-picker
+          v-model="dateRange"
+          type="daterange"
+          range-separator="->"
+          start-placeholder="Từ ngày"
+          end-placeholder="Đến ngày"
+          :disabled-date="disabledDate"
+          style="width: 260px"
+          class="glass-input custom-date-picker"
+          @change="fetchLogs"
+        />
       </div>
     </div>
 
@@ -64,14 +70,22 @@ import { ref, onMounted } from 'vue'
 import AdminLayout from '@/components/layout/AdminLayout.vue'
 import axiosClient from '@/api/axiosClient'
 
-const timeFilter = ref('all')
 const selectedProjectId = ref(null)
 const searchQuery = ref('')
+const dateRange = ref([])
 const loading = ref(false)
 const currentPage = ref(1)
 const total = ref(0)
 const logs = ref([])
 const projects = ref([])
+
+// Giới hạn chỉ được tra cứu trong 90 ngày quá khứ
+const disabledDate = (time) => {
+  const today = new Date()
+  const limitDate = new Date()
+  limitDate.setDate(today.getDate() - 90)
+  return time.getTime() > today.getTime() || time.getTime() < limitDate.getTime()
+}
 
 let searchTimeout = null
 const debounceSearch = () => {
@@ -103,7 +117,10 @@ const fetchLogs = async () => {
             page: currentPage.value,
             limit: 20
         }
-        if (timeFilter.value !== 'all') params.timeFilter = timeFilter.value
+        if (dateRange.value && dateRange.value.length === 2) {
+            params.startDate = dateRange.value[0].toISOString()
+            params.endDate = dateRange.value[1].toISOString()
+        }
         if (selectedProjectId.value) params.projectId = selectedProjectId.value
         if (searchQuery.value) params.search = searchQuery.value
 

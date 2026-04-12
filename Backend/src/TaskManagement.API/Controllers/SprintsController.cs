@@ -91,5 +91,21 @@ namespace TaskManagement.API.Controllers
                 return BadRequest(ApiResponse<object>.Error(ex.Message));
             }
         }
+        /// <summary>
+        /// 6.1 Burndown Chart
+        /// </summary>
+        [HttpGet("{id}/burndown")]
+        public async Task<IActionResult> GetBurndown(Guid projectId, Guid id)
+        {
+            try
+            {
+                var result = await _sprintService.GetBurndownChartAsync(id);
+                return Ok(ApiResponse<List<BurndownDataDto>>.Success(result));
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ApiResponse<object>.Error(ex.Message));
+            }
+        }
     }
 }

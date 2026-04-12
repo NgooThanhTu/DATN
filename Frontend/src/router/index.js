@@ -23,7 +23,7 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('accessToken')
   // Cho phép các trang công khai không cần token
-  const publicPages = ['/login', '/register', '/', '/auth/github/callback']
+  const publicPages = ['/login', '/register', '/', '/auth/github/callback', '/accept-invite']
   const authRequired = !publicPages.includes(to.path)
 
   if (authRequired && !token) {

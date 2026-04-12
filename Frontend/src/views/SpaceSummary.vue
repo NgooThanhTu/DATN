@@ -998,7 +998,7 @@
             </div>
 
             <div class="list-view-container">
-              <div v-for="group in taskGroups" :key="group.id" class="task-group">
+              <div v-for="group in taskGroups" :key="group.id" class="task-group" :style="group.statusText === 'IN PROGRESS' && group.items.length > wipLimit ? 'border: 2px solid #ef4444; border-radius: 6px; position: relative;' : ''">
                 <!-- Group Header -->
                 <div class="group-header sprint-like-header" style="background-color: var(--bg-layout); padding: 12px 16px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
                   <div class="sprint-header-left" style="display: flex; align-items: center; gap: 8px; flex: 1;">
@@ -1014,6 +1014,9 @@
                     <span class="sprint-header-meta" style="color: #64748b; font-size: 12px; margin-left: 6px;">
                       <span v-if="group.startDate && group.endDate">{{ formatDateShort(group.startDate) }} - {{ formatDateShort(group.endDate) }} &nbsp;</span>
                       ({{ group.items.length }} work items)
+                    </span>
+                    <span v-if="group.statusText === 'IN PROGRESS' && group.items.length > wipLimit" style="color: #ef4444; font-size: 12px; margin-left: 12px; font-weight: 500;">
+                      <i class="fa-solid fa-triangle-exclamation"></i> Vượt giới hạn công việc tối ưu
                     </span>
                   </div>
 
@@ -1040,6 +1043,7 @@
                        <template #dropdown>
                          <el-dropdown-menu class="dark-dropdown">
                            <el-dropdown-item command="reorder">Reorder work items</el-dropdown-item>
+                           <el-dropdown-item @click="openBurndownChart(group.sprintId)">Sprint Burndown</el-dropdown-item>
                            <el-dropdown-item command="edit">Edit sprint</el-dropdown-item>
                            <el-dropdown-item command="delete">Delete sprint</el-dropdown-item>
                          </el-dropdown-menu>
@@ -1368,13 +1372,30 @@
           </div>
           
           <div class="form-item">
-            <label>Mô tả</label>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <label style="margin-bottom: 0;">Mô tả</label>
+              <el-button size="small" type="primary" plain @click="breakdownTaskAI" :loading="isAIBreakingDown" style="border-radius: 20px; font-size: 11px; padding: 4px 10px;">
+                <i class="fa-solid fa-wand-magic-sparkles" style="margin-right: 4px;"></i> Phân tách bằng AI
+              </el-button>
+            </div>
             <el-input 
               v-model="newTask.description" 
               type="textarea" 
               :rows="4" 
               placeholder="Thêm mô tả chi tiết..." 
             />
+          </div>
+
+          <!-- AI Subtasks Preview -->
+          <div v-if="aiSubtasks.length > 0" class="ai-subtasks-preview" style="margin-bottom: 16px; padding: 12px; background: rgba(59, 130, 246, 0.05); border-left: 3px solid #3b82f6; border-radius: 4px;">
+            <div style="font-size: 13px; font-weight: 600; color: #3b82f6; margin-bottom: 8px;">
+              <i class="fa-solid fa-list-check"></i> Các công việc phụ đề xuất (AI)
+            </div>
+            <div v-for="(sub, idx) in aiSubtasks" :key="idx" style="display: flex; align-items: center; gap: 8px; font-size: 12px; margin-bottom: 6px; color: var(--text-primary);">
+              <i class="fa-regular fa-square"></i>
+              <span style="flex: 1;">{{ sub.title }}</span>
+              <span style="color: #64748b; font-size: 11px;">{{ sub.estHours }}h</span>
+            </div>
           </div>
 
           <div class="form-row">
@@ -1413,7 +1434,7 @@
                   :value="member.userId"
                 >
                   <div style="display: flex; align-items: center; gap: 8px;">
-                    <div class="avatar-tiny">{{ member.fullName[0] }}</div>
+                    <div class="avatar-tiny">{{ member.fullName ? member.fullName[0] : 'U' }}</div>
                     <span>{{ member.fullName }}</span>
                   </div>
                 </el-option>
@@ -1539,6 +1560,20 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- Burndown Chart Modal -->
+    <el-dialog v-model="showBurndownModal" title="Sprint Burndown Chart" width="800px" custom-class="dark-dialog">
+      <div v-if="isFetchingBurndown" style="text-align: center; padding: 40px; color: #94a3b8;">
+        <i class="fa-solid fa-circle-notch fa-spin"></i> Đang tải dữ liệu...
+      </div>
+      <div v-else-if="burndownSeries[0].data.length === 0" style="text-align: center; padding: 40px; color: #94a3b8;">
+        Không đủ dữ liệu cho Sprint này.
+      </div>
+      <div v-else class="burndown-chart-wrapper" style="background: var(--bg-nav); padding: 16px; border-radius: 8px;">
+        <apexchart type="line" height="350" :options="burndownOptions" :series="burndownSeries"></apexchart>
+      </div>
+    </el-dialog>
+    
     
     <AddPeopleModal v-model:visible="showAddPeopleModal" @added="handleAddedPeople" />
     <!-- Customize Sidebar Modal -->
@@ -1561,6 +1596,7 @@ import NexusLayout from '@/components/layout/NexusLayout.vue'
 import axiosClient from '../api/axiosClient'
 import draggable from 'vuedraggable'
 import * as echarts from 'echarts'
+import VueApexCharts from 'vue3-apexcharts'
 import { signalRService } from '@/api/signalrService'
 
 
@@ -1635,6 +1671,44 @@ const startSprint = () => {
   isSprintActive.value = true
   showStartSprintModal.value = false
   currentTab.value = 'board' // Redirect to board
+}
+
+// Burndown Chart logic
+const showBurndownModal = ref(false)
+const isFetchingBurndown = ref(false)
+const burndownSeries = ref([{ name: 'Remaining Task Points', data: [] }, { name: 'Ideal Burn', data: [] }])
+const burndownOptions = ref({
+  chart: { type: 'line', foreColor: '#94a3b8', toolbar: { show: false } },
+  stroke: { curve: 'straight', width: [3, 2], dashArray: [0, 5] },
+  colors: ['#ef4444', '#3b82f6'],
+  xaxis: { categories: [], tooltip: { enabled: false } },
+  yaxis: { min: 0, title: { text: 'Story Points' } },
+  markers: { size: 4 },
+  theme: { mode: 'dark' },
+  grid: { borderColor: '#334155' }
+})
+
+const openBurndownChart = async (sprintId) => {
+  showBurndownModal.value = true
+  isFetchingBurndown.value = true
+  try {
+    const res = await axiosClient.get(`/projects/${projectId.value}/sprints/${sprintId}/burndown`)
+    const data = res.data.data || []
+    
+    burndownOptions.value = {
+      ...burndownOptions.value,
+      xaxis: { ...burndownOptions.value.xaxis, categories: data.map(d => d.date) }
+    }
+    
+    burndownSeries.value = [
+      { name: 'Thực tế', data: data.map(d => d.remainingPoints) },
+      { name: 'Lý tưởng', data: data.map(d => d.idealPoints) }
+    ]
+  } catch (error) {
+    ElNotification({ title: 'Lỗi', message: 'Không thể tải biểu đồ Burndown', type: 'error' })
+  } finally {
+    isFetchingBurndown.value = false
+  }
 }
 
 const openCompleteSprintModal = () => {
@@ -2338,6 +2412,32 @@ const fetchProjectMembers = async () => {
   }
 }
 
+// AI Task Breakdown feature
+const isAIBreakingDown = ref(false)
+const aiSubtasks = ref([])
+
+const breakdownTaskAI = async () => {
+  if (!newTask.value.title) {
+    ElNotification({ title: 'Cảnh báo', message: 'Vui lòng nhập Tiêu đề để AI phân tích', type: 'warning' })
+    return
+  }
+  isAIBreakingDown.value = true
+  try {
+    const res = await axiosClient.post('/ai/breakdown-task', {
+      title: newTask.value.title,
+      description: newTask.value.description
+    })
+    if (res.data.data) {
+      aiSubtasks.value = res.data.data
+      ElNotification({ title: 'Hoàn tất', message: 'AI đã đề xuất công việc phụ', type: 'success' })
+    }
+  } catch (error) {
+    ElNotification({ title: 'Lỗi', message: 'Không thể gọi AI Service', type: 'error' })
+  } finally {
+    isAIBreakingDown.value = false
+  }
+}
+
 const submitCreateTask = async () => {
   if (!newTask.value.title) {
     ElNotification({ title: 'Cảnh báo', message: 'Vui lòng nhập tiêu đề công việc', type: 'warning' })
@@ -2364,16 +2464,34 @@ const submitCreateTask = async () => {
     if (newTask.value.assignedUserId && newTask.value.assignedUserId !== 'null') {
       payload.assignedUserId = newTask.value.assignedUserId
     }
-    await axiosClient.post(`/projects/${projectId.value}/WorkTasks`, payload)
+    const createRes = await axiosClient.post(`/projects/${projectId.value}/WorkTasks`, payload)
+    
+    // Create subtasks if AI generated them
+    if (aiSubtasks.value.length > 0 && createRes.data.data?.id) {
+       for (const sub of aiSubtasks.value) {
+         await axiosClient.post(`/projects/${projectId.value}/WorkTasks`, {
+           title: sub.title,
+           description: "Sinh bởi AI. Dự kiến: " + sub.estHours + " giờ",
+           statusName: "TO DO",
+           priority: 3,
+           typeName: "Subtask",
+           parentTaskId: createRes.data.data.id,
+           projectId: projectId.value
+         })
+       }
+    }
+
     showCreateModal.value = false
-    ElNotification({ title: 'Thành công', message: 'Đã tạo công việc mới', type: 'success' })
+    ElNotification({ title: 'Thành công', message: aiSubtasks.value.length > 0 ? 'Đã tạo công việc & Subtasks' : 'Đã tạo công việc mới', type: 'success' })
     await fetchTasks()
+    
     // Reset form
     newTask.value = { title: '', description: '', statusName: 'TO DO', priority: 3, assignedUserId: currentUser.id || null, dueDate: null }
+    aiSubtasks.value = [] // Reset AI subtasks
   } catch (error) {
-    console.error('Create task error:', error)
-    const errMsg = error.response?.data?.message || error.response?.data?.title || 'Không thể tạo công việc'
-    ElNotification({ title: 'Lỗi', message: errMsg, type: 'error' })
+    console.error('Create task error RESPONSE:', error.response?.data || error)
+    const errMsg = error.response?.data?.stack || error.response?.data?.inner || error.response?.data?.message || 'Không thể tạo công việc'
+    ElNotification({ title: 'Lỗi Server 500 (Vui lòng copy dòng này cho tôi)', message: errMsg, type: 'error', duration: 10000 })
   }
 }
 
@@ -2739,6 +2857,8 @@ const openCreateTask = (status = 'TO DO') => {
 const toggleShowCompleted = () => {
   showCompleted.value = !showCompleted.value
 }
+
+const wipLimit = ref(5) // Max 5 tasks in Progress (PM can configure later)
 
 const updateTaskField = async (task, field, value) => {
   try {

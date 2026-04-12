@@ -16,7 +16,8 @@ namespace TaskManagement.Infrastructure.Services
         private readonly IAuditLogQueue _queue;
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly ILogger<AuditLogWorker> _logger;
-        private const int MaxBatchSize = 50;
+        private const int MaxBatchSize = 100;
+        private static readonly TimeSpan FlushInterval = TimeSpan.FromSeconds(10);
 
         public AuditLogWorker(IAuditLogQueue queue, IServiceScopeFactory scopeFactory, ILogger<AuditLogWorker> logger)
         {
@@ -30,37 +31,37 @@ namespace TaskManagement.Infrastructure.Services
             _logger.LogInformation("AuditLogWorker is starting.");
 
             var batch = new List<AuditLog>(MaxBatchSize);
-
             while (!stoppingToken.IsCancellationRequested)
             {
                 try
                 {
-                    // Block until at least one item is available
-                    var itemAvailable = await _queue.WaitToReadAsync(stoppingToken);
-                    if (!itemAvailable) break; // Channel closed
+                    using var cts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+                    cts.CancelAfter(FlushInterval);
 
-                    // Read up to MaxBatchSize items currently in queue
-                    while (batch.Count < MaxBatchSize && _queue.TryDequeue(out var log))
+                    try
                     {
-                        if (log != null)
+                        var itemAvailable = await _queue.WaitToReadAsync(cts.Token);
+                        if (!itemAvailable) break; // Channel closed
+
+                        while (batch.Count < MaxBatchSize && _queue.TryDequeue(out var log))
                         {
-                            batch.Add(log);
+                            if (log != null) batch.Add(log);
                         }
                     }
+                    catch (OperationCanceledException)
+                    {
+                        // 10s timeout triggers flush
+                    }
 
-                    if (batch.Count > 0)
+                    if (batch.Count > 0 && (batch.Count >= MaxBatchSize || cts.IsCancellationRequested))
                     {
                         await ProcessBatchAsync(batch, stoppingToken);
                         batch.Clear();
                     }
                 }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error processing audit logs in background worker.");
+                    _logger.LogError(ex, "Error in audit log processing.");
                 }
             }
         }
