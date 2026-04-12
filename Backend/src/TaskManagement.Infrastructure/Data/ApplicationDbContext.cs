@@ -26,6 +26,8 @@ namespace TaskManagement.Infrastructure.Data
         public DbSet<RolePermission> RolePermissions { get; set; }
         public DbSet<SystemSetting> SystemSettings { get; set; }
         public DbSet<SystemAuditLog> SystemAuditLogs { get; set; }
+        public DbSet<TenantConfig> TenantConfigs { get; set; }
+        public DbSet<RefreshToken> RefreshTokens { get; set; }
 
         // Group 2: Organization
         public DbSet<Organization> Organizations { get; set; }
@@ -387,6 +389,8 @@ namespace TaskManagement.Infrastructure.Data
             // =============================================
             modelBuilder.ApplyConfiguration(new Configurations.ProjectTemplateConfiguration());
             modelBuilder.ApplyConfiguration(new Configurations.ProjectDepartmentRoleConfiguration());
+            modelBuilder.ApplyConfiguration(new Configurations.TenantConfigConfiguration());
+            modelBuilder.ApplyConfiguration(new Configurations.RefreshTokenConfiguration());
         }
 
         public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
@@ -418,48 +422,60 @@ namespace TaskManagement.Infrastructure.Data
             var pendingLogsActions = new List<Action<List<AuditLog>>>();
             var pendingLogs = new List<AuditLog>();
 
-            if (_auditLogQueue != null)
+            try
             {
-                var userIdClaim = _httpContextAccessor?.HttpContext?.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-                if (Guid.TryParse(userIdClaim, out Guid parsedUserId) && parsedUserId != Guid.Empty)
+                if (_auditLogQueue != null)
                 {
-                    var blacklist = new[] { "PasswordHash", "SecretKey", "RefreshToken", "MatKhau" };
-                    var taskEntries = ChangeTracker.Entries<WorkTask>()
-                        .Where(e => e.State == EntityState.Modified || e.State == EntityState.Added)
-                        .ToList();
-
-                    foreach (var entry in taskEntries)
+                    var userIdClaim = _httpContextAccessor?.HttpContext?.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                    if (Guid.TryParse(userIdClaim, out Guid parsedUserId) && parsedUserId != Guid.Empty)
                     {
-                        foreach (var prop in entry.Properties.Where(p => p.IsModified || entry.State == EntityState.Added))
+                        var blacklist = new[] { "PasswordHash", "SecretKey", "RefreshToken", "MatKhau" };
+                        var taskEntries = ChangeTracker.Entries<WorkTask>()
+                            .Where(e => e.State == EntityState.Modified || e.State == EntityState.Added)
+                            .ToList();
+
+                        foreach (var entry in taskEntries)
                         {
-                            var propName = prop.Metadata.Name;
-                            if (propName == "UpdatedAt" || propName == "CreatedAt" || propName == "RowVersion" || propName == "Id") 
-                                continue;
-
-                            var oldVal = entry.State == EntityState.Added ? null : entry.OriginalValues[propName]?.ToString();
-                            var newVal = entry.CurrentValues[propName]?.ToString();
-
-                            // Sensitive Data Masking
-                            if (Array.Exists(blacklist, b => b == propName))
+                            foreach (var prop in entry.Properties.Where(p => p.IsModified || entry.State == EntityState.Added))
                             {
-                                oldVal = oldVal != null ? "******" : null;
-                                newVal = newVal != null ? "******" : null;
+                                var propName = prop.Metadata.Name;
+                                if (propName == "UpdatedAt" || propName == "CreatedAt" || propName == "RowVersion" || propName == "Id") 
+                                    continue;
+
+                                string? oldVal = null;
+                                if (entry.State != EntityState.Added)
+                                {
+                                    try { oldVal = entry.OriginalValues[propName]?.ToString(); } catch { }
+                                }
+                                
+                                string? newVal = null;
+                                try { newVal = entry.CurrentValues[propName]?.ToString(); } catch { }
+
+                                // Sensitive Data Masking
+                                if (Array.Exists(blacklist, b => b == propName))
+                                {
+                                    oldVal = oldVal != null ? "******" : null;
+                                    newVal = newVal != null ? "******" : null;
+                                }
+
+                                pendingLogsActions.Add(list => list.Add(new AuditLog
+                                {
+                                    Id = Guid.NewGuid(),
+                                    WorkTaskId = entry.Entity.Id, 
+                                    UserId = parsedUserId,
+                                    FieldChanged = propName,
+                                    OldValue = oldVal,
+                                    NewValue = newVal,
+                                    CreatedAt = DateTime.UtcNow
+                                }));
                             }
-
-                            // Capture exact reference inside lambda to resolve ID after base.SaveChanges
-                            pendingLogsActions.Add(list => list.Add(new AuditLog
-                            {
-                                Id = Guid.NewGuid(),
-                                WorkTaskId = entry.Entity.Id, 
-                                UserId = parsedUserId,
-                                FieldChanged = propName,
-                                OldValue = oldVal,
-                                NewValue = newVal,
-                                CreatedAt = DateTime.UtcNow
-                            }));
                         }
                     }
                 }
+            }
+            catch (Exception)
+            {
+                // Silently ignore audit log generation failures to keep the core transaction 100% stable
             }
 
             var result = await base.SaveChangesAsync(cancellationToken);

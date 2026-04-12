@@ -76,14 +76,14 @@
         </div>
 
         <div class="metric-container" style="background: var(--bg-hover); border: 1px solid var(--border-color); border-radius: 12px; padding: 24px;">
-           <div style="display: flex; justify-content: space-between; margin-bottom: 30px;">
-             <span style="font-size: 14px; font-weight: 500; color: var(--text-primary);">API Response Time</span>
-             <span style="font-size: 18px; font-weight: 600; color: #0d9488;">127ms</span>
+           <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+             <span style="font-size: 14px; font-weight: 500; color: var(--text-primary);">API Response Time (Last 100 requests)</span>
+             <span style="font-size: 18px; font-weight: 600; color: #0d9488;">{{ currentResponseTime }}ms</span>
            </div>
            
-           <!-- Simulated Bar Chart -->
-           <div class="chart-bars" style="display: flex; align-items: flex-end; gap: 8px; height: 60px;">
-              <div v-for="(h, idx) in chartHeights" :key="idx" class="bar" :style="{ height: h + '%', width: '100%', background: 'linear-gradient(180deg, #14b8a6 0%, #0d9488 100%)', borderRadius: '4px 4px 0 0', opacity: 0.9, transition: 'height 0.5s ease' }"></div>
+           <!-- Real ApexChart for System Performance -->
+           <div class="chart-wrapper" style="height: 250px;">
+              <apexchart type="area" height="100%" :options="chartOptions" :series="chartSeries"></apexchart>
            </div>
         </div>
       </div>
@@ -98,6 +98,7 @@ import AdminLayout from '@/components/layout/AdminLayout.vue'
 import { ref, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import axiosClient from '@/api/axiosClient'
+import apexchart from 'vue3-apexcharts'
 
 const activeTab = ref('presets')
 const isLoading = ref(false)
@@ -132,8 +133,45 @@ const defaultTemplates = [
 
 const templates = ref([...defaultTemplates])
 
-// Simulated data for chart
-const chartHeights = ref([30, 45, 35, 48, 40, 50, 45, 55, 50, 60, 58, 65])
+// ApexCharts Data & Options
+const currentResponseTime = ref(0)
+let metricsInterval = null
+
+const chartSeries = ref([{
+  name: 'Response Time (ms)',
+  data: []
+}])
+
+const chartOptions = ref({
+  chart: {
+    type: 'area',
+    toolbar: { show: false },
+    sparkline: { enabled: false },
+    animations: { enabled: true, easing: 'easeinout', speed: 800 }
+  },
+  colors: ['#0d9488'],
+  fill: {
+    type: 'gradient',
+    gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.05, stops: [0, 90, 100] }
+  },
+  dataLabels: { enabled: false },
+  stroke: { curve: 'smooth', width: 2 },
+  xaxis: { labels: { show: false }, axisBorder: { show: false }, axisTicks: { show: false } },
+  yaxis: { labels: { style: { colors: '#8b949e' } } },
+  grid: { borderColor: 'rgba(128,128,128,0.1)', strokeDashArray: 4 },
+  tooltip: { theme: 'dark' }
+})
+
+const fetchMetrics = async () => {
+    try {
+        const res = await axiosClient.get('/admin/system/metrics');
+        if (res.data && res.data.data) {
+            const data = res.data.data;
+            chartSeries.value = [{ name: 'Response Time (ms)', data: data }];
+            if (data.length > 0) currentResponseTime.value = data[data.length - 1];
+        }
+    } catch(e) {}
+}
 
 const applyTemplatePreset = async (name) => {
   const t = templates.value.find(x => x.name === name);
@@ -183,16 +221,15 @@ const handleColorClickOut = (e) => {
 onMounted(async () => {
   await fetchTheme()
   document.addEventListener('mousedown', handleColorClickOut, true)
-  setInterval(() => {
-    chartHeights.value = chartHeights.value.map(h => {
-       const change = Math.floor(Math.random() * 20) - 10;
-       return Math.max(20, Math.min(100, h + change));
-    })
-  }, 2000)
+  
+  // Real metrics polling
+  await fetchMetrics();
+  metricsInterval = setInterval(fetchMetrics, 3000); // Tự động load mỗi 3s
 })
 
 onUnmounted(() => {
   document.removeEventListener('mousedown', handleColorClickOut, true)
+  if (metricsInterval) clearInterval(metricsInterval);
 })
 
 const fetchTheme = async () => {

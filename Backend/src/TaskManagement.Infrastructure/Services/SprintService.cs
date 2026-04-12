@@ -182,5 +182,63 @@ namespace TaskManagement.Infrastructure.Services
                 throw;
             }
         }
+
+        /// <summary>
+        /// 6.1 Burndown Chart Data points
+        /// </summary>
+        public async Task<List<BurndownDataDto>> GetBurndownChartAsync(Guid sprintId)
+        {
+            var sprint = await _context.Sprints.FirstOrDefaultAsync(s => s.Id == sprintId);
+            if (sprint == null) throw new ArgumentException("Sprint không tồn tại.");
+
+            var result = new List<BurndownDataDto>();
+            if (sprint.EndDate <= sprint.StartDate) return result;
+
+            // Lấy tất cả Tasks của Sprint
+            var tasks = await _context.WorkTasks
+                .Include(t => t.TaskStatus)
+                .Where(t => t.SprintId == sprintId && !t.IsDeleted)
+                .ToListAsync();
+
+            int totalPoints = (int)tasks.Sum(t => t.StoryPoints); // Nếu bằng 0 thì cũng được, hoặc (int)Math.Max(1, t.StoryPoints)
+            int totalDays = (sprint.EndDate.Date - sprint.StartDate.Date).Days;
+            if (totalDays <= 0) totalDays = 1;
+            double idealBurnRate = (double)totalPoints / totalDays;
+
+            // Xây danh sách Done Tasks để mapping Remaining
+            // Coi như Task.UpdatedAt chính là thời điểm Done
+            var doneTasks = tasks.Where(t => t.TaskStatus.Name.Contains("DONE", StringComparison.OrdinalIgnoreCase)).ToList();
+
+            for (int i = 0; i <= totalDays; i++)
+            {
+                var currentDate = sprint.StartDate.Date.AddDays(i);
+                
+                // Ideal points drops linearly
+                int currentIdeal = (int)Math.Max(0, totalPoints - (idealBurnRate * i));
+
+                // Tính điểm còn lại thực tế
+                // Remaining = Total - Các Task đã Done TRƯỚC HOẶC TRONG ngày currentDate
+                int pointsDoneBeforeCurrent = (int)doneTasks
+                    .Where(t => t.UpdatedAt.Date <= currentDate)
+                    .Sum(t => t.StoryPoints);
+
+                int remaining = totalPoints - pointsDoneBeforeCurrent;
+
+                // Nếu ngày tương lai so với hiện tại, thì Remaining = Điểm ngày hôm qua (chưa Burn được thêm)
+                if (currentDate > DateTime.UtcNow.Date)
+                {
+                    // Chỉ vẽ remaining path line đến hôm nay (các giá trị tương lai để nguyên bằng ngày hôm nay, hoặc null nhưng để int thì dùng remaining cũ)
+                }
+
+                result.Add(new BurndownDataDto
+                {
+                    Date = currentDate.ToString("dd/MM"),
+                    IdealPoints = currentIdeal,
+                    RemainingPoints = remaining
+                });
+            }
+
+            return result;
+        }
     }
 }
