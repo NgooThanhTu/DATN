@@ -91,6 +91,50 @@ namespace TaskManagement.Infrastructure.Services
                     throw new ArgumentException("Phòng ban không tồn tại.");
             }
 
+            // Resolve WorkspaceId: user phải thuộc ít nhất 1 workspace
+            var workspaceMembership = await _context.WorkspaceMembers
+                .FirstOrDefaultAsync(wm => wm.UserId == creatorId && wm.IsActive);
+            
+            Guid workspaceId;
+            if (workspaceMembership != null)
+            {
+                workspaceId = workspaceMembership.WorkspaceId;
+            }
+            else
+            {
+                // Auto-create a default workspace for the user if none exists
+                var defaultWorkspace = new Workspace
+                {
+                    Id = Guid.NewGuid(),
+                    Slug = "workspace-" + Guid.NewGuid().ToString("N").Substring(0, 8),
+                    Name = "Default Workspace",
+                    OwnerId = creatorId,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                _context.Workspaces.Add(defaultWorkspace);
+                _context.WorkspaceMembers.Add(new WorkspaceMember
+                {
+                    WorkspaceId = defaultWorkspace.Id,
+                    UserId = creatorId,
+                    WorkspaceRole = "OWNER",
+                    JoinedAt = DateTime.UtcNow,
+                    IsActive = true
+                });
+                workspaceId = defaultWorkspace.Id;
+            }
+
+            // Generate Identifier: lấy 3-4 ký tự đầu viết hoa từ tên project
+            string identifier = GenerateIdentifier(dto.Name);
+            // Ensure unique within workspace
+            int suffix = 1;
+            string originalIdentifier = identifier;
+            while (await _context.Projects.AnyAsync(p => p.WorkspaceId == workspaceId && p.Identifier == identifier))
+            {
+                identifier = originalIdentifier + suffix;
+                suffix++;
+            }
+
             string? templateType = null;
             string? navConfig = null;
             if (dto.ProjectTemplateId.HasValue)
@@ -108,6 +152,8 @@ namespace TaskManagement.Infrastructure.Services
                 Id = Guid.NewGuid(),
                 Name = dto.Name,
                 Description = dto.Description,
+                Identifier = identifier,
+                WorkspaceId = workspaceId,
                 StartDate = dto.StartDate,
                 EndDate = dto.EndDate,
                 Status = true,
@@ -244,6 +290,25 @@ namespace TaskManagement.Infrastructure.Services
             project.IsDeleted = true;
             project.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
+        }
+
+        /// <summary>
+        /// Generate a short identifier from project name (e.g., "My Project" → "MP")
+        /// </summary>
+        private static string GenerateIdentifier(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return "PRJ";
+
+            var words = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (words.Length == 1)
+            {
+                // Single word: take first 3 chars
+                return name.Substring(0, Math.Min(3, name.Length)).ToUpper();
+            }
+
+            // Multiple words: take first letter of each word (max 4)
+            var initials = string.Concat(words.Take(4).Select(w => char.ToUpper(w[0])));
+            return initials;
         }
     }
 }

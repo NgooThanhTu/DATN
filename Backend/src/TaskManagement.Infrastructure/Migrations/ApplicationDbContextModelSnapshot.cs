@@ -267,6 +267,9 @@ namespace TaskManagement.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<bool>("Require2FA")
+                        .HasColumnType("bit");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ManagerId");
@@ -293,6 +296,173 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("DepartmentMembers");
+                });
+
+            modelBuilder.Entity("TaskManagement.Domain.Entities.Intake", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedIssueId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("ReviewedById")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("SubmittedById")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedIssueId");
+
+                    b.HasIndex("ProjectId");
+
+                    b.HasIndex("ReviewedById");
+
+                    b.HasIndex("SubmittedById");
+
+                    b.ToTable("Intakes");
+                });
+
+            modelBuilder.Entity("TaskManagement.Domain.Entities.IssueLabel", b =>
+                {
+                    b.Property<Guid>("WorkTaskId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("LabelId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("AssignedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("WorkTaskId", "LabelId");
+
+                    b.HasIndex("LabelId");
+
+                    b.ToTable("IssueLabels");
+                });
+
+            modelBuilder.Entity("TaskManagement.Domain.Entities.IssueModule", b =>
+                {
+                    b.Property<Guid>("WorkTaskId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ModuleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("AssignedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("WorkTaskId", "ModuleId");
+
+                    b.HasIndex("ModuleId");
+
+                    b.ToTable("IssueModules");
+                });
+
+            modelBuilder.Entity("TaskManagement.Domain.Entities.Label", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ColorCode")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId");
+
+                    b.HasIndex("WorkspaceId");
+
+                    b.ToTable("Labels");
+                });
+
+            modelBuilder.Entity("TaskManagement.Domain.Entities.Module", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("LeadId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("StartDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("TargetDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LeadId");
+
+                    b.HasIndex("ProjectId");
+
+                    b.ToTable("Modules");
                 });
 
             modelBuilder.Entity("TaskManagement.Domain.Entities.Notification", b =>
@@ -339,8 +509,14 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("Domain")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("Email")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsDomainVerified")
+                        .HasColumnType("bit");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -355,6 +531,54 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Organizations");
+                });
+
+            modelBuilder.Entity("TaskManagement.Domain.Entities.Page", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Content")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("CreatedById")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsLocked")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UpdatedById")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedById");
+
+                    b.HasIndex("ProjectId");
+
+                    b.HasIndex("UpdatedById");
+
+                    b.ToTable("Pages");
                 });
 
             modelBuilder.Entity("TaskManagement.Domain.Entities.PerformanceReview", b =>
@@ -459,12 +683,29 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Property<DateTime?>("EndDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("Identifier")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
+
+                    b.Property<int>("IssueSequence")
+                        .HasColumnType("int");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("NavigationConfig")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("NetworkType")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("ProjectTemplateId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("StartDate")
                         .HasColumnType("datetime2");
@@ -472,8 +713,14 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Property<bool>("Status")
                         .HasColumnType("bit");
 
+                    b.Property<string>("TemplateType")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
 
@@ -481,7 +728,34 @@ namespace TaskManagement.Infrastructure.Migrations
 
                     b.HasIndex("DepartmentId");
 
+                    b.HasIndex("ProjectTemplateId");
+
+                    b.HasIndex("WorkspaceId", "Identifier")
+                        .IsUnique();
+
                     b.ToTable("Projects");
+                });
+
+            modelBuilder.Entity("TaskManagement.Domain.Entities.ProjectDepartmentRole", b =>
+                {
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("DepartmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("RoleName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("AssignedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("ProjectId", "DepartmentId", "RoleName");
+
+                    b.HasIndex("DepartmentId");
+
+                    b.ToTable("ProjectDepartmentRoles", (string)null);
                 });
 
             modelBuilder.Entity("TaskManagement.Domain.Entities.ProjectMember", b =>
@@ -510,6 +784,49 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("ProjectMembers");
+                });
+
+            modelBuilder.Entity("TaskManagement.Domain.Entities.ProjectTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("DefaultNavigationConfig")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("TemplateCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ProjectTemplates", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("11111111-1111-1111-1111-111111111111"),
+                            Description = "Dành cho Helpdesk, cung cấp sẵn các Issue Types về Service Request, Incident.",
+                            Name = "Basic IT service management",
+                            TemplateCode = "IT_SERVICE"
+                        },
+                        new
+                        {
+                            Id = new Guid("22222222-2222-2222-2222-222222222222"),
+                            Description = "Dành cho Dev Team, cung cấp Scrum Board mặc định.",
+                            Name = "Software Development",
+                            TemplateCode = "SOFTWARE_DEV"
+                        });
                 });
 
             modelBuilder.Entity("TaskManagement.Domain.Entities.Role", b =>
@@ -820,11 +1137,17 @@ namespace TaskManagement.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<bool>("Is2FAEnabled")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
+
+                    b.Property<string>("OrganizationId")
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()
@@ -843,6 +1166,8 @@ namespace TaskManagement.Infrastructure.Migrations
 
                     b.HasIndex("Email")
                         .IsUnique();
+
+                    b.HasIndex("OrganizationId");
 
                     b.ToTable("Users");
                 });
@@ -923,6 +1248,12 @@ namespace TaskManagement.Infrastructure.Migrations
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("rowversion");
 
+                    b.Property<string>("SequenceId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<double>("SortOrder")
+                        .HasColumnType("float");
+
                     b.Property<Guid?>("SprintId")
                         .HasColumnType("uniqueidentifier");
 
@@ -948,6 +1279,9 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
 
                     b.HasIndex("AssignedUserId");
@@ -955,6 +1289,8 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.HasIndex("ParentTaskId");
 
                     b.HasIndex("ReporterId");
+
+                    b.HasIndex("SortOrder");
 
                     b.HasIndex("SprintId");
 
@@ -964,7 +1300,77 @@ namespace TaskManagement.Infrastructure.Migrations
 
                     b.HasIndex("ProjectId", "IsDeleted");
 
+                    b.HasIndex("WorkspaceId", "ProjectId");
+
                     b.ToTable("WorkTasks");
+                });
+
+            modelBuilder.Entity("TaskManagement.Domain.Entities.Workspace", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Logo")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("Timezone")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerId");
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.ToTable("Workspaces");
+                });
+
+            modelBuilder.Entity("TaskManagement.Domain.Entities.WorkspaceMember", b =>
+                {
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("JoinedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("WorkspaceRole")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("WorkspaceId", "UserId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("WorkspaceMembers");
                 });
 
             modelBuilder.Entity("TaskManagement.Domain.Entities.AIFeedback", b =>
@@ -1093,6 +1499,112 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("TaskManagement.Domain.Entities.Intake", b =>
+                {
+                    b.HasOne("TaskManagement.Domain.Entities.WorkTask", "CreatedIssue")
+                        .WithMany()
+                        .HasForeignKey("CreatedIssueId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("TaskManagement.Domain.Entities.Project", "Project")
+                        .WithMany("Intakes")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TaskManagement.Domain.Entities.User", "ReviewedBy")
+                        .WithMany()
+                        .HasForeignKey("ReviewedById")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("TaskManagement.Domain.Entities.User", "SubmittedBy")
+                        .WithMany()
+                        .HasForeignKey("SubmittedById")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("CreatedIssue");
+
+                    b.Navigation("Project");
+
+                    b.Navigation("ReviewedBy");
+
+                    b.Navigation("SubmittedBy");
+                });
+
+            modelBuilder.Entity("TaskManagement.Domain.Entities.IssueLabel", b =>
+                {
+                    b.HasOne("TaskManagement.Domain.Entities.Label", "Label")
+                        .WithMany("IssueLabels")
+                        .HasForeignKey("LabelId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TaskManagement.Domain.Entities.WorkTask", "WorkTask")
+                        .WithMany("IssueLabels")
+                        .HasForeignKey("WorkTaskId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Label");
+
+                    b.Navigation("WorkTask");
+                });
+
+            modelBuilder.Entity("TaskManagement.Domain.Entities.IssueModule", b =>
+                {
+                    b.HasOne("TaskManagement.Domain.Entities.Module", "Module")
+                        .WithMany("IssueModules")
+                        .HasForeignKey("ModuleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TaskManagement.Domain.Entities.WorkTask", "WorkTask")
+                        .WithMany("IssueModules")
+                        .HasForeignKey("WorkTaskId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Module");
+
+                    b.Navigation("WorkTask");
+                });
+
+            modelBuilder.Entity("TaskManagement.Domain.Entities.Label", b =>
+                {
+                    b.HasOne("TaskManagement.Domain.Entities.Project", "Project")
+                        .WithMany("Labels")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("TaskManagement.Domain.Entities.Workspace", "Workspace")
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+
+                    b.Navigation("Workspace");
+                });
+
+            modelBuilder.Entity("TaskManagement.Domain.Entities.Module", b =>
+                {
+                    b.HasOne("TaskManagement.Domain.Entities.User", "Lead")
+                        .WithMany()
+                        .HasForeignKey("LeadId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("TaskManagement.Domain.Entities.Project", "Project")
+                        .WithMany("Modules")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Lead");
+
+                    b.Navigation("Project");
+                });
+
             modelBuilder.Entity("TaskManagement.Domain.Entities.Notification", b =>
                 {
                     b.HasOne("TaskManagement.Domain.Entities.User", "User")
@@ -1102,6 +1614,32 @@ namespace TaskManagement.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("TaskManagement.Domain.Entities.Page", b =>
+                {
+                    b.HasOne("TaskManagement.Domain.Entities.User", "CreatedBy")
+                        .WithMany()
+                        .HasForeignKey("CreatedById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TaskManagement.Domain.Entities.Project", "Project")
+                        .WithMany("Pages")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TaskManagement.Domain.Entities.User", "UpdatedBy")
+                        .WithMany()
+                        .HasForeignKey("UpdatedById")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("CreatedBy");
+
+                    b.Navigation("Project");
+
+                    b.Navigation("UpdatedBy");
                 });
 
             modelBuilder.Entity("TaskManagement.Domain.Entities.PerformanceReview", b =>
@@ -1147,9 +1685,42 @@ namespace TaskManagement.Infrastructure.Migrations
                         .HasForeignKey("DepartmentId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("TaskManagement.Domain.Entities.ProjectTemplate", "ProjectTemplate")
+                        .WithMany("Projects")
+                        .HasForeignKey("ProjectTemplateId");
+
+                    b.HasOne("TaskManagement.Domain.Entities.Workspace", "Workspace")
+                        .WithMany("Projects")
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.Navigation("Creator");
 
                     b.Navigation("Department");
+
+                    b.Navigation("ProjectTemplate");
+
+                    b.Navigation("Workspace");
+                });
+
+            modelBuilder.Entity("TaskManagement.Domain.Entities.ProjectDepartmentRole", b =>
+                {
+                    b.HasOne("TaskManagement.Domain.Entities.Department", "Department")
+                        .WithMany("ProjectDepartmentRoles")
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TaskManagement.Domain.Entities.Project", "Project")
+                        .WithMany("ProjectDepartmentRoles")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Department");
+
+                    b.Navigation("Project");
                 });
 
             modelBuilder.Entity("TaskManagement.Domain.Entities.ProjectMember", b =>
@@ -1299,6 +1870,15 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Navigation("WorkTask");
                 });
 
+            modelBuilder.Entity("TaskManagement.Domain.Entities.User", b =>
+                {
+                    b.HasOne("TaskManagement.Domain.Entities.Organization", "Organization")
+                        .WithMany()
+                        .HasForeignKey("OrganizationId");
+
+                    b.Navigation("Organization");
+                });
+
             modelBuilder.Entity("TaskManagement.Domain.Entities.UserRole", b =>
                 {
                     b.HasOne("TaskManagement.Domain.Entities.Role", "Role")
@@ -1384,6 +1964,36 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Navigation("TaskType");
                 });
 
+            modelBuilder.Entity("TaskManagement.Domain.Entities.Workspace", b =>
+                {
+                    b.HasOne("TaskManagement.Domain.Entities.User", "Owner")
+                        .WithMany("OwnedWorkspaces")
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Owner");
+                });
+
+            modelBuilder.Entity("TaskManagement.Domain.Entities.WorkspaceMember", b =>
+                {
+                    b.HasOne("TaskManagement.Domain.Entities.User", "User")
+                        .WithMany("WorkspaceMemberships")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TaskManagement.Domain.Entities.Workspace", "Workspace")
+                        .WithMany("Members")
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+
+                    b.Navigation("Workspace");
+                });
+
             modelBuilder.Entity("TaskManagement.Domain.Entities.Comment", b =>
                 {
                     b.Navigation("ChildComments");
@@ -1393,7 +2003,19 @@ namespace TaskManagement.Infrastructure.Migrations
                 {
                     b.Navigation("DepartmentMembers");
 
+                    b.Navigation("ProjectDepartmentRoles");
+
                     b.Navigation("Projects");
+                });
+
+            modelBuilder.Entity("TaskManagement.Domain.Entities.Label", b =>
+                {
+                    b.Navigation("IssueLabels");
+                });
+
+            modelBuilder.Entity("TaskManagement.Domain.Entities.Module", b =>
+                {
+                    b.Navigation("IssueModules");
                 });
 
             modelBuilder.Entity("TaskManagement.Domain.Entities.Permission", b =>
@@ -1403,6 +2025,16 @@ namespace TaskManagement.Infrastructure.Migrations
 
             modelBuilder.Entity("TaskManagement.Domain.Entities.Project", b =>
                 {
+                    b.Navigation("Intakes");
+
+                    b.Navigation("Labels");
+
+                    b.Navigation("Modules");
+
+                    b.Navigation("Pages");
+
+                    b.Navigation("ProjectDepartmentRoles");
+
                     b.Navigation("ProjectMembers");
 
                     b.Navigation("Sprints");
@@ -1412,6 +2044,11 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Navigation("TaskTypes");
 
                     b.Navigation("WorkTasks");
+                });
+
+            modelBuilder.Entity("TaskManagement.Domain.Entities.ProjectTemplate", b =>
+                {
+                    b.Navigation("Projects");
                 });
 
             modelBuilder.Entity("TaskManagement.Domain.Entities.Role", b =>
@@ -1458,6 +2095,8 @@ namespace TaskManagement.Infrastructure.Migrations
 
                     b.Navigation("Notifications");
 
+                    b.Navigation("OwnedWorkspaces");
+
                     b.Navigation("ProjectMemberships");
 
                     b.Navigation("ReportedTasks");
@@ -1475,6 +2114,8 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Navigation("UserRoles");
 
                     b.Navigation("Wallet");
+
+                    b.Navigation("WorkspaceMemberships");
                 });
 
             modelBuilder.Entity("TaskManagement.Domain.Entities.UserWallet", b =>
@@ -1492,6 +2133,10 @@ namespace TaskManagement.Infrastructure.Migrations
 
                     b.Navigation("Comments");
 
+                    b.Navigation("IssueLabels");
+
+                    b.Navigation("IssueModules");
+
                     b.Navigation("PredecessorDependencies");
 
                     b.Navigation("SuccessorDependencies");
@@ -1501,6 +2146,13 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Navigation("TaskVectorEmbedding");
 
                     b.Navigation("TimeLogs");
+                });
+
+            modelBuilder.Entity("TaskManagement.Domain.Entities.Workspace", b =>
+                {
+                    b.Navigation("Members");
+
+                    b.Navigation("Projects");
                 });
 #pragma warning restore 612, 618
         }

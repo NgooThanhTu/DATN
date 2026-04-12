@@ -190,6 +190,47 @@ namespace TaskManagement.API.Controllers
                 return StatusCode(500, new { statusCode = 500, message = ex.Message });
             }
         }
+
+        /// <summary>
+        /// Kanban Drag-Drop: Reorder task (update SortOrder + optionally change status)
+        /// </summary>
+        [HttpPut("projects/{projectId}/WorkTasks/{id}/reorder")]
+        public async Task<IActionResult> Reorder(Guid projectId, Guid id, [FromBody] ReorderTaskDto dto, [FromServices] TaskManagement.Infrastructure.Data.ApplicationDbContext context)
+        {
+            try
+            {
+                var task = await context.WorkTasks.FirstOrDefaultAsync(wt => wt.Id == id && !wt.IsDeleted);
+                if (task == null)
+                    return NotFound(new { statusCode = 404, message = "Tác vụ không tồn tại." });
+
+                task.SortOrder = dto.SortOrder;
+                task.UpdatedAt = DateTime.UtcNow;
+
+                // If status also changed (dragged to a different column)
+                if (!string.IsNullOrEmpty(dto.NewStatusName))
+                {
+                    var newStatus = await context.TaskStatuses
+                        .FirstOrDefaultAsync(ts => ts.ProjectId == projectId && ts.Name == dto.NewStatusName);
+                    if (newStatus != null)
+                    {
+                        task.TaskStatusId = newStatus.Id;
+                    }
+                }
+
+                await context.SaveChangesAsync();
+                return Ok(new { statusCode = 200, message = "Cập nhật thứ tự thành công." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { statusCode = 500, message = "Lỗi: " + ex.Message });
+            }
+        }
+    }
+
+    public class ReorderTaskDto
+    {
+        public double SortOrder { get; set; }
+        public string? NewStatusName { get; set; }
     }
 }
 

@@ -65,6 +65,16 @@ namespace TaskManagement.Infrastructure.Data
         // Group 6: Time Tracking
         public DbSet<TimeLog> TimeLogs { get; set; }
 
+        // Group 7: Workspace & Plane-Inspired Entities
+        public DbSet<Workspace> Workspaces { get; set; }
+        public DbSet<WorkspaceMember> WorkspaceMembers { get; set; }
+        public DbSet<Label> Labels { get; set; }
+        public DbSet<IssueLabel> IssueLabels { get; set; }
+        public DbSet<Module> Modules { get; set; }
+        public DbSet<IssueModule> IssueModules { get; set; }
+        public DbSet<Intake> Intakes { get; set; }
+        public DbSet<Page> Pages { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -75,6 +85,7 @@ namespace TaskManagement.Infrastructure.Data
             modelBuilder.Entity<Department>().HasQueryFilter(d => !d.IsDeleted);
             modelBuilder.Entity<Project>().HasQueryFilter(p => !p.IsDeleted);
             modelBuilder.Entity<WorkTask>().HasQueryFilter(wt => !wt.IsDeleted);
+            modelBuilder.Entity<Workspace>().HasQueryFilter(w => !w.IsDeleted);
 
             // =============================================
             // 0.5 Department - Project Relationship
@@ -97,16 +108,27 @@ namespace TaskManagement.Infrastructure.Data
             modelBuilder.Entity<UserWallet>().HasKey(x => x.UserId);
             modelBuilder.Entity<TaskVectorEmbedding>().HasKey(x => x.WorkTaskId);
 
+            // New Composite Keys
+            modelBuilder.Entity<WorkspaceMember>().HasKey(x => new { x.WorkspaceId, x.UserId });
+            modelBuilder.Entity<IssueLabel>().HasKey(x => new { x.WorkTaskId, x.LabelId });
+            modelBuilder.Entity<IssueModule>().HasKey(x => new { x.WorkTaskId, x.ModuleId });
+
             // =============================================
             // 2. Unique Constraints
             // =============================================
             modelBuilder.Entity<User>().HasIndex(u => u.Email).IsUnique();
             modelBuilder.Entity<Permission>().HasIndex(p => p.Code).IsUnique();
 
+            // Workspace Indexes
+            modelBuilder.Entity<Workspace>().HasIndex(w => w.Slug).IsUnique();
+            modelBuilder.Entity<Project>().HasIndex(p => new { p.WorkspaceId, p.Identifier }).IsUnique();
+
             // Group 3 Core Management Indexes
             modelBuilder.Entity<WorkTask>().HasIndex(wt => new { wt.ProjectId, wt.IsDeleted });
             modelBuilder.Entity<WorkTask>().HasIndex(wt => wt.ReporterId);
             modelBuilder.Entity<WorkTask>().HasIndex(wt => wt.AssignedUserId);
+            modelBuilder.Entity<WorkTask>().HasIndex(wt => new { wt.WorkspaceId, wt.ProjectId });
+            modelBuilder.Entity<WorkTask>().HasIndex(wt => wt.SortOrder);
             modelBuilder.Entity<ProjectMember>().HasIndex(pm => pm.UserId);
 
             // =============================================
@@ -383,7 +405,134 @@ namespace TaskManagement.Infrastructure.Data
                 .OnDelete(DeleteBehavior.Restrict);
 
             // =============================================
-            // 10. Applying custom configurations
+            // 10. Workspace & Plane-Inspired Relationships
+            // =============================================
+
+            // Workspace -> Owner (User)
+            modelBuilder.Entity<Workspace>()
+                .HasOne(w => w.Owner)
+                .WithMany(u => u.OwnedWorkspaces)
+                .HasForeignKey(w => w.OwnerId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // WorkspaceMember -> Workspace, User
+            modelBuilder.Entity<WorkspaceMember>()
+                .HasOne(wm => wm.Workspace)
+                .WithMany(w => w.Members)
+                .HasForeignKey(wm => wm.WorkspaceId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<WorkspaceMember>()
+                .HasOne(wm => wm.User)
+                .WithMany(u => u.WorkspaceMemberships)
+                .HasForeignKey(wm => wm.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Project -> Workspace
+            modelBuilder.Entity<Project>()
+                .HasOne(p => p.Workspace)
+                .WithMany(w => w.Projects)
+                .HasForeignKey(p => p.WorkspaceId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Label -> Workspace, Project (optional)
+            modelBuilder.Entity<Label>()
+                .HasOne(l => l.Workspace)
+                .WithMany()
+                .HasForeignKey(l => l.WorkspaceId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Label>()
+                .HasOne(l => l.Project)
+                .WithMany(p => p.Labels)
+                .HasForeignKey(l => l.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // IssueLabel -> WorkTask, Label
+            modelBuilder.Entity<IssueLabel>()
+                .HasOne(il => il.WorkTask)
+                .WithMany(wt => wt.IssueLabels)
+                .HasForeignKey(il => il.WorkTaskId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<IssueLabel>()
+                .HasOne(il => il.Label)
+                .WithMany(l => l.IssueLabels)
+                .HasForeignKey(il => il.LabelId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Module -> Project
+            modelBuilder.Entity<Module>()
+                .HasOne(m => m.Project)
+                .WithMany(p => p.Modules)
+                .HasForeignKey(m => m.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Module>()
+                .HasOne(m => m.Lead)
+                .WithMany()
+                .HasForeignKey(m => m.LeadId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // IssueModule -> WorkTask, Module
+            modelBuilder.Entity<IssueModule>()
+                .HasOne(im => im.WorkTask)
+                .WithMany(wt => wt.IssueModules)
+                .HasForeignKey(im => im.WorkTaskId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<IssueModule>()
+                .HasOne(im => im.Module)
+                .WithMany(m => m.IssueModules)
+                .HasForeignKey(im => im.ModuleId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Intake -> Project, Users
+            modelBuilder.Entity<Intake>()
+                .HasOne(i => i.Project)
+                .WithMany(p => p.Intakes)
+                .HasForeignKey(i => i.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Intake>()
+                .HasOne(i => i.SubmittedBy)
+                .WithMany()
+                .HasForeignKey(i => i.SubmittedById)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<Intake>()
+                .HasOne(i => i.ReviewedBy)
+                .WithMany()
+                .HasForeignKey(i => i.ReviewedById)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<Intake>()
+                .HasOne(i => i.CreatedIssue)
+                .WithMany()
+                .HasForeignKey(i => i.CreatedIssueId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // Page -> Project, Users
+            modelBuilder.Entity<Page>()
+                .HasOne(pg => pg.Project)
+                .WithMany(p => p.Pages)
+                .HasForeignKey(pg => pg.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Page>()
+                .HasOne(pg => pg.CreatedBy)
+                .WithMany()
+                .HasForeignKey(pg => pg.CreatedById)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Page>()
+                .HasOne(pg => pg.UpdatedBy)
+                .WithMany()
+                .HasForeignKey(pg => pg.UpdatedById)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            // =============================================
+            // 11. Applying custom configurations
             // =============================================
             modelBuilder.ApplyConfiguration(new Configurations.ProjectTemplateConfiguration());
             modelBuilder.ApplyConfiguration(new Configurations.ProjectDepartmentRoleConfiguration());

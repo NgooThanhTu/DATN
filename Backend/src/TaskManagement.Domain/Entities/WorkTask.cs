@@ -38,6 +38,20 @@ namespace TaskManagement.Domain.Entities
         [Timestamp]
         public byte[] RowVersion { get; set; } = null!;
 
+        // === Plane-inspired additions ===
+
+        /// <summary>
+        /// SortOrder (Double) — hỗ trợ thuật toán LexoRank cho kéo thả Kanban.
+        /// Giá trị được tính trung bình giữa 2 phần tử lân cận khi kéo thả.
+        /// </summary>
+        public double SortOrder { get; set; }
+
+        /// <summary>Issue ID hiển thị, VD: "CUN-42". Generated tự động.</summary>
+        public string? SequenceId { get; set; }
+
+        /// <summary>Workspace ID for tenant isolation (denormalized from Project)</summary>
+        public Guid WorkspaceId { get; set; }
+
         // Navigation properties
         public ICollection<WorkTask> ChildTasks { get; set; } = new List<WorkTask>();
         public ICollection<TaskAssignment> TaskAssignments { get; set; } = new List<TaskAssignment>();
@@ -48,5 +62,7 @@ namespace TaskManagement.Domain.Entities
         public ICollection<AuditLog> AuditLogs { get; set; } = new List<AuditLog>();
         public ICollection<TimeLog> TimeLogs { get; set; } = new List<TimeLog>();
         public TaskVectorEmbedding? TaskVectorEmbedding { get; set; }
+        public ICollection<IssueLabel> IssueLabels { get; set; } = new List<IssueLabel>();
+        public ICollection<IssueModule> IssueModules { get; set; } = new List<IssueModule>();
     }
 }

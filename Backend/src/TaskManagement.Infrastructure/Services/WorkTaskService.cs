@@ -78,12 +78,17 @@ namespace TaskManagement.Infrastructure.Services
                     PlannedEndDate = wt.PlannedEndDate,
                     CreatedAt = wt.CreatedAt,
                     UpdatedAt = wt.UpdatedAt,
-                    RowVersion = wt.RowVersion
+                    RowVersion = wt.RowVersion,
+                    SortOrder = wt.SortOrder,
+                    SequenceId = wt.SequenceId
                 })
                 .ToListAsync();
 
             // Optional normalization of status name (since it's a DTO logic)
             foreach (var d in dtos) d.StatusName = NormalizeStatusName(d.StatusName);
+
+            // Sort by SortOrder for Kanban drag-drop compatibility
+            dtos = dtos.OrderBy(d => d.SortOrder).ToList();
 
             return dtos;
         }
@@ -114,11 +119,24 @@ namespace TaskManagement.Infrastructure.Services
                 if (firstUser != null) reporterId = firstUser.Id;
             }
 
-            // 5. Create entity
+            // 5. Generate SortOrder (LexoRank-style: max current + 65536)
+            double maxSort = 0;
+            var existingMax = await _context.WorkTasks
+                .Where(wt => wt.ProjectId == request.ProjectId && !wt.IsDeleted)
+                .MaxAsync(wt => (double?)wt.SortOrder);
+            maxSort = (existingMax ?? 0) + 65536;
+
+            // 6. Generate SequenceId (e.g., CUN-42)
+            var project = await _context.Projects.FirstAsync(p => p.Id == request.ProjectId);
+            project.IssueSequence += 1;
+            string sequenceId = $"{project.Identifier}-{project.IssueSequence}";
+
+            // 7. Create entity
             var workTask = new TaskManagement.Domain.Entities.WorkTask
             {
                 Id = Guid.NewGuid(),
                 ProjectId = request.ProjectId,
+                WorkspaceId = project.WorkspaceId,
                 SprintId = request.SprintId,
                 ParentTaskId = request.ParentTaskId,
                 TaskTypeId = resolvedTaskTypeId,
@@ -133,6 +151,8 @@ namespace TaskManagement.Infrastructure.Services
                 AssignedUserId = request.AssignedUserId,
                 DueDate = request.DueDate,
                 TotalEstimatedHours = request.TotalEstimatedHours,
+                SortOrder = maxSort,
+                SequenceId = sequenceId,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
@@ -460,7 +480,9 @@ namespace TaskManagement.Infrastructure.Services
                 PlannedEndDate = wt.PlannedEndDate,
                 CreatedAt = wt.CreatedAt,
                 UpdatedAt = wt.UpdatedAt,
-                RowVersion = wt.RowVersion
+                RowVersion = wt.RowVersion,
+                SortOrder = wt.SortOrder,
+                SequenceId = wt.SequenceId
             };
         }
 

@@ -30,5 +30,11 @@ namespace TaskManagement.Application.DTOs.WorkTask
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
         public string? ProjectName { get; set; }
+
+        /// <summary>SortOrder for Kanban drag-drop (LexoRank-style)</summary>
+        public double SortOrder { get; set; }
+
+        /// <summary>Human-readable Issue ID, e.g., "CUN-42"</summary>
+        public string? SequenceId { get; set; }
     }
 }

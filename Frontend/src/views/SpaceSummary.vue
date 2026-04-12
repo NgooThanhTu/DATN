@@ -2377,6 +2377,67 @@ const submitCreateTask = async () => {
   }
 }
 
+const openCreateTask = (statusText) => {
+  newTask.value.statusName = statusText || 'TO DO'
+  newTask.value.title = ''
+  newTask.value.description = ''
+  showCreateModal.value = true
+}
+
+const toggleQuickAdd = (group) => {
+  group.showQuickAdd = !group.showQuickAdd
+  if (group.showQuickAdd) group.quickAddTitle = ''
+}
+
+const createQuickTask = async (group) => {
+  if (!group.quickAddTitle?.trim()) {
+    group.showQuickAdd = false
+    return
+  }
+  try {
+    const payload = {
+      title: group.quickAddTitle,
+      statusName: group.statusText === 'Tất cả' || group.statusText === 'Chưa phân công' || group.id.startsWith('grp-member') ? 'TO DO' : group.statusText,
+      priority: group.priorityValue || 3,
+      typeName: 'Task',
+      projectId: projectId.value,
+      assignedUserId: group.id.startsWith('grp-member') ? group.id.split('-')[2] : (currentUser.id || null)
+    }
+    await axiosClient.post(`/projects/${projectId.value}/WorkTasks`, payload)
+    group.quickAddTitle = ''
+    group.showQuickAdd = false
+    await fetchTasks()
+    ElNotification({ title: 'Thành công', message: 'Tạo nhanh công việc thành công', type: 'success' })
+  } catch (error) {
+    console.error(error)
+    ElNotification({ title: 'Lỗi', message: 'Không thể tạo công việc nhanh', type: 'error' })
+  }
+}
+
+const updateTaskField = async (task, field, value) => {
+  try {
+    task[field] = value
+    await axiosClient.put(`/projects/${projectId.value}/WorkTasks/${task.id}`, task)
+    await fetchTasks()
+    ElNotification({ title: 'Cập nhật', message: 'Đã lưu thay đổi', type: 'success' })
+  } catch (error) {
+    console.error(error)
+    ElNotification({ title: 'Lỗi', message: 'Không thể cập nhật công việc', type: 'error' })
+  }
+}
+
+const handleDraggableChange = async (evt, targetGroup) => {
+  if (evt.added) {
+    const task = evt.added.element
+    if (groupBy.value === 'status') {
+      task.statusName = targetGroup.statusText
+    } else if (groupBy.value === 'priority') {
+      task.priority = targetGroup.priorityValue
+    }
+    await updateTaskField(task, groupBy.value === 'priority' ? 'priority' : 'statusName', task.statusName)
+  }
+}
+
 // SignalR event handlers
 const handleTaskCreated = (newTask) => {
   tasks.value.push(newTask)
