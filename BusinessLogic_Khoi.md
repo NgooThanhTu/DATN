@@ -1,39 +1,66 @@
-BỔ SUNG: CẤP ĐỘ QUẢN TRỊ HỆ THỐNG & WORKFLOW IT HELPDESK
-Workflow Toàn diện của Dự án (Bản thực thi) 
-Luồng 1: Thiết lập Vành đai An ninh & Định danh (Organization Security Flow)
-•	Admin truy cập thư mục Directory $\rightarrow$ Khởi tạo cấu trúc nhóm: it-support-team (Agent) và all-staff (Customer).
-•	Admin chuyển sang Security $\rightarrow$ Áp dụng Access policies (Chính sách truy cập).
-•	Hệ thống kiểm tra: Ép buộc toàn bộ tài khoản thuộc it-support-team phải xác thực 2 bước (2FA) trước khi cấp quyền truy cập.
-Luồng 2: Khởi tạo Không gian Thực chiến (Project & Workspace Setup)
-•	Admin vào giao diện tạo Project $\rightarrow$ Lựa chọn Space templates có sẵn.
-•	Chọn Basic IT service management $\rightarrow$ Hệ thống tự động sinh các Issue Types (Ticket lỗi, Yêu cầu thiết bị) và gán sẵn SLA mặc định.
-•	Admin cấu hình thanh điều hướng (Navigation) $\rightarrow$ Tắt các View không cần thiết, ghim Calendar và Reports lên sidebar.
-Luồng 3: Áp dụng Ma trận Phân quyền (Project Roll-out Flow)
-•	Admin mở Project Settings $\rightarrow$ Map (Gắn) các Group đã tạo ở Luồng 1 vào Project Roles.
-•	it-support-team $\rightarrow$ Gán Role: Service Desk Team (Được kéo thả thẻ Kanban, trả lời khách).
-•	all-staff $\rightarrow$ Gán Role: Customer (Chỉ được xem và tạo ticket qua Portal).
-________________________________________
-CÁC NGHIỆP VỤ CHÍNH TRONG DỰ ÁN: 
-7. Phân hệ Quản trị Tổ chức & Định danh (Org Admin & Directory)
-Nghiệp vụ cơ bản: Quản lý vòng đời User (Onboarding/Offboarding), phân nhóm và đồng bộ danh bạ.
-TỬ HUYỆT NGHIỆP VỤ & ĐẶC TẢ KỸ THUẬT: 
-•	7.1 Vấn nạn Phân mảnh Danh tính (Shadow IT):
-o	Vấn đề: User tự dùng email domain của công ty để tạo các workspace rác ngoài tầm kiểm soát của tổ chức, gây rò rỉ dữ liệu.
-o	System/Admin Guide: Tại phần "Cài đặt tổ chức", bắt buộc thực hiện Xác minh Tên miền (Domain Verification). Sau khi verify, Admin có quyền "Claim" (Thu nạp) toàn bộ các tài khoản đang trôi nổi dùng đuôi email công ty vào chung một Directory để quản lý tập trung.
-•	7.2 Lỗ hổng Thu hồi Quyền Khẩn cấp (Offboarding Security):
-o	Vấn đề: Nhân sự IT nghỉ việc mang theo Session JWT chưa hết hạn hoặc Admin quên xóa thủ công, dẫn đến rủi ro phá hoại.
-o	System/Admin Guide: Tại mục "Nhà cung cấp thông tin" (IdP), thiết lập đồng bộ SCIM với Microsoft Entra ID hoặc Zalo/Google Workspace. Khi HR báo nghỉ và vô hiệu hóa email, luồng API sẽ tự động Disable User trên Jira, hủy ngay lập tức các Token hiện tại.
-8. Phân hệ Chuẩn hóa Workspace & Trải nghiệm (Project Setup)
-Nghiệp vụ cơ bản: Chọn Template dự án, tinh gọn giao diện làm việc.
-TỬ HUYỆT NGHIỆP VỤ & ĐẶC TẢ KỸ THUẬT: 
-•	8.1 Rác Dữ liệu từ Custom Fields (Custom Field Bloat):
-o	Vấn đề: Nếu mỗi dự án Admin tự tạo một vài trường dữ liệu mới (Ví dụ: "Ngày duyệt", "Ngày approve"), DB sẽ phình to và hệ thống truy vấn chậm đi.
-o	System/Admin Guide: Ép dùng chung Space templates (Ví dụ: Dùng Basic IT service management cho mọi team Support/Admin). Kế thừa 100% các trường dữ liệu hệ thống đã tối ưu, hạn chế tối đa việc tạo mới Custom Field ngoài luồng.
-•	8.2 Nhiễu loạn UI/UX & Mất tập trung (Navigation Noise):
-o	Vấn đề: Team IT Helpdesk nội bộ không viết code, nhưng giao diện Kanban lại hiển thị các module của Dev (GitHub, CI/CD, Deployments), gây rối mắt.
-o	System/Admin Guide: Tại phần cấu hình View của dự án (Hình 5), thực hiện nguyên tắc "Least Privilege UI". Tắt/Ẩn hoàn toàn thẻ Development và Deployments.
-o	Chỉ chọn Add to navigation (Thêm vào menu) các tính năng thực chiến: Mở Calendar để team xem lịch trực ca hệ thống, mở Reports để đo đếm biểu đồ SLA.
-•	8.3 Quản lý quyền theo cá nhân (The "Individual Permission" Anti-Pattern):
-o	Vấn đề: Add từng tên (Ví dụ: Nguyễn Văn A, Trần Thị B) vào dự án. Khi dự án có 100 người đổi team, Admin sẽ bị ngợp trong việc rà soát và gỡ quyền thủ công.
-o	System/Admin Guide: Áp dụng chặt chẽ Ma trận RBAC: Tuyệt đối không cấp quyền cho User độc lập. Phải nhóm User vào Groups ở cấp độ Tổ chức. Sau đó vào Dự án, lấy cái Group đó gán cho một Role. Khi cần rút người, chỉ cần xóa User ra khỏi Group ở Directory là 100% các quyền tại các dự án tự động bốc hơi.
+Phân hệ Quản trị Hệ thống & Định danh Toàn cục (System Admin & Directory)
+Nghiệp vụ cơ bản: Quản lý vòng đời nhân sự toàn cục, Cấu hình Tổ chức (Tenant).
+TỬ HUYỆT NGHIỆP VỤ & ĐẶC TẢ KỸ THUẬT:
 
+7.1 Lỗi ranh giới Quyền (Global Role vs Project Role):
+Vấn đề: Giao diện User Management đang hiển thị Dự án (Project) thay vì Danh bạ toàn công ty.
+Dev Guide (Vue 3): Xóa bỏ UI dạng Card Dự án. Thay bằng bảng <el-table> hiển thị toàn bộ AppUsers toàn cục. Tách API thành src/api/adminUserApi.js và tạo store useAdminUserStore.js.
+Dev Guide (.NET): Viết Custom Middleware [SystemAuthorize(Roles = "SuperAdmin, Admin")]. API GET /api/admin/users: Query thẳng vào bảng AppUsers, tuyệt đối KHÔNG JOIN với bảng ProjectMembers.
+
+7.2 Vòng đời Nhân sự & Cắt điện Khẩn cấp (Kill-Switch):
+Vấn đề: Xóa cứng User làm đứt gãy Khóa ngoại của Task/Log.
+Dev Guide (Vue 3): Thay icon Thùng rác bằng nút "Đình chỉ" (Suspend) dạng <el-switch> hoặc Nút đỏ cảnh báo.
+Dev Guide (.NET):
+* API: PUT /api/admin/users/{userId}/suspend.
+* Logic: user.IsActive = false;. BẮT BUỘC gọi tiếp UPDATE RefreshTokens SET IsRevoked = 1 WHERE UserId = @userId trong cùng Transaction để ngắt điện toàn tập thiết bị của họ.
+
+7.3 Tách bạch Hồ sơ Cá nhân & Tổ chức (Tenant Profiling & Contact):
+Vấn đề: Menu Organization cho điền Họ tên cá nhân là sai. Cần tách biệt Profile công ty và thông tin Liên hệ công khai.
+Dev Guide (Vue 3):
+* Tab Profile: Chỉ chứa Input cho Tên Tổ chức, Domain, Logo.
+* Tab Contact: Dùng <el-switch> cho "Cho phép Liên hệ", "Hồ sơ Công khai". Dùng <el-checkbox-group> cho các "Chủ đề liên hệ được phép".
+Dev Guide (.NET): Tạo bảng TenantConfigs lưu cấu hình doanh nghiệp và cờ (flags) liên hệ.
+
+7.4 Cấu hình Giao diện & Hiệu suất Toàn cục (Global Theme & Performance):
+Vấn đề: Áp dụng CSS toàn cục và đo đạc API Response Time mà không làm chậm DB.
+Dev Guide (Vue 3): Giao diện chọn màu sinh mã HEX. Dùng useCssVar hoặc JS thuần cập nhật biến CSS :root (ví dụ --el-color-primary) để đổi màu Realtime hệ thống. Vẽ biểu đồ "API Response Time" dạng cột Bar bằng thư viện ApexCharts.
+Dev Guide (.NET): Biểu đồ Performance đo từ Middleware, nạp số liệu vào IMemoryCache và API chỉ trả về mảng dữ liệu từ Cache, tuyệt đối không Query từ Database để vẽ biểu đồ.
+
+Phân hệ An ninh Mạng & Kiểm toán (Network Security & Audit)
+Nghiệp vụ cơ bản: Ép buộc 2FA, Giới hạn IP, Tối ưu Audit Log.
+TỬ HUYỆT NGHIỆP VỤ & ĐẶC TẢ KỸ THUẬT:
+
+8.1 Thảm họa Tràn RAM từ Audit Log (Performance Bottleneck):
+Vấn đề: Mở tùy chọn "All Time" kéo hàng triệu dòng làm Out of Memory.
+Dev Guide (Vue 3): Tuyệt đối CẤM dùng nút "All Time" hay "All Projects". Bắt buộc dùng <el-date-picker type="daterange"> giới hạn tối đa 90 ngày.
+Dev Guide (.NET): Cấm ghi log đồng bộ. Ném Object log vào System.Threading.Channels.Channel (In-memory queue). Tạo AuditLogWorker lôi batch 100 logs ra lưu Database 1 lần.
+
+8.2 Ép buộc Chính sách 2FA toàn Công ty (Enforced 2FA Policy):
+Vấn đề: Tính năng 2FA đang thiết kế tự nguyện, Admin cần quyền ép buộc mọi người phải cài.
+Dev Guide (Vue 3): Admin có switch <el-switch>: "Ép buộc dùng 2FA". Ở luồng Client, dùng Axios Interceptor: Nếu API trả lỗi 403 (Require 2FA), ép Router chuyển hướng sang /setup-2fa và khóa Menu.
+Dev Guide (.NET): Bảng TenantConfigs thêm cột Require2FA = true. Nếu check cấu hình Tenant là true mà User chưa cài, API Login trả mã 403 Require Setup 2FA. KHÔNG CẤP Access Token.
+
+8.3 Bức tường lửa mức Ứng dụng (IP Whitelist Guard):
+Dev Guide (Vue 3): Layout chia khối: Form thêm IP và bảng <el-table> danh sách IP / Nhật ký truy cập.
+Dev Guide (.NET): Viết custom IpWhitelistMiddleware.cs. Load IP Whitelist từ DB lên IMemoryCache (TTL 5 phút). Cấu hình ForwardedHeadersOptions để bắt đúng IP thực tế xuyên qua Nginx.
+
+8.4 Đăng xuất Đa thiết bị (Concurrent Sessions Termination):
+Vấn đề: Khi bấm đổi mật khẩu và tick "Đăng xuất thiết bị khác", làm sao kick các máy tính khác ra ngoài?
+Dev Guide (Vue 3): Gửi payload API đính kèm cờ logoutOtherDevices = true.
+Dev Guide (.NET): Bảng RefreshTokens BẮT BUỘC có thêm cột DeviceId (tạo ngẫu nhiên từ Frontend khi đăng nhập). Logic đổi Pass: UPDATE RefreshTokens SET IsRevoked = 1 WHERE UserId = @id AND DeviceId != @currentDeviceId.
+
+Quy chuẩn UI/UX & Layout Frontend (Dành riêng cho Admin Dashboard)
+Mục tiêu: Ép AI code ra đúng giao diện Dark Mode & Glassmorphism như thiết kế ban đầu.
+TỬ HUYỆT FRONTEND (Vue 3 + Tailwind + Element Plus):
+
+9.1 Ngôn ngữ Thiết kế (Design Language Guardrails):
+Dev Guide (Vue/Tailwind):
+* Nền trang (Background): Tím than/Huyền bí (VD: bg-[#130f26]).
+* Khối nội dung (Card): Bắt buộc dùng hiệu ứng kính mờ (Glassmorphism). Dùng class Tailwind: bg-[#1f1533]/80 backdrop-blur-md border border-gray-700 rounded-xl p-6 shadow-lg. Tuyệt đối cấm dùng bg-white.
+* Màu nhấn (Primary): Xanh ngọc (Teal/Mint - text-teal-400, bg-teal-500).
+
+9.2 Tối ưu Element Plus Components (Chống vỡ Dark Mode):
+Dev Guide (Vue/CSS): AI khi sinh code Element Plus phải chú ý:
+* Bảng dữ liệu (<el-table>): Bắt buộc override CSS (:deep(.el-table)) ép nền bảng trong suốt (transparent), màu chữ xám sáng (#d1d5db), border mờ nhạt.
+* Biểu mẫu (<el-input>, <el-select>): Các input field phải có nền tối bg-black/20, viền xám đậm.
+* Trạng thái (Badge): Dùng <el-tag>. User Active (type="success"), Suspended (type="danger").

@@ -42,7 +42,7 @@ namespace TaskManagement.API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { statusCode = 500, message = "Lỗi máy chủ nội bộ: " + ex.Message });
+                return StatusCode(500, new { statusCode = 500, message = "Lỗi máy chủ nội bộ: " + ex.Message, stack = ex.ToString() });
             }
         }
 
@@ -58,6 +58,26 @@ namespace TaskManagement.API.Controllers
                 }
 
                 var tasks = await _workTaskService.GetMyTasksAsync(userId);
+                return Ok(new { statusCode = 200, message = "Success", data = tasks });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { statusCode = 500, message = "Lỗi máy chủ: " + ex.Message });
+            }
+        }
+
+        [HttpGet("tasks/search")]
+        public async Task<IActionResult> SearchTasks([FromQuery] string? query, [FromQuery] string? status, [FromQuery] Guid? assigneeId, [FromQuery] int? priority)
+        {
+            try
+            {
+                var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (!Guid.TryParse(userIdString, out Guid userId))
+                {
+                    return Unauthorized(new { statusCode = 401, message = "Token không hợp lệ." });
+                }
+
+                var tasks = await _workTaskService.SearchTasksAsync(userId, query, status, assigneeId, priority);
                 return Ok(new { statusCode = 200, message = "Success", data = tasks });
             }
             catch (Exception ex)
@@ -95,7 +115,7 @@ namespace TaskManagement.API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { statusCode = 500, message = "Lỗi máy chủ nội bộ: " + ex.Message });
+                return StatusCode(500, new { statusCode = 500, message = "Lỗi máy chủ nội bộ: " + ex.Message, stack = ex.ToString() });
             }
         }
 

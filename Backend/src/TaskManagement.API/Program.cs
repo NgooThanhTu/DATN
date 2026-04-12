@@ -13,6 +13,7 @@ builder.Services.AddControllers();
 builder.Services.AddSignalR();
 
 builder.Services.AddOpenApi();
+builder.Services.AddMemoryCache();
 
 // Đăng ký Custom Services từ Extension Methods
 builder.Services.AddAuthServices(builder.Configuration);
@@ -70,6 +71,14 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
+
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
+});
+
+app.UseMiddleware<TaskManagement.API.Middlewares.PerformanceMiddleware>();
+app.UseMiddleware<TaskManagement.API.Middlewares.IpWhitelistMiddleware>();
 
 // app.UseHttpsRedirection(); // Tắt HTTPS redirect để Axios có thể gọi vào HTTP 5136 mà ko bị CORS lỗi
 

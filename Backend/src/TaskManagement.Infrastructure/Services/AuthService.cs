@@ -41,15 +41,24 @@ namespace TaskManagement.Infrastructure.Services
                 throw new UnauthorizedAccessException("Email hoặc mật khẩu không chính xác.");
             }
 
-            if (user.Is2FAEnabled)
+            var tenantConfig = await _context.TenantConfigs.FirstOrDefaultAsync() 
+                                ?? new TenantConfig();
+
+            if (user.Is2FAEnabled || tenantConfig.Require2FA)
             {
+                // Prevent login if tenant strictly requires 2FA but user didn't set it up
+                if (tenantConfig.Require2FA && !user.Is2FAEnabled)
+                {
+                    throw new UnauthorizedAccessException("Hệ thống yêu cầu cài đặt bảo mật 2 lớp (2FA). Vui lòng cấu hình trước khi đăng nhập.");
+                }
+
                 var otpCode = _otpService.GenerateOtp();
                 _otpService.StoreOtp(user.Email, otpCode);
                 await _emailService.SendOtpEmailAsync(user.Email, otpCode);
                 return (null, null, true);
             }
 
-            return await GenerateTokensForUser(user);
+            return await GenerateTokensForUser(user, request.DeviceId);
         }
 
         public async Task<(AuthResponseDto response, string refreshToken)> Login2FAAsync(string email, string password, string otp)
@@ -65,21 +74,57 @@ namespace TaskManagement.Infrastructure.Services
             if (!_otpService.ValidateOtp(email, otp))
                 throw new UnauthorizedAccessException("Mã OTP không hợp lệ hoặc đã hết hạn.");
 
-            var tokens = await GenerateTokensForUser(user);
+            var tokens = await GenerateTokensForUser(user, "2FA-Verified-Device");
             return (tokens.response!, tokens.refreshToken!);
         }
 
-        private async Task<(AuthResponseDto? response, string? refreshToken, bool requires2FA)> GenerateTokensForUser(User user)
+        private async Task<(AuthResponseDto? response, string? refreshToken, bool requires2FA)> GenerateTokensForUser(User user, string deviceId = "Unknown")
         {
-            var roles = user.UserRoles.Select(ur => ur.Role.Name).ToList();
+            var roles = user.UserRoles?.Select(ur => ur.Role.Name).ToList() ?? new List<string>();
+
+            // Auto-seed roles if user has none (For Dev/Testing purposes)
+            if (roles.Count == 0)
+            {
+                var adminRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == "Admin");
+                if (adminRole == null)
+                {
+                    adminRole = new TaskManagement.Domain.Entities.Role { Id = Guid.NewGuid(), Name = "Admin", Description = "System Administrator" };
+                    _context.Roles.Add(adminRole);
+                    await _context.SaveChangesAsync();
+                }
+
+                var ur = new TaskManagement.Domain.Entities.UserRole
+                {
+                    UserId = user.Id,
+                    RoleId = adminRole.Id,
+                    Role = adminRole
+                };
+                user.UserRoles?.Add(ur);
+                if (user.UserRoles == null) {
+                    _context.UserRoles.Add(ur);
+                }
+                await _context.SaveChangesAsync();
+                
+                roles.Add("Admin");
+            }
 
             var accessToken = _jwtService.GenerateAccessToken(user, roles);
             var refreshToken = _jwtService.GenerateRefreshToken();
 
-            // Update user tokens
+            // Cập nhật cả ở bảng User và lưu mới vào RefreshTokens (Concurrent Session Tracking)
             user.RefreshToken = refreshToken;
             user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
             
+            _context.RefreshTokens.Add(new RefreshToken 
+            {
+                Id = Guid.NewGuid(),
+                UserId = user.Id,
+                Token = refreshToken,
+                DeviceId = deviceId,
+                ExpiryTime = DateTime.UtcNow.AddDays(7),
+                IsRevoked = false
+            });
+
             await _context.SaveChangesAsync();
 
             var response = new AuthResponseDto
@@ -174,12 +219,45 @@ namespace TaskManagement.Infrastructure.Services
 
             var roles = user.UserRoles?.Select(ur => ur.Role.Name).ToList() ?? new List<string>();
 
+            // Auto-seed roles if user has none (For Dev/Testing purposes)
+            if (roles.Count == 0)
+            {
+                var adminRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == "Admin");
+                if (adminRole == null)
+                {
+                    adminRole = new TaskManagement.Domain.Entities.Role { Id = Guid.NewGuid(), Name = "Admin", Description = "System Administrator" };
+                    _context.Roles.Add(adminRole);
+                    await _context.SaveChangesAsync();
+                }
+
+                var ur = new TaskManagement.Domain.Entities.UserRole
+                {
+                    UserId = user.Id,
+                    RoleId = adminRole.Id,
+                    Role = adminRole
+                };
+                _context.UserRoles.Add(ur);
+                await _context.SaveChangesAsync();
+                
+                roles.Add("Admin");
+            }
+
             var accessToken = _jwtService.GenerateAccessToken(user, roles);
             var refreshToken = _jwtService.GenerateRefreshToken();
 
             user.RefreshToken = refreshToken;
             user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
             
+            _context.RefreshTokens.Add(new RefreshToken 
+            {
+                Id = Guid.NewGuid(),
+                UserId = user.Id,
+                Token = refreshToken,
+                DeviceId = request.Credential?.Length > 30 ? "Google-App-SSO" : "SSO-WEB",
+                ExpiryTime = DateTime.UtcNow.AddDays(7),
+                IsRevoked = false
+            });
+
             await _context.SaveChangesAsync();
 
             var response = new AuthResponseDto
@@ -310,6 +388,16 @@ namespace TaskManagement.Infrastructure.Services
             user.RefreshToken = refreshToken;
             user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
 
+            _context.RefreshTokens.Add(new RefreshToken 
+            {
+                Id = Guid.NewGuid(),
+                UserId = user.Id,
+                Token = refreshToken,
+                DeviceId = request.Code?.Length > 10 ? "GitHub-App-SSO" : "SSO-WEB",
+                ExpiryTime = DateTime.UtcNow.AddDays(7),
+                IsRevoked = false
+            });
+
             await _context.SaveChangesAsync();
 
             var response = new AuthResponseDto
@@ -404,6 +492,30 @@ namespace TaskManagement.Infrastructure.Services
                     UserId = newUser.Id,
                     RoleId = defaultRole.Id
                 });
+            }
+
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task AcceptInviteAsync(Guid userId)
+        {
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null)
+                throw new ArgumentException("User không tồn tại trong hệ thống.");
+
+            user.IsActive = true; // Đảm bảo đã active
+
+            // Kích hoạt Project Members (những dự án đã được mời nhưng đang pending)
+            var pendingProjects = await _context.ProjectMembers
+                .Where(pm => pm.UserId == user.Id && pm.Status == false)
+                .ToListAsync();
+
+            if (pendingProjects.Count == 0)
+                throw new InvalidOperationException("Bạn không có lời mời dự án nào đang chờ.");
+
+            foreach (var pm in pendingProjects)
+            {
+                pm.Status = true;
             }
 
             await _context.SaveChangesAsync();

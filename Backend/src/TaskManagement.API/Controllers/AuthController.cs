@@ -95,6 +95,35 @@ namespace TaskManagement.API.Controllers
             }
         }
 
+        [HttpPost("accept-invite")]
+        [Microsoft.AspNetCore.Authorization.Authorize]
+        public async Task<IActionResult> AcceptInvite()
+        {
+            var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+            {
+                return Unauthorized(new { statusCode = 401, message = "Không xác định được danh tính người dùng." });
+            }
+
+            try
+            {
+                await _authService.AcceptInviteAsync(userId);
+                return Ok(new { statusCode = 200, message = "Chào mừng bạn! Tính năng được mở khóa thành công." });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { statusCode = 400, message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { statusCode = 409, message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { statusCode = 500, message = "Internal server error: " + ex.Message });
+            }
+        }
+
         public class Login2FARequestDto : LoginRequestDto
         {
             public string OtpCode { get; set; } = string.Empty;

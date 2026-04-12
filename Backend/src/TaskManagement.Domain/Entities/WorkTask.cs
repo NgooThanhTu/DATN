@@ -36,7 +36,7 @@ namespace TaskManagement.Domain.Entities
         public double TotalActualHours { get; set; }
         
         [Timestamp]
-        public byte[] RowVersion { get; set; } = null!;
+        public byte[] RowVersion { get; set; } = Guid.NewGuid().ToByteArray();
 
         // Navigation properties
         public ICollection<WorkTask> ChildTasks { get; set; } = new List<WorkTask>();
