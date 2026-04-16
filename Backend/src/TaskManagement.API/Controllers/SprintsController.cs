@@ -91,6 +91,19 @@ namespace TaskManagement.API.Controllers
                 return BadRequest(ApiResponse<object>.Error(ex.Message));
             }
         }
+
+        [HttpPatch("{id}/favorite")]
+        public async Task<IActionResult> ToggleFavorite(Guid projectId, Guid id, [FromServices] TaskManagement.Infrastructure.Data.ApplicationDbContext context)
+        {
+            var sprint = await context.Sprints.FindAsync(id);
+            if (sprint == null || sprint.ProjectId != projectId) return NotFound(new { statusCode = 404, message = "Cycle không tồn tại." });
+
+            sprint.IsFavorite = !sprint.IsFavorite;
+            await context.SaveChangesAsync();
+
+            return Ok(new { statusCode = 200, data = new { isFavorite = sprint.IsFavorite } });
+        }
+
         /// <summary>
         /// 6.1 Burndown Chart
         /// </summary>

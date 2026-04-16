@@ -1,15 +1,12 @@
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
-import axiosClient from '@/api/axiosClient'
+import { computed, watch, ref } from 'vue'
 
 const props = defineProps({
-  projectId: { type: String, required: true }
+  tasks: { type: Array, default: () => [] }
 })
 
 const emit = defineEmits(['open-task'])
 
-const tasks = ref([])
-const loading = ref(false)
 const currentDate = ref(new Date())
 
 // Navigation
@@ -76,7 +73,7 @@ const getTasksForDay = (date) => {
   const dayEnd = new Date(dayStart)
   dayEnd.setDate(dayEnd.getDate() + 1)
   
-  return tasks.value.filter(t => {
+  return props.tasks.filter(t => {
     const startDate = t.plannedStartDate ? new Date(t.plannedStartDate) : null
     const endDate = t.dueDate || t.plannedEndDate ? new Date(t.dueDate || t.plannedEndDate) : null
     
@@ -118,24 +115,10 @@ const getStatusColor = (statusName) => {
   if (s.includes('TODO')) return '#a855f7'
   return '#6b7280'
 }
-
-const fetchTasks = async () => {
-  loading.value = true
-  try {
-    const res = await axiosClient.get(`/projects/${props.projectId}/WorkTasks`)
-    tasks.value = res.data?.data || []
-  } catch (err) {
-    console.error(err)
-  } finally {
-    loading.value = false
-  }
-}
-
-onMounted(fetchTasks)
 </script>
 
 <template>
-  <div class="plane-calendar" v-loading="loading">
+  <div class="plane-calendar">
     <!-- Calendar Header -->
     <div class="cal-header">
       <div class="cal-nav">

@@ -17,7 +17,7 @@
       ></div>
 
       <!-- Sidebar -->
-      <NexusSidebar :isVisible="sidebarVisible" @close-mobile="sidebarVisible = false" @open-create-modal="toggleCreateSpace" />
+      <NexusSidebar :isVisible="sidebarVisible" @close-mobile="sidebarVisible = false" />
 
       <!-- Main Content -->
       <main class="content-area">
@@ -105,7 +105,7 @@ const toggleAI = () => {
 }
 
 const toggleCreate = () => {
-  createSpaceVisible.value = !createSpaceVisible.value
+  createVisible.value = !createVisible.value
 }
 
 const toggleCreateSpace = () => {

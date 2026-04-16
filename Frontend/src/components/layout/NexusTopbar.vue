@@ -19,6 +19,7 @@
     </div>
 
     <div class="nav-right">
+      <NotificationsDropdown />
       <div class="help-btn" @click="$emit('toggle-ai')">
          <i class="fa-solid fa-robot"></i>
       </div>
@@ -35,6 +36,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import UserDropdown from '@/components/UserDropdown.vue'
+import NotificationsDropdown from '@/components/NotificationsDropdown.vue'
 
 const router = useRouter()
 const searchQuery = ref('')

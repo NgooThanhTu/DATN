@@ -22,6 +22,18 @@ export const useSprintStore = defineStore('sprint', {
       } finally {
         this.loading = false;
       }
+    },
+    async toggleFavorite(projectId, sprintId) {
+      if(!projectId || !sprintId) return;
+      try {
+        const res = await axiosClient.patch(`/projects/${projectId}/sprints/${sprintId}/favorite`);
+        const idx = this.sprints.findIndex(s => s.id === sprintId);
+        if (idx !== -1) {
+           this.sprints[idx].isFavorite = res.data?.data?.isFavorite;
+        }
+      } catch (err) {
+        console.error('Failed to toggle sprint favorite:', err);
+      }
     }
   }
 })

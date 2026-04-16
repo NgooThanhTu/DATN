@@ -1,18 +1,40 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, computed } from 'vue'
+import axiosClient from '@/api/axiosClient'
 import NexusLayout from '@/components/layout/NexusLayout.vue'
 
-// Mock tasks based on image 1
-const mockTasks = [
-  { id: 'CUN-8', title: 'Test Task', state: 'Backlog', priority: 'None', labels: 'Select labels', modules: 'Select modules', cycle: 'Select cycle' },
-  { id: 'CUN-7', title: '6. Customize your settings', state: 'Backlog', priority: 'None', labels: 'Select labels', modules: '2 Modules', cycle: 'Cycle 2: Collaboration & Cu...' },
-  { id: 'CUN-6', title: '5. Use Cycles to time box tasks', state: 'Backlog', priority: 'Low', labels: 'concepts', modules: '2 Modules', cycle: 'Cycle 2: Collaboration & Cu...' },
-  { id: 'CUN-5', title: '4. Visualize your work', state: 'In Progress', priority: 'None', labels: 'Select labels', modules: 'Onboarding Flow (Feature)', cycle: 'Cycle 2: Collaboration & Cu...' },
-  { id: 'CUN-4', title: '3. Create and assign Work items', state: 'In Progress', priority: 'High', labels: 'concepts', modules: '2 Modules', cycle: 'Cycle 1: Getting Started wit...' },
-  { id: 'CUN-3', title: '2. Invite your team', state: 'Backlog', priority: 'High', labels: 'Select labels', modules: '2 Modules', cycle: 'Cycle 1: Getting Started wit...' },
-  { id: 'CUN-2', title: '1. Create Projects', state: 'Todo', priority: 'High', labels: 'concepts', modules: 'Core Workflow (System)', cycle: 'Cycle 1: Getting Started wit...' },
-  { id: 'CUN-1', title: 'Welcome to Plane', state: 'Done', priority: 'Urgent', labels: 'Select labels', modules: 'Core Workflow (System)', cycle: 'Cycle 1: Getting Started wit...' }
-]
+const rawTasks = ref([])
+const loading = ref(false)
+const showFilters = ref(false)
+
+const filters = ref({
+  status: '',
+  search: ''
+})
+
+onMounted(async () => {
+  try {
+    loading.value = true
+    const res = await axiosClient.get('/tasks/search')
+    rawTasks.value = res.data?.data || []
+  } catch (err) {
+    console.error('Failed to load global tasks', err)
+  } finally {
+    loading.value = false
+  }
+})
+
+const filteredTasks = computed(() => {
+  let list = rawTasks.value
+  if (filters.value.status) {
+    list = list.filter(t => (t.statusName || 'BACKLOG').toUpperCase().trim() === filters.value.status)
+  }
+  if (filters.value.search) {
+    list = list.filter(t => t.title.toLowerCase().includes(filters.value.search.toLowerCase()) || 
+                      (t.sequenceId && t.sequenceId.toLowerCase().includes(filters.value.search.toLowerCase())))
+  }
+  return list
+})
 
 const getStatusIcon = (st) => {
   if (st === 'Done') return { class: 'fa-solid fa-circle-check text-green', color: '#10B981' }
@@ -37,10 +59,17 @@ const getPrioIcon = (pr) => {
         <div class="vh-left">
            <span class="breadcrumb"><i class="fa-solid fa-layer-group"></i> Views <i class="fa-solid fa-chevron-right separator"></i> All work items <i class="fa-solid fa-chevron-down ms-2" style="font-size: 10px;"></i></span>
         </div>
-        <div class="vh-right">
-           <button class="plane-toolbar-btn"><i class="fa-solid fa-filter"></i></button>
+        <div class="vh-right" style="display: flex; gap: 8px; align-items: center;">
+           <input type="text" v-model="filters.search" placeholder="Search tasks..." style="background: transparent; border: 1px solid #27272A; color: #E4E4E7; padding: 4px 8px; border-radius: 4px; font-size: 13px;" />
+           <select v-model="filters.status" style="background: transparent; border: 1px solid #27272A; color: #E4E4E7; padding: 4px 8px; border-radius: 4px; font-size: 13px;">
+              <option value="" style="background: #1E2025;">All Status</option>
+              <option value="BACKLOG" style="background: #1E2025;">Backlog</option>
+              <option value="TO DO" style="background: #1E2025;">To Do</option>
+              <option value="IN PROGRESS" style="background: #1E2025;">In Progress</option>
+              <option value="DONE" style="background: #1E2025;">Done</option>
+           </select>
+           <button class="plane-toolbar-btn" @click="showFilters = !showFilters"><i class="fa-solid fa-filter"></i></button>
            <button class="plane-toolbar-btn">Display</button>
-           <button class="plane-primary-btn">Add view <i class="fa-solid fa-chevron-down"></i></button>
         </div>
       </header>
       
@@ -62,46 +91,46 @@ const getPrioIcon = (pr) => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="t in mockTasks" :key="t.id">
+            <tr v-for="t in filteredTasks" :key="t.id">
               <td>
                 <div class="wi-cell">
-                  <span class="wi-id">{{ t.id }}</span>
+                  <span class="wi-id">{{ t.sequenceId || t.id.substring(0,8).toUpperCase() }}</span>
                   <span class="wi-title">{{ t.title }}</span>
                 </div>
               </td>
               <td>
                 <div class="state-cell">
-                  <i :class="getStatusIcon(t.state).class"></i>
-                  <span>{{ t.state }}</span>
+                  <i :class="getStatusIcon(t.statusName || 'BACKLOG').class"></i>
+                  <span>{{ t.statusName || 'BACKLOG' }}</span>
                 </div>
               </td>
               <td>
                 <div class="prio-cell">
-                  <i :class="getPrioIcon(t.priority).class"></i>
-                  <span>{{ t.priority }}</span>
+                  <i class="fa-solid fa-signal" v-if="t.priority === 3" style="color: #F59E0B"></i>
+                  <i class="fa-solid fa-ban text-muted" v-else></i>
+                  <span>{{ t.priority === 3 ? 'High' : 'None' }}</span>
                 </div>
               </td>
               <td>
                 <div class="assignee-cell">
-                  <i class="fa-regular fa-user"></i>
-                  <span class="text-muted">Assignees</span>
+                  <i class="fa-regular fa-user" v-if="!t.assigneeName"></i>
+                  <span class="text-muted" v-if="!t.assigneeName">Assignees</span>
+                  <span class="d-dot" style="background: #0EA5E9; padding: 2px 6px; color: white; border-radius: 4px; font-size: 10px;" v-else>{{ t.assigneeName.substring(0,2).toUpperCase() }}</span>
                 </div>
               </td>
               <td>
                 <div class="label-cell text-muted">
-                  <i class="fa-solid fa-tag" v-if="t.labels.includes('Select')"></i>
-                  <span class="d-dot" v-else></span>
-                  {{ t.labels }}
+                  <i class="fa-solid fa-tag"></i> Select labels
                 </div>
               </td>
               <td>
                 <div class="module-cell text-muted">
-                  <i class="fa-solid fa-table-cells-large"></i> {{ t.modules }}
+                  <i class="fa-solid fa-table-cells-large"></i> 0 Modules
                 </div>
               </td>
               <td>
                 <div class="cycle-cell text-muted">
-                  <i class="fa-solid fa-arrows-spin"></i> {{ t.cycle }}
+                  <i class="fa-solid fa-arrows-spin"></i> No Cycle
                 </div>
               </td>
               <td class="text-muted"><i class="fa-regular fa-calendar"></i> Start date</td>

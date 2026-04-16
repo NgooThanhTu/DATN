@@ -1,5 +1,6 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch, onUnmounted } from 'vue'
+import { useWorkTaskStore } from '@/store/useWorkTaskStore'
 import axiosClient from '@/api/axiosClient'
 
 const props = defineProps({
@@ -8,8 +9,9 @@ const props = defineProps({
 
 const emit = defineEmits(['open-task'])
 
-const tasks = ref([])
-const loading = ref(false)
+const taskStore = useWorkTaskStore()
+const tasks = computed(() => taskStore.tasks)
+const loading = computed(() => taskStore.loading)
 const viewMode = ref('Week') // Week, Month, Quarter
 const scrollContainer = ref(null)
 
@@ -174,20 +176,89 @@ const todayOffset = computed(() => {
   return daysBetween(rangeStart, today) * cellWidth + cellWidth / 2
 })
 
-const fetchTasks = async () => {
-  loading.value = true
+const fetchTasks = () => {
+  taskStore.fetchTasks(props.projectId)
+}
+
+// === Drag & Resize Logic ===
+const dragState = ref(null)
+
+const onDragStart = (e, task, type) => {
+  e.preventDefault()
+  e.stopPropagation()
+  dragState.value = {
+    task,
+    type, // 'move', 'resize-left', 'resize-right'
+    startX: e.clientX,
+    startCellPos: getTaskBar(task)
+  }
+  document.addEventListener('mousemove', onMouseMove)
+  document.addEventListener('mouseup', onMouseUp)
+}
+
+const onMouseMove = (e) => {
+  if (!dragState.value) return
+  // We can add temporary visual feedback if needed, but for now we calculate on MouseUp
+}
+
+const onMouseUp = async (e) => {
+  if (!dragState.value) return
+  const { task, type, startX } = dragState.value
+  document.removeEventListener('mousemove', onMouseMove)
+  document.removeEventListener('mouseup', onMouseUp)
+  dragState.value = null
+
+  const diffX = e.clientX - startX
+  const daysDiff = Math.round(diffX / cellWidth)
+  
+  if (daysDiff === 0) return
+
+  let newStart = task.plannedStartDate ? new Date(task.plannedStartDate) : new Date(task.createdAt)
+  let newEnd = task.plannedEndDate || task.dueDate ? new Date(task.plannedEndDate || task.dueDate) : new Date(newStart)
+
+  if (type === 'move') {
+    newStart.setDate(newStart.getDate() + daysDiff)
+    newEnd.setDate(newEnd.getDate() + daysDiff)
+  } else if (type === 'resize-left') {
+    newStart.setDate(newStart.getDate() + daysDiff)
+  } else if (type === 'resize-right') {
+    newEnd.setDate(newEnd.getDate() + daysDiff)
+  }
+
+  // Optimistic update
+  const originalStart = task.plannedStartDate
+  const originalEnd = task.dueDate || task.plannedEndDate
+  task.plannedStartDate = newStart.toISOString()
+  task.dueDate = newEnd.toISOString()
+
   try {
-    const res = await axiosClient.get(`/projects/${props.projectId}/WorkTasks`)
-    tasks.value = res.data?.data || []
+    await axiosClient.put(`/projects/${task.projectId}/WorkTasks/${task.id}`, {
+      ...task,
+      plannedStartDate: task.plannedStartDate,
+      dueDate: task.dueDate
+    })
   } catch (err) {
-    console.error(err)
-  } finally {
-    loading.value = false
+    console.error('Failed to update task dates', err)
+    task.plannedStartDate = originalStart
+    task.dueDate = originalEnd
   }
 }
 
+onUnmounted(() => {
+  document.removeEventListener('mousemove', onMouseMove)
+  document.removeEventListener('mouseup', onMouseUp)
+})
+
+watch(() => props.projectId, (newVal) => {
+  if (newVal) {
+    fetchTasks()
+  }
+})
+
 onMounted(() => {
-  fetchTasks()
+  if (taskStore.tasks.length === 0) {
+    fetchTasks()
+  }
   setTimeout(goToToday, 300)
 })
 </script>
@@ -306,9 +377,11 @@ onMounted(() => {
                   background: getStatusColor(task.statusName)
                 }"
                 :title="`${task.title} (${getTaskDuration(task)})`"
-                @click="$emit('open-task', task)"
+                @mousedown="onDragStart($event, task, 'move')"
               >
+                <div class="resize-handle left" @mousedown.stop="onDragStart($event, task, 'resize-left')"></div>
                 <span class="bar-label">{{ task.title }}</span>
+                <div class="resize-handle right" @mousedown.stop="onDragStart($event, task, 'resize-right')"></div>
               </div>
             </div>
             <!-- Empty add row -->
@@ -652,6 +725,16 @@ onMounted(() => {
   filter: brightness(1.15);
   box-shadow: 0 2px 8px rgba(0,0,0,0.25);
 }
+.resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: ew-resize;
+  z-index: 10;
+}
+.resize-handle.left { left: 0; }
+.resize-handle.right { right: 0; }
 .bar-label {
   font-size: 11px;
   font-weight: 500;
@@ -659,5 +742,6 @@ onMounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  pointer-events: none;
 }
 </style>

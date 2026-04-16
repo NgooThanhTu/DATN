@@ -1,28 +1,93 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, computed } from 'vue'
+import axiosClient from '@/api/axiosClient'
 import NexusLayout from '@/components/layout/NexusLayout.vue'
+import { useActivityStore } from '@/store/useActivityStore'
 
 const activeTab = ref('Summary')
 const tabs = ['Summary', 'Assigned', 'Created', 'Subscribed', 'Activity']
 
-// Mock data based on the image
-const overview = { created: 1, assigned: 0, subscribed: 1 }
-const workload = { backlog: 0, notStarted: 0, workingOn: 0, completed: 0, canceled: 0 }
+const myTasks = ref([])
+const loading = ref(false)
+const actStore = useActivityStore()
 
-const recentActivity = [
-  { id: 1, text: 'You created CUN-8 Test Task', time: 'about 1 hour ago', type: 'create' }
-]
+onMounted(async () => {
+  try {
+    loading.value = true
+    const res = await axiosClient.get('/tasks/my-tasks')
+    myTasks.value = res.data?.data || []
+    await actStore.fetchRecentActivities()
+  } catch (err) {
+    console.error('Lỗi load tasks:', err)
+  } finally {
+    loading.value = false
+  }
+})
 
-const listData = [
-  { id: 'CUN-3', title: '2. Invite your team 🤝', state: 'Done', modules: '2 Modules', cycle: 'Cycle 2: Collaboratio...' }
-]
+const overview = computed(() => ({
+  created: 0, 
+  assigned: myTasks.value.length, 
+  subscribed: 0 
+}))
 
-const pageActivities = [
-   { icon: 'fa-solid fa-arrows-spin', text: 'You set the cycle to', bold: 'Cycle 2: Collaboration & Customization', time: '1 minute ago' },
-   { icon: 'fa-solid fa-table-cells-large', text: 'You set the state to Done for CUN-3', bold: '2. Invite your team 🤝', time: '1 minute ago' },
-   { icon: 'fa-regular fa-user', text: 'You added a new assignee cuongdqtb01697 to CUN-3', bold: '2. Invite your team 🤝', time: '1 minute ago' },
-   { icon: 'fa-regular fa-circle', text: 'You created CUN-8', bold: 'Test Task', time: 'about 1 hour ago' }
-]
+const workload = computed(() => {
+  let backlog = 0, notStarted = 0, workingOn = 0, completed = 0, canceled = 0
+  myTasks.value.forEach(t => {
+    const s = (t.statusName || 'BACKLOG').toUpperCase().trim()
+    if (s === 'BACKLOG') backlog++
+    else if (s === 'TODO' || s === 'TO DO') notStarted++
+    else if (s === 'IN PROGRESS' || s === 'INPROGRESS') workingOn++
+    else if (s === 'DONE') completed++
+    else if (s === 'CANCELED') canceled++
+    else backlog++
+  })
+  return { backlog, notStarted, workingOn, completed, canceled }
+})
+
+const recentActivity = computed(() => {
+  return actStore.activities.map(a => ({
+    id: a.id,
+    text: a.text + ' ' + a.bold,
+    time: a.time
+  }))
+})
+
+const listData = computed(() => {
+  let list = myTasks.value;
+  if (activeTab.value === 'Assigned') {
+    list = myTasks.value;
+  } else if (activeTab.value === 'Created') {
+    list = myTasks.value; // Just a mock for now, API needs to return created
+  } else if (activeTab.value === 'Subscribed') {
+    list = myTasks.value; 
+  }
+
+  return list.map(t => ({
+    id: t.sequenceId || t.id.substring(0,8).toUpperCase(),
+    rawId: t.id,
+    title: t.title,
+    state: t.statusName || 'To Do',
+    priority: t.priority || 3,
+    assigneeName: t.assigneeName,
+    modules: '0 Modules',
+    cycle: 'No Cycle',
+    task: t
+  }))
+})
+
+const updateTaskProperty = async (task, field, value) => {
+   try {
+      const payload = {};
+      payload[field] = value;
+      await axiosClient.patch(`/projects/default/WorkTasks/${task.id}`, payload);
+      const res = await axiosClient.get('/tasks/my-tasks');
+      myTasks.value = res.data?.data || [];
+   } catch (error) {
+      console.error('Failed to update task:', error);
+   }
+}
+
+const pageActivities = computed(() => actStore.activities)
 </script>
 
 <template>
@@ -103,16 +168,28 @@ const pageActivities = [
            <div class="yw-two-cols mt-4">
               <div class="chart-col">
                  <h3 class="section-title">Work items by Priority</h3>
-                 <div class="empty-chart">
+                 <div class="empty-chart" v-if="myTasks.length === 0">
                     <i class="fa-solid fa-chart-simple chart-icon"></i>
                     <span>No work item assigned yet</span>
+                 </div>
+                 <div v-else class="text-sm p-4 text-gray-400 border border-[#27272A] rounded-lg mt-2 bg-[#16181D]">
+                    <div class="flex justify-between mb-2"><span>Urgent</span> <span class="text-white">{{ myTasks.filter(t=>t.priority===1).length }}</span></div>
+                    <div class="flex justify-between mb-2"><span>High</span> <span class="text-white">{{ myTasks.filter(t=>t.priority===2).length }}</span></div>
+                    <div class="flex justify-between mb-2"><span>Medium</span> <span class="text-white">{{ myTasks.filter(t=>t.priority===3).length }}</span></div>
+                    <div class="flex justify-between"><span>Low</span> <span class="text-white">{{ myTasks.filter(t=>t.priority===4).length }}</span></div>
                  </div>
               </div>
               <div class="chart-col">
                  <h3 class="section-title">Work items by state</h3>
-                 <div class="empty-chart">
+                 <div class="empty-chart" v-if="myTasks.length === 0">
                     <i class="fa-solid fa-chart-column chart-icon"></i>
                     <span>No work item assigned yet</span>
+                 </div>
+                 <div v-else class="text-sm p-4 text-gray-400 border border-[#27272A] rounded-lg mt-2 bg-[#16181D]">
+                    <div class="flex justify-between mb-2"><span>Backlog</span> <span class="text-white">{{ workload.backlog }}</span></div>
+                    <div class="flex justify-between mb-2"><span>Not Started</span> <span class="text-white">{{ workload.notStarted }}</span></div>
+                    <div class="flex justify-between mb-2"><span>In Progress</span> <span class="text-white">{{ workload.workingOn }}</span></div>
+                    <div class="flex justify-between"><span>Completed</span> <span class="text-white">{{ workload.completed }}</span></div>
                  </div>
               </div>
            </div>
@@ -135,7 +212,7 @@ const pageActivities = [
            <div class="list-header mt-4">
               <i class="fa-solid fa-circle-dashed f-icon"></i> 
               <span class="lh-title">All work items</span>
-              <span class="lh-count">1</span>
+              <span class="lh-count">{{ listData.length }}</span>
            </div>
            
            <div class="list-body mt-4">
@@ -144,17 +221,52 @@ const pageActivities = [
                     <span class="lr-id">{{ item.id }}</span>
                     <span class="lr-title">{{ item.title }}</span>
                  </div>
-                 <div class="lr-right">
-                    <div class="lr-badge green"><i class="fa-solid fa-circle-check"></i> Done</div>
-                    <div class="lr-badge"><i class="fa-solid fa-signal text-orange"></i></div>
-                    <div class="lr-badge"><i class="fa-regular fa-user"></i></div>
-                    <div class="lr-badge"><i class="fa-regular fa-calendar"></i></div>
-                    <div class="lr-badge avatar-badge">C</div>
-                    <div class="lr-badge"><i class="fa-solid fa-table-cells-large"></i> {{ item.modules }}</div>
-                    <div class="lr-badge"><i class="fa-solid fa-arrows-spin"></i> {{ item.cycle }}</div>
-                    <div class="lr-badge"><i class="fa-solid fa-tag"></i></div>
-                    <div class="lr-badge"><i class="fa-solid fa-ellipsis"></i></div>
-                 </div>
+                  <div class="lr-right">
+                    <!-- Status Dropdown -->
+                    <el-dropdown trigger="click" @command="(val) => updateTaskProperty(item.task, 'statusName', val)">
+                      <div class="lr-badge cursor-pointer hover:bg-[#1E2025]">
+                         <i class="fa-solid fa-circle-check" v-if="item.state.toUpperCase() === 'DONE'"></i>
+                         <i class="fa-solid fa-circle-half-stroke" v-else-if="item.state.toUpperCase() === 'IN PROGRESS'"></i>
+                         <i class="fa-regular fa-circle" v-else></i>
+                         {{ item.state }}
+                      </div>
+                      <template #dropdown>
+                        <el-dropdown-menu class="plane-dropdown">
+                          <el-dropdown-item command="BACKLOG">Backlog</el-dropdown-item>
+                          <el-dropdown-item command="TO DO">To Do</el-dropdown-item>
+                          <el-dropdown-item command="IN PROGRESS">In Progress</el-dropdown-item>
+                          <el-dropdown-item command="IN REVIEW">In Review</el-dropdown-item>
+                          <el-dropdown-item command="DONE">Done</el-dropdown-item>
+                        </el-dropdown-menu>
+                      </template>
+                    </el-dropdown>
+
+                    <!-- Priority Dropdown -->
+                    <el-dropdown trigger="click" @command="(val) => updateTaskProperty(item.task, 'priority', val)">
+                      <div class="lr-badge cursor-pointer hover:bg-[#1E2025]">
+                         <i class="fa-solid fa-angles-up text-red-500" v-if="item.priority === 1"></i>
+                         <i class="fa-solid fa-chevron-up text-orange-500" v-else-if="item.priority === 2"></i>
+                         <i class="fa-solid fa-minus text-blue-500" v-else-if="item.priority === 3"></i>
+                         <i class="fa-solid fa-chevron-down text-gray-400" v-else></i>
+                      </div>
+                      <template #dropdown>
+                        <el-dropdown-menu class="plane-dropdown">
+                          <el-dropdown-item :command="1"><i class="fa-solid fa-angles-up text-red-500"></i> Urgent</el-dropdown-item>
+                          <el-dropdown-item :command="2"><i class="fa-solid fa-chevron-up text-orange-500"></i> High</el-dropdown-item>
+                          <el-dropdown-item :command="3"><i class="fa-solid fa-minus text-blue-500"></i> Normal</el-dropdown-item>
+                          <el-dropdown-item :command="4"><i class="fa-solid fa-chevron-down text-gray-400"></i> Low</el-dropdown-item>
+                        </el-dropdown-menu>
+                      </template>
+                    </el-dropdown>
+
+                    <div class="lr-badge cursor-not-allowed">
+                       <i class="fa-regular fa-user" v-if="!item.assigneeName"></i>
+                       <span v-else>{{ item.assigneeName.substring(0,1).toUpperCase() }}</span>
+                    </div>
+                    <div class="lr-badge cursor-not-allowed"><i class="fa-regular fa-calendar"></i></div>
+                    <div class="lr-badge cursor-not-allowed"><i class="fa-solid fa-table-cells-large"></i> {{ item.modules }}</div>
+                    <div class="lr-badge cursor-not-allowed"><i class="fa-solid fa-arrows-spin"></i> {{ item.cycle }}</div>
+                  </div>
               </div>
            </div>
         </div>

@@ -1,0 +1,103 @@
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using TaskManagement.Application.DTOs.Common;
+using TaskManagement.Domain.Entities;
+using TaskManagement.Infrastructure.Data;
+using System.Security.Claims;
+
+namespace TaskManagement.API.Controllers
+{
+    [ApiController]
+    [Route("api/projects/{projectId}/views")]
+    [Authorize]
+    public class ProjectViewsController : ControllerBase
+    {
+        private readonly ApplicationDbContext _context;
+
+        public ProjectViewsController(ApplicationDbContext context)
+        {
+            _context = context;
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetByProject(Guid projectId)
+        {
+            var views = await _context.ProjectViews
+                .Where(v => v.ProjectId == projectId)
+                .OrderByDescending(v => v.IsFavorite)
+                .ThenByDescending(v => v.CreatedAt)
+                .Select(v => new {
+                    v.Id,
+                    v.Name,
+                    v.Description,
+                    v.QueryMetadata,
+                    v.IsFavorite,
+                    v.CreatedAt
+                })
+                .ToListAsync();
+
+            return Ok(new { statusCode = 200, data = views, message = "Success" });
+        }
+
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetById(Guid projectId, Guid id)
+        {
+            var view = await _context.ProjectViews
+                .Where(v => v.ProjectId == projectId && v.Id == id)
+                .Select(v => new {
+                    v.Id,
+                    v.Name,
+                    v.Description,
+                    v.QueryMetadata,
+                    v.IsFavorite,
+                    v.CreatedAt
+                })
+                .FirstOrDefaultAsync();
+
+            if (view == null) return NotFound(new { statusCode = 404, message = "View not found" });
+            return Ok(new { statusCode = 200, data = view, message = "Success" });
+        }
+
+        public class CreateViewDto {
+            public string Name {get; set;} = string.Empty;
+            public string? Description {get; set;}
+            public string QueryMetadata {get; set;} = "{}";
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> Create(Guid projectId, [FromBody] CreateViewDto dto)
+        {
+            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!Guid.TryParse(userIdStr, out Guid userId)) return Unauthorized();
+
+            var view = new ProjectView
+            {
+                Id = Guid.NewGuid(),
+                ProjectId = projectId,
+                Name = dto.Name,
+                Description = dto.Description,
+                QueryMetadata = dto.QueryMetadata,
+                CreatedById = userId,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            _context.ProjectViews.Add(view);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { statusCode = 201, data = view, message = "View created" });
+        }
+
+        [HttpPatch("{id}/favorite")]
+        public async Task<IActionResult> ToggleFavorite(Guid projectId, Guid id)
+        {
+            var view = await _context.ProjectViews.FirstOrDefaultAsync(v => v.ProjectId == projectId && v.Id == id);
+            if (view == null) return NotFound(new { statusCode = 404, message = "View not found" });
+
+            view.IsFavorite = !view.IsFavorite;
+            await _context.SaveChangesAsync();
+            return Ok(new { statusCode = 200, data = new { isFavorite = view.IsFavorite }, message = "Favorite toggled" });
+        }
+    }
+}

@@ -265,7 +265,8 @@ namespace TaskManagement.Infrastructure.Services
             // Define all valid transitions
             var allowedTransitions = new Dictionary<string, HashSet<string>>
             {
-                { "TO DO",       new HashSet<string> { "IN PROGRESS" } },
+                { "BACKLOG",     new HashSet<string> { "TO DO", "IN PROGRESS" } },
+                { "TO DO",       new HashSet<string> { "IN PROGRESS", "BACKLOG" } },
                 { "IN PROGRESS", new HashSet<string> { "IN REVIEW", "DONE", "TO DO" } },
                 { "IN REVIEW",   new HashSet<string> { "DONE", "IN PROGRESS" } },
                 { "DONE",        new HashSet<string> { "IN PROGRESS" } }
@@ -439,7 +440,7 @@ namespace TaskManagement.Infrastructure.Services
         /// </summary>
         private static string NormalizeStatusName(string? dbStatusName)
         {
-            if (string.IsNullOrEmpty(dbStatusName)) return "TO DO";
+            if (string.IsNullOrEmpty(dbStatusName)) return "BACKLOG";
 
             var upper = dbStatusName.ToUpper().Replace(" ", "");
 
@@ -449,11 +450,13 @@ namespace TaskManagement.Infrastructure.Services
                 return "IN REVIEW";
             if (upper.Contains("INPROGRESS") || upper.Contains("DANGLAM") || upper.Contains("ACTIVE"))
                 return "IN PROGRESS";
-            if (upper.Contains("TODO") || upper.Contains("CANLAM") || upper.Contains("BACKLOG"))
+            if (upper.Contains("TODO") || upper.Contains("CANLAM"))
                 return "TO DO";
+            if (upper.Contains("BACKLOG"))
+                return "BACKLOG";
 
-            // For seed data like "Status 1", "Status 2", etc. → default to "TO DO"
-            return "TO DO";
+            // For seed data like "Status 1", "Status 2", etc. → default to BACKLOG
+            return "BACKLOG";
         }
 
         private WorkTaskResponseDto MapToDto(TaskManagement.Domain.Entities.WorkTask wt)
@@ -576,10 +579,12 @@ namespace TaskManagement.Infrastructure.Services
             // No matching status found in this project - create one
             int position = normalizedName switch
             {
+                "BACKLOG" => 0,
+                "TO DO" => 1,
                 "IN PROGRESS" => 2,
                 "IN REVIEW" => 3,
                 "DONE" => 4,
-                _ => 1 // TO DO
+                _ => 0 // BACKLOG
             };
 
             taskStatus = new TaskManagement.Domain.Entities.TaskStatus

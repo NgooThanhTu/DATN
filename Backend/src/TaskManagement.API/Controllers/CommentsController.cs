@@ -76,7 +76,7 @@ namespace TaskManagement.API.Controllers
         /// Supports multipart form: content (text) + files[] (attachments)
         /// </summary>
         [HttpPost("projects/{projectId}/WorkTasks/{taskId}/comments")]
-        public async Task<IActionResult> CreateComment(Guid projectId, Guid taskId, [FromForm] string content, [FromForm] List<IFormFile>? files)
+        public async Task<IActionResult> CreateComment(Guid projectId, Guid taskId, [FromForm] string content, [FromForm] Guid? parentCommentId, [FromForm] List<IFormFile>? files)
         {
             var userId = GetUserId();
             if (userId == null) return Unauthorized();
@@ -93,6 +93,7 @@ namespace TaskManagement.API.Controllers
                 WorkTaskId = taskId,
                 UserId = userId.Value,
                 Content = content ?? "",
+                ParentCommentId = parentCommentId,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
@@ -141,6 +142,29 @@ namespace TaskManagement.API.Controllers
                 notifyUserIds.Add(task.AssignedUserId.Value);
             if (task.ReporterId != userId.Value)
                 notifyUserIds.Add(task.ReporterId);
+
+            // @Username Tags Regex
+            if (!string.IsNullOrWhiteSpace(content))
+            {
+                var taggedUsernames = System.Text.RegularExpressions.Regex.Matches(content, @"@(\w+)")
+                    .Select(m => m.Groups[1].Value)
+                    .ToList();
+                if (taggedUsernames.Any())
+                {
+                    var allUsers = await _context.Users.ToListAsync();
+                    var taggedUserIds = allUsers.Where(u => 
+                        taggedUsernames.Any(t => 
+                            (u.FullName != null && u.FullName.Replace(" ", "").Equals(t, StringComparison.OrdinalIgnoreCase)) ||
+                            (u.Email != null && u.Email.Split('@')[0].Equals(t, StringComparison.OrdinalIgnoreCase))
+                        )
+                    ).Select(u => u.Id).ToList();
+
+                    foreach(var tid in taggedUserIds)
+                    {
+                        if (tid != userId.Value) notifyUserIds.Add(tid);
+                    }
+                }
+            }
 
             foreach (var notifyId in notifyUserIds)
             {

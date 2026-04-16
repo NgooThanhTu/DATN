@@ -12,6 +12,7 @@ namespace TaskManagement.Domain.Entities
         public DateTime StartDate { get; set; }
         public DateTime EndDate { get; set; }
         public bool Status { get; set; } = true;
+        public bool IsFavorite { get; set; } = false;
         public DateTime CreatedAt { get; set; }
 
         public ICollection<WorkTask> WorkTasks { get; set; } = new List<WorkTask>();

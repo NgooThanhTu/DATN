@@ -22,6 +22,24 @@ namespace TaskManagement.API.Controllers
             public double EstHours { get; set; }
         }
 
+        public class ChatRequest
+        {
+            public string Message { get; set; } = string.Empty;
+            public List<ChatMessage>? History { get; set; }
+        }
+
+        public class ChatMessage
+        {
+            public string Role { get; set; } = string.Empty;
+            public string Content { get; set; } = string.Empty;
+        }
+
+        public class GenerateRequest
+        {
+            public string Prompt { get; set; } = string.Empty;
+            public string? Context { get; set; }
+        }
+
         [HttpPost("breakdown-task")]
         public async Task<IActionResult> BreakdownTask([FromBody] BreakdownRequest request)
         {
@@ -57,6 +75,51 @@ namespace TaskManagement.API.Controllers
 
             // Trả về theo định dạng JSON như AI gọi thành công
             return Ok(ApiResponse<List<SubTaskDto>>.Success(result, "Phân tách công việc bằng AI thành công."));
+        }
+
+        [HttpPost("chat")]
+        public async Task<IActionResult> Chat([FromBody] ChatRequest request)
+        {
+            if (string.IsNullOrEmpty(request.Message))
+            {
+                return BadRequest(ApiResponse<object>.Error("Message cannot be empty."));
+            }
+
+            // Simulate AI delay
+            await Task.Delay(2000);
+
+            string responseContent = "";
+            string lowerMsg = request.Message.ToLower();
+
+            if (lowerMsg.Contains("tóm tắt") || lowerMsg.Contains("summary"))
+            {
+                responseContent = "Dự án của bạn hiện đang có 12 công việc cần làm, 3 công việc đang thực hiện và 5 công việc đã hoàn thành trong tuần này.";
+            }
+            else if (lowerMsg.Contains("bug") || lowerMsg.Contains("lỗi"))
+            {
+                responseContent = "Các lỗi gần đây thường liên quan đến phân quyền RBAC và luồng xử lý WebSocket. Bạn nên kiểm tra lại Identity Server.";
+            }
+            else
+            {
+                responseContent = "Mình hiểu rồi. Mình là Brain AI, trợ lý quản lý dự án ảo của bạn. Bạn có muốn mình tạo công việc mới, tóm tắt sự kiện, hay hỗ trợ bạn viết user story không?";
+            }
+
+            return Ok(ApiResponse<string>.Success(responseContent, "Success"));
+        }
+
+        [HttpPost("generate-description")]
+        public async Task<IActionResult> GenerateDescription([FromBody] GenerateRequest request)
+        {
+            if (string.IsNullOrEmpty(request.Prompt))
+            {
+                return BadRequest(ApiResponse<object>.Error("Prompt không được để trống."));
+            }
+
+            await Task.Delay(1500);
+
+            string aiDescription = $"**Mô tả được tạo tự động cho: {request.Prompt}**\n\n- Yêu cầu chính: Đảm bảo tính năng hoạt động theo đúng tài liệu thiết kế.\n- Tiêu chí hoàn thành (DoD): Code coverage > 80%, không có lỗi nghiêm trọng.\n- Ghi chú: Yêu cầu này được Brain AI tạo để hỗ trợ đội ngũ.";
+
+            return Ok(ApiResponse<string>.Success(aiDescription, "Generated"));
         }
     }
 }

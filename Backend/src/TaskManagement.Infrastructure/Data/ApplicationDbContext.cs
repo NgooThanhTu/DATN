@@ -77,6 +77,9 @@ namespace TaskManagement.Infrastructure.Data
         public DbSet<IssueModule> IssueModules { get; set; }
         public DbSet<Intake> Intakes { get; set; }
         public DbSet<Page> Pages { get; set; }
+        public DbSet<StickyNote> StickyNotes { get; set; }
+        public DbSet<TaskDraft> TaskDrafts { get; set; }
+        public DbSet<ProjectView> ProjectViews { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

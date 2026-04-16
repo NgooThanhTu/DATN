@@ -1,11 +1,21 @@
 <template>
   <!-- Nội dung trang -->
-  <router-view />
+  <ErrorBoundary>
+    <Suspense>
+      <router-view />
+      <template #fallback>
+        <div style="display:flex; justify-content:center; align-items:center; height:100vh; background:var(--bg-layout); color:var(--text-primary);">
+          Đang tải giao diện...
+        </div>
+      </template>
+    </Suspense>
+  </ErrorBoundary>
 </template>
 
 <script setup>
 import { onMounted } from 'vue'
 import axiosClient from '@/api/axiosClient'
+import ErrorBoundary from '@/components/ErrorBoundary.vue'
 
 onMounted(async () => {
   const token = localStorage.getItem('accessToken')

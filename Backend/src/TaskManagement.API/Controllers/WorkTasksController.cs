@@ -183,6 +183,76 @@ namespace TaskManagement.API.Controllers
             }
         }
 
+        [HttpPatch("projects/{projectId}/WorkTasks/{id}")]
+        public async Task<IActionResult> PartialUpdate(Guid projectId, Guid id, [FromBody] System.Text.Json.JsonElement updates, [FromServices] TaskManagement.Infrastructure.Data.ApplicationDbContext context)
+        {
+            try
+            {
+                var task = await context.WorkTasks.FirstOrDefaultAsync(wt => wt.Id == id && wt.ProjectId == projectId && !wt.IsDeleted);
+                if (task == null) return NotFound(new { statusCode = 404, message = "Task không tồn tại." });
+
+                if (updates.TryGetProperty("title", out var titleProp) && titleProp.ValueKind != System.Text.Json.JsonValueKind.Null)
+                    task.Title = titleProp.GetString() ?? task.Title;
+                
+                if (updates.TryGetProperty("description", out var descProp))
+                    task.Description = descProp.ValueKind == System.Text.Json.JsonValueKind.Null ? null : descProp.GetString();
+
+                if (updates.TryGetProperty("priority", out var prioProp) && prioProp.ValueKind != System.Text.Json.JsonValueKind.Null)
+                    task.Priority = prioProp.GetInt32();
+
+                if (updates.TryGetProperty("assigneeId", out var assigneeProp))
+                {
+                    if (assigneeProp.ValueKind == System.Text.Json.JsonValueKind.Null) task.AssignedUserId = null;
+                    else if (Guid.TryParse(assigneeProp.GetString(), out Guid aId)) task.AssignedUserId = aId;
+                }
+
+                if (updates.TryGetProperty("plannedStartDate", out var startProp))
+                {
+                    if (startProp.ValueKind == System.Text.Json.JsonValueKind.Null) task.PlannedStartDate = null;
+                    else if (DateTime.TryParse(startProp.GetString(), out DateTime d)) task.PlannedStartDate = d;
+                }
+
+                if (updates.TryGetProperty("dueDate", out var dueProp))
+                {
+                    if (dueProp.ValueKind == System.Text.Json.JsonValueKind.Null) task.DueDate = null;
+                    else if (DateTime.TryParse(dueProp.GetString(), out DateTime d)) task.DueDate = d;
+                }
+
+                if (updates.TryGetProperty("sprintId", out var sprintProp))
+                {
+                    if (sprintProp.ValueKind == System.Text.Json.JsonValueKind.Null) task.SprintId = null;
+                    else if (Guid.TryParse(sprintProp.GetString(), out Guid sId)) task.SprintId = sId;
+                }
+
+                if (updates.TryGetProperty("moduleId", out var modProp))
+                {
+                    // Assuming Task model has ModuleId? Or similar, if not just ignore or map properly
+                    // task.ModuleId = ...
+                }
+
+                if (updates.TryGetProperty("parentId", out var parProp))
+                {
+                    if (parProp.ValueKind == System.Text.Json.JsonValueKind.Null) task.ParentTaskId = null;
+                    else if (Guid.TryParse(parProp.GetString(), out Guid pId)) task.ParentTaskId = pId;
+                }
+
+                if (updates.TryGetProperty("statusName", out var statusProp) && statusProp.ValueKind != System.Text.Json.JsonValueKind.Null)
+                {
+                    var statusName = statusProp.GetString();
+                    var newStatus = await context.TaskStatuses.FirstOrDefaultAsync(ts => ts.ProjectId == projectId && ts.Name == statusName);
+                    if (newStatus != null) task.TaskStatusId = newStatus.Id;
+                }
+
+                task.UpdatedAt = DateTime.UtcNow;
+                await context.SaveChangesAsync();
+                return Ok(new { statusCode = 200, message = "Saved", data = task });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { statusCode = 500, message = ex.Message });
+            }
+        }
+
         [HttpGet("{id}/comments")]
         public async Task<IActionResult> GetComments(Guid projectId, Guid id, [FromServices] TaskManagement.Infrastructure.Data.ApplicationDbContext context)
         {

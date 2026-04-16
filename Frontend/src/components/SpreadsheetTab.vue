@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import axiosClient from '@/api/axiosClient'
 
 const props = defineProps({
   tasks: {
@@ -28,6 +29,26 @@ const getStatusDisplay = (statusName) => {
   if (s === 'TO DO' || s === 'TODO') return { class: 'fa-regular fa-circle text-muted', label: 'Todo' }
   return { class: 'fa-solid fa-circle-dashed text-muted', label: 'Backlog' }
 }
+
+const updateTaskTitle = async (task, event) => {
+  const newTitle = event.target.innerText.trim()
+  if (newTitle && newTitle !== task.title) {
+    try {
+      if (!task.projectId || !task.id) return;
+      await axiosClient.put(`/projects/${task.projectId}/WorkTasks/${task.id}`, {
+        title: newTitle,
+        description: task.description || '',
+        priority: task.priority || 0
+      });
+      task.title = newTitle;
+    } catch(e) {
+      console.error(e);
+      event.target.innerText = task.title; // Revert
+    }
+  } else {
+    event.target.innerText = task.title; // Revert visual changes if blank
+  }
+}
 </script>
 
 <template>
@@ -49,7 +70,10 @@ const getStatusDisplay = (statusName) => {
           <td>
             <div class="wi-cell">
               <span class="wi-id">{{ task.sequenceId || `CUN-${index + 1}` }}</span>
-              <span class="wi-title">{{ task.title }}</span>
+              <span class="wi-title"
+                contenteditable="true"
+                @blur="updateTaskTitle(task, $event)"
+                @keydown.enter.prevent="$event.target.blur()">{{ task.title }}</span>
             </div>
           </td>
           <td>

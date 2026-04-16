@@ -10,12 +10,13 @@
 
           <!-- Chat History -->
           <div class="chat-history">
-            <!-- Bot Welcome -->
-            <div class="chat-row bot">
-              <div class="bot-icon-circle"><i class="fa-solid fa-robot"></i></div>
-              <div class="bubble">
-                Xin chào! Tôi là trợ lý AI của SprintA. Tôi có thể giúp bạn tổ chức dự án, tóm tắt các luồng thảo luận dài, hoặc tạo lộ trình. Tôi có thể giúp gì cho bạn hôm nay?
+            <div v-for="(msg, idx) in chatHistory" :key="idx" class="chat-row" :class="msg.role">
+              <div v-if="msg.role === 'bot'" class="bot-icon-circle"><i class="fa-solid fa-robot"></i></div>
+              <div :class="['bubble', msg.role === 'user' ? 'primary' : '']">
+                {{ msg.content }}
+                <i v-if="msg.isTyping" class="fa-solid fa-ellipsis fa-fade"></i>
               </div>
+              <div v-if="msg.role === 'user'" class="user-avatar-circle">{{ currentUser.name ? currentUser.name.substring(0,2).toUpperCase() : 'ME' }}</div>
             </div>
           </div>
 
@@ -23,8 +24,8 @@
           <div class="ai-chat-input-wrapper">
             <div class="input-box">
               <i class="fa-solid fa-paperclip attach-btn"></i>
-              <input type="text" placeholder="Hỏi SprintA AI bất cứ điều gì..." />
-              <button class="send-btn"><span class="fa fa-paper-plane"></span></button>
+              <input type="text" placeholder="Hỏi SprintA AI bất cứ điều gì..." v-model="userMessage" @keyup.enter="sendMessage" :disabled="isLoading" />
+              <button class="send-btn" @click="sendMessage" :disabled="isLoading"><span class="fa fa-paper-plane"></span></button>
             </div>
             <div class="ai-disclaimer">SprintA AI có thể mắc sai sót. Hãy kiểm tra lại các thông tin quan trọng.</div>
           </div>
@@ -88,6 +89,7 @@ import NotificationsDropdown from '../components/NotificationsDropdown.vue'
 import UserDropdown from '../components/UserDropdown.vue'
 import CustomizeSidebarModal from '../components/CustomizeSidebarModal.vue'
 import NexusLayout from '@/components/layout/NexusLayout.vue'
+import axiosClient from '@/api/axiosClient'
 
 const router = useRouter()
 const currentUser = JSON.parse(localStorage.getItem('user') || '{}')
@@ -99,6 +101,32 @@ const searchQuery = ref('')
 const aiVisible = ref(false)
 const showCustomizeModal = ref(false)
 const sidebarVisible = ref(true)
+
+const userMessage = ref('')
+const isLoading = ref(false)
+const chatHistory = ref([
+  { role: 'bot', content: 'Xin chào! Tôi là trợ lý AI của SprintA. Tôi có thể giúp bạn tổ chức dự án, tóm tắt các luồng thảo luận dài, hoặc tạo lộ trình. Tôi có thể giúp gì cho bạn hôm nay?' }
+])
+
+const sendMessage = async () => {
+  if (!userMessage.value.trim() || isLoading.value) return;
+  const msg = userMessage.value.trim();
+  userMessage.value = '';
+  chatHistory.value.push({ role: 'user', content: msg });
+  isLoading.value = true;
+  chatHistory.value.push({ role: 'bot', content: 'Đang gõ...', isTyping: true });
+
+  try {
+    const res = await axiosClient.post('/ai/chat', { message: msg });
+    chatHistory.value.pop();
+    chatHistory.value.push({ role: 'bot', content: res.data.data });
+  } catch (error) {
+    chatHistory.value.pop();
+    chatHistory.value.push({ role: 'bot', content: 'Xin lỗi, có lỗi xảy ra khi kết nối với AI. Hãy thử lại.' });
+  } finally {
+    isLoading.value = false;
+  }
+}
 
 const sidebarPreferences = ref({
   audit: true,

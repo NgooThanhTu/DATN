@@ -2,7 +2,7 @@
   <aside class="plane-sidebar" :class="{ 'collapsed': !isVisible }">
     <div class="sidebar-scrollable">
       <div class="sidebar-top-action">
-        <button class="new-issue-btn" @click="$emit('open-create-modal')">
+        <button class="new-issue-btn" @click="triggerCreateTask">
           <i class="fa-solid fa-pen-to-square"></i>
           <span>New work item</span>
         </button>
@@ -31,6 +31,17 @@
           <router-link to="/stickies" class="nav-link">
             <i class="fa-solid fa-note-sticky"></i>
             <span>Stickies</span>
+          </router-link>
+        </li>
+      </ul>
+
+      <!-- Favorites Division -->
+      <div class="nav-section-title" v-if="favoriteSprints.length > 0">Favorites</div>
+      <ul class="nav-menu" v-if="favoriteSprints.length > 0">
+        <li class="nav-item" v-for="fs in favoriteSprints" :key="fs.id">
+          <router-link :to="`/space/${fs.projectId}/cycles`" class="nav-link">
+             <i class="fa-solid fa-arrows-spin text-orange-400"></i>
+             <span class="truncate">{{ fs.name }}</span>
           </router-link>
         </li>
       </ul>
@@ -108,6 +119,13 @@
             <span>Cycles</span>
           </router-link>
         </li>
+        <!-- Hidden as requested -->
+        <li class="nav-item sub-item" v-if="false">
+          <router-link :to="`/space/${projectId}/intakes`" class="nav-link">
+            <i class="fa-solid fa-inbox"></i>
+            <span>Intakes</span>
+          </router-link>
+        </li>
         <li class="nav-item sub-item">
           <router-link :to="`/space/${projectId}/modules`" class="nav-link">
             <i class="fa-solid fa-table-cells-large"></i>
@@ -139,8 +157,9 @@
 </template>
 
 <script setup>
-import { computed, ref, defineProps, defineEmits } from 'vue'
+import { computed, ref, defineProps, defineEmits, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { useSprintStore } from '@/store/useSprintStore'
 
 const route = useRoute()
 const showMorePanel = ref(false)
@@ -154,7 +173,23 @@ const props = defineProps({
     default: true
   }
 })
-const emit = defineEmits(['close-mobile', 'open-create-modal'])
+const emit = defineEmits(['close-mobile'])
+
+const sprintStore = useSprintStore()
+const favoriteSprints = computed(() => {
+   if (!sprintStore.sprints) return [];
+   return sprintStore.sprints.filter(s => s.isFavorite);
+})
+
+watch(projectId, (newVal) => {
+   if (newVal && newVal !== 'default') {
+      sprintStore.fetchSprints(newVal)
+   }
+}, { immediate: true })
+
+const triggerCreateTask = () => {
+    window.dispatchEvent(new CustomEvent('global-create-task'))
+}
 </script>
 
 <style scoped>

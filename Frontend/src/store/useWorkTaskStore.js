@@ -7,6 +7,32 @@ export const useWorkTaskStore = defineStore('workTask', {
     loading: false,
     error: null,
   }),
+  getters: {
+    backlogTasks: (state) => (state.tasks || []).filter(t => {
+       const s = (t.statusName || '').toUpperCase().trim();
+       return s === 'BACKLOG' || s === '';
+    }).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)),
+    
+    todoTasks: (state) => (state.tasks || []).filter(t => {
+       const s = (t.statusName || '').toUpperCase().trim();
+       return s === 'TODO' || s === 'TO DO';
+    }).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)),
+    
+    inProgressTasks: (state) => (state.tasks || []).filter(t => {
+       const s = (t.statusName || '').toUpperCase().trim();
+       return s === 'IN PROGRESS' || s === 'INPROGRESS';
+    }).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)),
+    
+    reviewTasks: (state) => (state.tasks || []).filter(t => {
+       const s = (t.statusName || '').toUpperCase().trim();
+       return s === 'IN REVIEW' || s === 'REVIEW';
+    }).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)),
+
+    doneTasks: (state) => (state.tasks || []).filter(t => {
+       const s = (t.statusName || '').toUpperCase().trim();
+       return s === 'DONE';
+    }).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)),
+  },
   actions: {
     async fetchTasks(projectId) {
       if (!projectId) return;

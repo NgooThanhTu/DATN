@@ -12,7 +12,7 @@
             <span class="active-page">
               <i class="fa-solid fa-layer-group"></i> Work Items
             </span>
-            <span class="item-count">{{ rawTasks.length || 8 }}</span>
+            <span class="item-count">{{ rawTasks.length }}</span>
           </div>
         </div>
         
@@ -74,10 +74,10 @@
 
       <!-- Other Tab Views -->
       <div v-if="currentTab === 'list'" class="list-wrapper" style="padding: 16px;">
-         <ListView :tasks="filteredTasksList" @task-click="openTaskDetail" />
+         <ListView :tasks="filteredTasksList" @task-click="openTaskDetail" @task-created="handleListTaskCreate" />
       </div>
       <div v-if="currentTab === 'calendar'" class="calendar-wrapper">
-         <CalendarTab :projectId="projectId" @open-task="openTaskDetail" />
+         <CalendarTab :tasks="filteredTasksList" @open-task="openTaskDetail" />
       </div>
       <div v-if="currentTab === 'spreadsheet'" class="spreadsheet-wrapper" style="display: flex; flex: 1; overflow: hidden;">
          <SpreadsheetTab :tasks="rawTasks" />
@@ -99,30 +99,55 @@
             <i class="fa-solid fa-plus add-btn" @click="openCreateTask(col.name)"></i>
           </div>
           
-          <draggable 
-            class="col-body" 
-            :list="col.items" 
-            group="tasks" 
-            item-key="id"
-            @change="(evt) => handleDraggableChange(evt, col)"
-          >
-            <template #item="{ element }">
-              <div class="issue-card" :class="{ 'active-card': selectedTask?.id === element.id }" @click="openTaskDetail(element)">
-                <p class="issue-title" :style="element.statusName === 'DONE' ? { textDecoration: 'line-through', color: '#A1A1AA' } : {}">{{ element.title }}</p>
-                <div class="issue-meta">
-                  <span class="id">{{ element.sequenceId || element.id.substring(0,8).toUpperCase() }}</span>
-                  <span class="prio">
-                    <i class="fa-solid fa-angles-up text-red" v-if="element.priority === 1"></i>
-                    <i class="fa-solid fa-chevron-up text-orange" v-else-if="element.priority === 2"></i>
-                    <i class="fa-solid fa-minus text-blue" v-else-if="element.priority === 3"></i>
-                    <i class="fa-solid fa-chevron-down text-muted" v-else></i>
-                  </span>
-                  <div class="avatar-xs ms-auto" v-if="element.assigneeName">{{ element.assigneeName.substring(0,2).toUpperCase() }}</div>
-                  <div class="avatar-xs ms-auto" style="border: 1px dashed #3f3f46; background: transparent; color: #3f3f46;" v-else><i class="fa-solid fa-user"></i></div>
+          <div class="col-body">
+            <draggable 
+              class="col-draggable" 
+              :list="col.items" 
+              group="tasks" 
+              item-key="id"
+              @change="(evt) => handleDraggableChange(evt, col)"
+            >
+              <template #item="{ element }">
+                <div class="issue-card" :class="{ 'active-card': selectedTask?.id === element.id }" @click="openTaskDetail(element)">
+                  <p class="issue-sequence mb-1">{{ element.sequenceId || element.id.substring(0,8).toUpperCase() }}</p>
+                  <p class="issue-title" :style="element.statusName === 'DONE' ? { textDecoration: 'line-through', color: '#A1A1AA' } : {}">{{ element.title }}</p>
+                  <div class="issue-meta mt-2" style="display:flex; align-items:center; gap:8px;">
+                     <div class="badge">
+                       <i class="fa-regular fa-circle" v-if="(element.statusName||'').toUpperCase() === 'TO DO' || (element.statusName||'').toUpperCase() === 'TODO'"></i>
+                       <i class="fa-solid fa-circle-half-stroke text-orange" v-else-if="(element.statusName||'').toUpperCase() === 'IN PROGRESS'"></i>
+                       <i class="fa-regular fa-circle-dashed text-muted" v-else-if="(element.statusName||'').toUpperCase() === 'BACKLOG'"></i>
+                       <i class="fa-solid fa-circle-check text-green" v-else-if="(element.statusName||'').toUpperCase() === 'DONE'"></i>
+                       <i class="fa-solid fa-eye text-orange" v-else></i>
+                       <span>{{ element.statusName || 'Backlog' }}</span>
+                     </div>
+                     <div class="badge" v-if="element.priority">
+                        <i class="fa-solid fa-angles-up text-red" v-if="element.priority === 1"></i>
+                        <i class="fa-solid fa-chevron-up text-orange" v-else-if="element.priority === 2"></i>
+                        <i class="fa-solid fa-minus text-blue" v-else-if="element.priority === 3"></i>
+                        <i class="fa-solid fa-chevron-down text-muted" v-else></i>
+                     </div>
+                     <div class="avatar-xs ms-auto" v-if="element.assigneeName">{{ element.assigneeName.substring(0,2).toUpperCase() }}</div>
+                     <div class="avatar-xs ms-auto" style="border: 1px dashed #3f3f46; background: transparent; color: #3f3f46;" v-else><i class="fa-solid fa-user"></i></div>
+                  </div>
                 </div>
-              </div>
-            </template>
-          </draggable>
+              </template>
+            </draggable>
+            
+            <div class="inline-create-box" v-if="inlineCreateColId === col.id">
+               <div class="ic-top">
+                 <i class="fa-solid fa-plus ic-plus"></i>
+                 <input type="text" class="ic-input" v-model="inlineTaskTitle" placeholder="New work item" @keyup.enter="submitInlineTask(col)" @keyup.esc="inlineCreateColId = null" ref="inlineInput" />
+               </div>
+               <div class="ic-bottom">
+                 <div class="ic-chip"><i class="fa-regular fa-circle"></i> {{ col.name }}</div>
+                 <div class="ic-chip"><i class="fa-solid fa-minus text-blue"></i></div>
+                 <div class="avatar-xs ms-auto ic-avatar"><i class="fa-solid fa-user"></i></div>
+               </div>
+            </div>
+            <div class="add-btn-bottom" v-else @click="openInlineCreate(col.id)">
+               <i class="fa-solid fa-plus"></i> New work item
+            </div>
+          </div>
         </div>
 
       </div>
@@ -178,24 +203,7 @@
             <!-- Created vs Resolved Chart Overlay -->
             <div class="ap-chart-card mt-4">
                <h4>Created vs Resolved</h4>
-               <div class="line-chart-mock">
-                  <!-- Grid -->
-                  <div class="grid-l" style="bottom: 90%;"><span>9</span></div>
-                  <div class="grid-l" style="bottom: 70%;"><span>7</span></div>
-                  <div class="grid-l" style="bottom: 50%;"><span>5</span></div>
-                  <div class="grid-l" style="bottom: 30%;"><span>3</span></div>
-                  <div class="grid-l" style="bottom: 10%;"><span>0</span></div>
-                  
-                  <!-- Dots -->
-                  <div class="dot blue" style="bottom: 90%; left: 50%;"></div>
-                  <div class="dot green" style="bottom: 10%; left: 50%;"></div>
-                  
-                  <div class="x-label" style="left: 50%; transform: translateX(-50%);">Apr 01, 2026</div>
-               </div>
-               <div class="chart-legend mt-2">
-                  <span class="leg-item"><span class="box bg-green"></span> Resolved</span>
-                  <span class="leg-item"><span class="box bg-blue"></span> Created</span>
-               </div>
+               <v-chart class="chart-container" :option="createdResolvedOptions" autoresize />
             </div>
 
             <!-- Customized Insights -->
@@ -209,34 +217,7 @@
                   </div>
                </div>
                
-               <div class="bar-chart-mock mt-4">
-                  <!-- Grid -->
-                  <div class="grid-l" style="bottom: 90%;"><span>9</span></div>
-                  <div class="grid-l" style="bottom: 70%;"><span>7</span></div>
-                  <div class="grid-l" style="bottom: 50%;"><span>5</span></div>
-                  <div class="grid-l" style="bottom: 30%;"><span>3</span></div>
-                  <div class="grid-l" style="bottom: 10%;"><span>0</span></div>
-
-                  <div class="bars-container">
-                     <div class="bar-wrapper">
-                        <div class="bar bg-orange" style="height: 30%;"></div>
-                        <span class="bar-lbl">High</span>
-                     </div>
-                     <div class="bar-wrapper">
-                        <div class="bar bg-green" style="height: 10%;"></div>
-                        <span class="bar-lbl">Low</span>
-                     </div>
-                     <div class="bar-wrapper">
-                        <div class="bar bg-gray" style="height: 30%;"></div>
-                        <span class="bar-lbl">None</span>
-                     </div>
-                     <div class="bar-wrapper">
-                        <div class="bar bg-red" style="height: 10%;"></div>
-                        <span class="bar-lbl">Urgent</span>
-                     </div>
-                  </div>
-                  <div class="y-label">NO. OF WORK ITEM</div>
-               </div>
+               <v-chart class="chart-container mt-4" :option="priorityChartOptions" autoresize />
             </div>
             
             <!-- Tables -->
@@ -308,24 +289,49 @@ import ListView from '@/components/ListView.vue'
 import CalendarTab from '@/components/CalendarTab.vue'
 import TimelineTab from '@/components/TimelineTab.vue'
 import SpreadsheetTab from '@/components/SpreadsheetTab.vue'
+import { onUnmounted } from 'vue';
+import { useWorkTaskStore } from '@/store/useWorkTaskStore';
+
+import { use } from 'echarts/core';
+import { CanvasRenderer } from 'echarts/renderers';
+import { LineChart, BarChart } from 'echarts/charts';
+import { TitleComponent, TooltipComponent, LegendComponent, GridComponent } from 'echarts/components';
+import VChart from 'vue-echarts';
+
+use([
+  CanvasRenderer,
+  LineChart,
+  BarChart,
+  TitleComponent,
+  TooltipComponent,
+  LegendComponent,
+  GridComponent
+]);
 
 const showDisplayDropdown = ref(false)
 const showAnalyticsSidebar = ref(false)
 
 const route = useRoute()
 const projectId = route.params.id
+const store = useWorkTaskStore();
 
 const project = ref({})
 const rawTasks = ref([])
 const projectMembers = ref([])
 const selectedTask = ref(null)
+const inlineCreateColId = ref(null)
+const inlineTaskTitle = ref('')
 
 const currentTab = ref('board')
 const searchQuery = ref('')
 const activeFilters = ref({ assignee: null })
 const groupBy = ref('status')
 
-const getProjectId = () => projectId || localStorage.getItem('lastProjectId')
+let dynamicProjectId = null;
+const getProjectId = () => {
+    let p = dynamicProjectId || projectId || localStorage.getItem('lastProjectId');
+    return p === 'default' ? null : p;
+}
 
 const filteredTasksList = computed(() => {
   let filteredTasks = [...rawTasks.value];
@@ -337,11 +343,56 @@ const filteredTasksList = computed(() => {
      filteredTasks = filteredTasks.filter(t => t.assignedUserId === activeFilters.value.assignee.userId);
   }
 
-  return filteredTasks.sort((a,b) => a.sortOrder - b.sortOrder);
+  return filteredTasks.sort((a,b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+});
+
+const createdResolvedOptions = computed(() => {
+   return {
+      tooltip: { trigger: 'axis' },
+      legend: { data: ['Created', 'Resolved'], bottom: 0, textStyle: { color: '#A1A1AA' } },
+      grid: { left: '3%', right: '4%', bottom: '15%', containLabel: true },
+      xAxis: { type: 'category', data: ['Apr 01', 'Apr 02', 'Apr 03', 'Apr 04'], axisLine: { lineStyle: { color: '#3F3F46' } } },
+      yAxis: { type: 'value', splitLine: { lineStyle: { color: '#27272A' } } },
+      series: [
+         { name: 'Created', type: 'line', data: [rawTasks.value.length, 0, 0, 0], itemStyle: { color: '#3B82F6' }, smooth: true },
+         { name: 'Resolved', type: 'line', data: [rawTasks.value.filter(t => t.statusName === 'DONE').length, 0, 0, 0], itemStyle: { color: '#10B981' }, smooth: true }
+      ],
+      backgroundColor: 'transparent'
+   }
+});
+
+const priorityChartOptions = computed(() => {
+   const urgent = rawTasks.value.filter(t => t.priority === 1).length;
+   const high = rawTasks.value.filter(t => t.priority === 2).length;
+   const normal = rawTasks.value.filter(t => t.priority === 3).length;
+   const low = rawTasks.value.filter(t => t.priority === 4).length;
+   const none = rawTasks.value.filter(t => !t.priority).length;
+   
+   return {
+      tooltip: { trigger: 'axis' },
+      grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+      xAxis: { type: 'category', data: ['Urgent', 'High', 'Normal', 'Low', 'None'], axisLine: { lineStyle: { color: '#3F3F46' } }, axisLabel: { color: '#A1A1AA' } },
+      yAxis: { type: 'value', splitLine: { lineStyle: { color: '#27272A' } }, axisLabel: { color: '#A1A1AA' } },
+      series: [
+         {
+            type: 'bar',
+            barWidth: '30%',
+            data: [
+               { value: urgent, itemStyle: { color: '#EF4444', borderRadius: [4, 4, 0, 0] } },
+               { value: high, itemStyle: { color: '#F97316', borderRadius: [4, 4, 0, 0] } },
+               { value: normal, itemStyle: { color: '#3B82F6', borderRadius: [4, 4, 0, 0] } },
+               { value: low, itemStyle: { color: '#10B981', borderRadius: [4, 4, 0, 0] } },
+               { value: none, itemStyle: { color: '#71717A', borderRadius: [4, 4, 0, 0] } }
+            ]
+         }
+      ],
+      backgroundColor: 'transparent'
+   }
 });
 
 const kanbanColumns = computed(() => {
   const groups = [
+    { id: 'backlog', name: 'BACKLOG', color: '#71717A', icon: 'fa-regular fa-circle-dashed', priorityValue: null, items: [] },
     { id: 'todo', name: 'TO DO', color: '#D4D4D8', icon: 'fa-regular fa-circle', priorityValue: null, items: [] },
     { id: 'inprogress', name: 'IN PROGRESS', color: '#3B82F6', icon: 'fa-solid fa-circle-half-stroke', priorityValue: null, items: [] },
     { id: 'review', name: 'IN REVIEW', color: '#F59E0B', icon: 'fa-solid fa-eye', priorityValue: null, items: [] },
@@ -355,17 +406,26 @@ const kanbanColumns = computed(() => {
     { id: 'p4', name: 'Low', color: '#94A3B8', icon: 'fa-solid fa-chevron-down', priorityValue: 4, items: [] }
   ];
 
+  const validTasks = filteredTasksList.value || [];
+
   if (groupBy.value === 'priority') {
-     filteredTasksList.value.forEach(t => {
+     validTasks.forEach(t => {
        let col = pGroups.find(g => g.priorityValue === (t.priority || 3));
        if (!col) col = pGroups[2];
        col.items.push(t);
      });
      return pGroups;
   } else {
-     filteredTasksList.value.forEach(t => {
-       let col = groups.find(g => g.name === (t.statusName || 'TO DO'));
-       if (!col) col = groups[0];
+     validTasks.forEach(t => {
+       const s = (t.statusName || 'BACKLOG').toUpperCase().trim();
+       let col;
+       if (s === 'BACKLOG') col = groups[0];
+       else if (s === 'TODO' || s === 'TO DO') col = groups[1];
+       else if (s === 'IN PROGRESS' || s === 'INPROGRESS') col = groups[2];
+       else if (s === 'IN REVIEW' || s === 'REVIEW') col = groups[3];
+       else if (s === 'DONE') col = groups[4];
+       else col = groups[0]; // fallback to backlog
+       
        col.items.push(t);
      });
      return groups;
@@ -373,8 +433,20 @@ const kanbanColumns = computed(() => {
 });
 
 const loadInitialData = async () => {
-  const pid = getProjectId()
-  if(!pid) return
+  let pid = getProjectId()
+  if(!pid) {
+      try {
+          const res = await axiosClient.get('/projects');
+          if (res.data?.data?.length > 0) {
+              pid = res.data.data[0].id;
+              dynamicProjectId = pid;
+              localStorage.setItem('lastProjectId', pid);
+          }
+      } catch (err) {
+          console.error('Cannot resolve valid projectId', err);
+          return;
+      }
+  }
 
   try {
     const pRes = await axiosClient.get(`/projects/${pid}`)
@@ -393,8 +465,9 @@ const fetchTasks = async () => {
   const pid = getProjectId()
   if(!pid) return
   try {
-    const res = await axiosClient.get(`/projects/${pid}/WorkTasks`)
-    rawTasks.value = res.data.data || []
+    const store = useWorkTaskStore();
+    await store.fetchTasks(pid);
+    rawTasks.value = store.tasks; // Keep local reactivity working while syncing Pinia
     
     // Auto update selectedTask if open
     if (selectedTask.value) {
@@ -415,27 +488,79 @@ const closeTaskDetail = () => {
 
 const updateTask = async (task, field, value) => {
    try {
+      const pid = getProjectId();
+      if (!pid) return;
+      
       const payload = {};
       payload[field] = value;
-      await axiosClient.put(`/projects/${getProjectId()}/WorkTasks/${task.id}`, payload);
+      await axiosClient.patch(`/projects/${pid}/WorkTasks/${task.id}`, payload);
       await fetchTasks();
    } catch (error) {
       console.error('Failed to update task:', error);
    }
 }
 
-const openCreateTask = async (statusName) => {
-   const title = prompt(`Enter new issue name (${statusName}):`)
-   if(!title) return;
+const openCreateTask = (statusName) => {
+   selectedTask.value = { 
+     isNew: true, 
+     title: '', 
+     description: '', 
+     statusName: statusName || 'BACKLOG', 
+     priority: 3
+   };
+}
+
+import { nextTick } from 'vue'
+
+const inlineInput = ref(null);
+
+const openInlineCreate = (colId) => {
+   inlineCreateColId.value = colId;
+   inlineTaskTitle.value = '';
+   nextTick(() => {
+     if(inlineInput.value) {
+        // inlineInput.value could be an array if inside v-for, or a proxy. We handle both:
+        if (Array.isArray(inlineInput.value)) {
+           inlineInput.value[0]?.focus();
+        } else {
+           inlineInput.value.focus();
+        }
+     }
+   });
+}
+
+const submitInlineTask = async (col) => {
+   if(!inlineTaskTitle.value.trim()) {
+      inlineCreateColId.value = null;
+      return;
+   }
    try {
-       await axiosClient.post(`/projects/${getProjectId()}/WorkTasks`, {
-           title: title,
-           statusName: statusName,
-           priority: 3
-       });
-       await fetchTasks();
-   } catch(e) {
-       console.error(e)
+      await axiosClient.post(`/projects/${getProjectId()}/WorkTasks`, {
+         title: inlineTaskTitle.value.trim(),
+         description: '',
+         statusName: col.name || 'BACKLOG',
+         priority: 3
+      });
+      inlineTaskTitle.value = '';
+      fetchTasks();
+   } catch (e) {
+      console.error(e);
+   }
+}
+
+const handleListTaskCreate = async (payload) => {
+   const pid = getProjectId();
+   if (!pid) return;
+   try {
+      await axiosClient.post(`/projects/${pid}/WorkTasks`, {
+         title: payload.title,
+         description: '',
+         statusName: payload.statusName || 'BACKLOG',
+         priority: payload.priority || 3
+      });
+      fetchTasks();
+   } catch (error) {
+      console.error(error);
    }
 }
 
@@ -483,8 +608,18 @@ const handleDraggableChange = async (evt, group) => {
   }
 }
 
+
+const handleGlobalCreate = () => {
+    openCreateTask('TO DO')
+}
+
 onMounted(() => {
   loadInitialData()
+  window.addEventListener('global-create-task', handleGlobalCreate)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('global-create-task', handleGlobalCreate)
 })
 </script>
 
@@ -677,10 +812,22 @@ onMounted(() => {
 .col-body {
   display: flex;
   flex-direction: column;
-  gap: 12px;
   flex: 1;
   overflow-y: auto;
   padding-right: 4px; /* for scrollbar */
+  position: relative;
+}
+
+.chart-container {
+  width: 100%;
+  height: 250px;
+}
+
+.col-draggable {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 10px;
 }
 
 .issue-card {
@@ -699,9 +846,10 @@ onMounted(() => {
   box-shadow: 0 4px 12px rgba(0,0,0,0.5);
 }
 
+.issue-sequence { font-size: 11px; color: #71717A; margin: 0; }
 .issue-title {
-  margin: 0 0 16px 0;
-  font-size: 14px;
+  margin: 0;
+  font-size: 13px;
   font-weight: 500;
   color: #E5E7EB;
   line-height: 1.5;
@@ -735,6 +883,85 @@ onMounted(() => {
 .text-blue { color: #3B82F6; }
 .text-orange { color: #F59E0B; }
 .text-red { color: #EF4444; }
+.text-green { color: #10B981; }
+
+.badge { border: 1px solid #27272A; border-radius: 4px; padding: 2px 6px; font-size: 11px; color: #A1A1AA; display: flex; align-items: center; gap: 6px; }
+
+.add-btn-bottom { 
+  color: #E5E7EB; 
+  font-size: 13px; 
+  font-weight: 500; 
+  cursor: pointer; 
+  display: flex; 
+  align-items: center; 
+  gap: 8px; 
+  padding: 8px; 
+  margin-top: 12px; 
+  position: sticky;
+  bottom: 0;
+  background-color: #0D0F11;
+  box-shadow: 0 -4px 10px rgba(13, 15, 17, 0.8);
+  border-radius: 4px;
+}
+.add-btn-bottom:hover { color: white; background-color: #1E2025; }
+
+.inline-create-box { 
+  background: #111111; 
+  border: 1px solid #27272A; 
+  border-radius: 8px; 
+  padding: 12px 16px; 
+  margin-top: 12px; 
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5); 
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ic-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ic-plus {
+  color: #E5E7EB;
+  font-size: 16px;
+}
+.ic-input { 
+  width: 100%; 
+  background: transparent; 
+  border: none; 
+  color: #E5E7EB; 
+  outline: none; 
+  font-size: 15px; 
+  font-weight: 500;
+  padding: 0;
+}
+.ic-input::placeholder { color: #E5E7EB; }
+
+.ic-bottom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ic-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid #27272A;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: #A1A1AA;
+}
+.ic-avatar {
+  border: 1px dashed #3F3F46;
+  background: transparent;
+  color: #3F3F46;
+  border-radius: 50%;
+}
 
 /* Scrollbar */
 .kanban-wrapper::-webkit-scrollbar, .col-body::-webkit-scrollbar { width: 6px; height: 6px; }

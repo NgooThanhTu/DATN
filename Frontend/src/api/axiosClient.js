@@ -1,7 +1,9 @@
 import axios from 'axios';
 
+const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5136/api';
+
 const axiosClient = axios.create({
-    baseURL: 'http://localhost:5136/api', // Dùng HTTP để tránh lỗi SSL Chứng chỉ đỏ trên local
+    baseURL: baseURL,
     headers: {
         'Content-Type': 'application/json'
     },
@@ -68,7 +70,7 @@ axiosClient.interceptors.response.use(
                 // Backend requires the expired access token in the header to identify the user
                 const accessToken = localStorage.getItem('accessToken');
                 const authHeaders = accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {};
-                const { data } = await axios.post('http://localhost:5136/api/auth/refresh-token', {}, {
+                const { data } = await axios.post(`${baseURL}/auth/refresh-token`, {}, {
                     headers: authHeaders,
                     withCredentials: true
                 });
