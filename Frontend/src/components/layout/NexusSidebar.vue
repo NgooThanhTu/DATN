@@ -139,8 +139,8 @@
           </router-link>
         </li>
         <li class="nav-item sub-item">
-          <router-link :to="`/space/${projectId}/pages`" class="nav-link">
-            <i class="fa-regular fa-file-lines"></i>
+          <router-link :to="`/space/${projectId}/pages`" class="nav-link" active-class="active">
+            <i class="fa-regular fa-file-lines" style="color: #38BDF8"></i>
             <span>Pages</span>
           </router-link>
         </li>
