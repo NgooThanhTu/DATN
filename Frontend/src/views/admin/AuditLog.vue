@@ -9,6 +9,17 @@
         <p class="page-subtitle">Theo dõi và tra cứu các hoạt động, sự kiện quan trọng trong hệ thống.</p>
       </div>
       <div class="header-actions">
+        <el-tooltip class="box-item" effect="dark" content="Tự động làm mới dữ liệu mỗi 10 giây (Auto Refresh)" placement="top">
+          <el-switch
+            v-model="isRealtime"
+            inline-prompt
+            active-text="Realtime"
+            inactive-text="Paused"
+            style="margin-right: 16px; --el-switch-on-color: #10b981; --el-switch-off-color: #27272a"
+            @change="handleRealtimeToggle"
+          />
+        </el-tooltip>
+        
         <el-input v-model="searchQuery" class="glass-input" placeholder="Search logs..." style="width: 220px; margin-right: 12px" @input="debounceSearch" clearable />
         
         <el-select v-model="selectedProjectId" class="glass-input" placeholder="All Projects" style="width: 180px; margin-right: 12px" @change="fetchLogs" clearable>
@@ -66,7 +77,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import AdminLayout from '@/components/layout/AdminLayout.vue'
 import axiosClient from '@/api/axiosClient'
 
@@ -78,6 +89,10 @@ const currentPage = ref(1)
 const total = ref(0)
 const logs = ref([])
 const projects = ref([])
+
+// Real-time polling
+const isRealtime = ref(true)
+let pollingInterval = null
 
 // Giới hạn chỉ được tra cứu trong 90 ngày quá khứ
 const disabledDate = (time) => {
@@ -110,8 +125,10 @@ const fetchProjects = async () => {
     }
 }
 
-const fetchLogs = async () => {
-    loading.value = true
+const fetchLogs = async (isBackground = false) => {
+    if (!isBackground) {
+        loading.value = true
+    }
     try {
         const params = {
             page: currentPage.value,
@@ -130,13 +147,48 @@ const fetchLogs = async () => {
     } catch(e) {
         console.error(e)
     } finally {
-        loading.value = false
+        if (!isBackground) {
+            loading.value = false
+        }
+    }
+}
+
+const startPolling = () => {
+    if (pollingInterval) clearInterval(pollingInterval)
+    pollingInterval = setInterval(() => {
+        // Only auto refresh when on page 1 and no specific historical filters
+        if (isRealtime.value && currentPage.value === 1) {
+            fetchLogs(true) // background fetch
+        }
+    }, 10000) // Poll every 10 seconds
+}
+
+const stopPolling = () => {
+    if (pollingInterval) {
+        clearInterval(pollingInterval)
+        pollingInterval = null
+    }
+}
+
+const handleRealtimeToggle = () => {
+    if (isRealtime.value) {
+        fetchLogs(true)
+        startPolling()
+    } else {
+        stopPolling()
     }
 }
 
 onMounted(() => {
     fetchProjects()
     fetchLogs()
+    if (isRealtime.value) {
+        startPolling()
+    }
+})
+
+onUnmounted(() => {
+    stopPolling()
 })
 </script>
 
