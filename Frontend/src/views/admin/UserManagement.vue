@@ -57,63 +57,71 @@
       </template>
     </el-dialog>
 
-    <!-- USERS GLOAL DIRECTORY -->
-    <div class="glass-card table-wrapper">
-      <el-table :data="users" style="width: 100%" v-loading="loading" class="custom-glass-table">
-        <el-table-column label="Thông tin nhân sự" min-width="250">
-          <template #default="scope">
-            <div class="user-info-section">
-              <el-avatar :size="40" :src="scope.row.avatar || `https://ui-avatars.com/api/?name=${scope.row.name}&background=random`" />
-              <div class="user-details">
-                <div class="user-name">{{ scope.row.name }}</div>
-                <div class="user-email">
-                  <i class="fa-solid fa-envelope"></i> {{ scope.row.email }}
+    <!-- USERS TABLE - Custom Dark Design -->
+    <div class="users-table-card">
+      <div v-if="loading" class="table-loading">
+        <i class="fa-solid fa-spinner fa-spin"></i> Đang tải dữ liệu...
+      </div>
+      <div v-else-if="!users || users.length === 0" class="table-empty">
+        <i class="fa-solid fa-user-slash"></i>
+        <p>Chưa có người dùng nào.</p>
+      </div>
+      <table v-else class="dark-table">
+        <thead>
+          <tr>
+            <th>Thông tin nhân sự</th>
+            <th>Ngày tham gia</th>
+            <th>Vai trò Hệ thống</th>
+            <th>Trạng thái</th>
+            <th style="text-align: center;">Hành động</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="user in users" :key="user.id">
+            <td>
+              <div class="user-info-cell">
+                <div class="user-avatar" :style="{ background: getAvatarColor(user.name) }">
+                  {{ getInitials(user.name) }}
+                </div>
+                <div class="user-meta">
+                  <span class="user-name">{{ user.name }}</span>
+                  <span class="user-email"><i class="fa-solid fa-envelope"></i> {{ user.email }}</span>
                 </div>
               </div>
-            </div>
-          </template>
-        </el-table-column>
-
-        <el-table-column prop="createdAt" label="Ngày tham gia" width="180">
-          <template #default="scope">
-            {{ new Date(scope.row.createdAt).toLocaleDateString('vi-VN') }}
-          </template>
-        </el-table-column>
-
-        <el-table-column label="Vai trò Hệ thống" width="150">
-          <template #default="scope">
-            <!-- This shows global roles like Admin, SuperAdmin -->
-            <el-tag v-if="scope.row.roles && scope.row.roles.length" type="warning" effect="dark" size="small">
-              {{ scope.row.roles.join(', ') }}
-            </el-tag>
-            <el-tag v-else type="info" size="small">Member</el-tag>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="Trạng thái" width="150" align="center">
-          <template #default="scope">
-            <el-tag :type="scope.row.isActive ? 'success' : 'danger'" effect="plain">
-              {{ scope.row.isActive ? 'Active' : 'Suspended' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="Hành động" width="120" fixed="right" align="center">
-          <template #default="scope">
-            <div class="action-buttons">
-              <el-tooltip :content="scope.row.isActive ? 'Đình chỉ nhân sự (Kill-Switch)' : 'Đã đình chỉ'" placement="top">
+            </td>
+            <td>
+              <span class="date-text">{{ new Date(user.createdAt).toLocaleDateString('vi-VN') }}</span>
+            </td>
+            <td>
+              <span
+                v-if="user.roles && user.roles.length"
+                class="role-badge"
+                :class="getRoleBadgeClass(user.roles[0])"
+              >
+                {{ user.roles.join(', ') }}
+              </span>
+              <span v-else class="role-badge role-member">Member</span>
+            </td>
+            <td>
+              <span class="status-badge" :class="user.isActive ? 'status-active' : 'status-suspended'">
+                <i class="fa-solid" :class="user.isActive ? 'fa-circle-check' : 'fa-circle-xmark'"></i>
+                {{ user.isActive ? 'Active' : 'Suspended' }}
+              </span>
+            </td>
+            <td style="text-align: center;">
+              <el-tooltip :content="user.isActive ? 'Đình chỉ nhân sự (Kill-Switch)' : 'Đã đình chỉ'" placement="top">
                 <el-switch
-                  :model-value="scope.row.isActive"
-                  active-color="#dc2626"
-                  inactive-color="#374151"
-                  :disabled="!scope.row.isActive"
-                  @change="handleSuspendUser(scope.row)"
+                  :model-value="user.isActive"
+                  active-color="#10b981"
+                  inactive-color="#27272a"
+                  :disabled="!user.isActive"
+                  @change="handleSuspendUser(user)"
                 />
               </el-tooltip>
-            </div>
-          </template>
-        </el-table-column>
-      </el-table>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
 
   </AdminLayout>
@@ -148,6 +156,30 @@ const rules = {
     { type: 'email', message: 'Email không hợp lệ', trigger: 'blur' }
   ],
   role: [{ required: true, message: 'Vui lòng chọn vai trò', trigger: 'change' }]
+}
+
+const avatarColors = ['#0ea5e9', '#f59e0b', '#ef4444', '#10b981', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316']
+
+const getAvatarColor = (name) => {
+  if (!name) return avatarColors[0]
+  let hash = 0
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  return avatarColors[Math.abs(hash) % avatarColors.length]
+}
+
+const getInitials = (name) => {
+  if (!name) return '?'
+  return name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase()
+}
+
+const getRoleBadgeClass = (role) => {
+  const r = role?.toLowerCase()
+  if (r === 'admin' || r === 'system admin') return 'role-admin'
+  if (r === 'developer' || r === 'dev') return 'role-dev'
+  if (r === 'pm' || r === 'po') return 'role-pm'
+  return 'role-member'
 }
 
 const openAddModal = async () => {
@@ -232,7 +264,7 @@ onMounted(() => {
 }
 .breadcrumb {
   font-size: 13px;
-  color: var(--text-muted);
+  color: #71717a;
   margin-bottom: 8px;
   display: flex;
   align-items: center;
@@ -241,12 +273,12 @@ onMounted(() => {
 .page-title {
   font-size: 24px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: #e4e4e7;
   margin: 0;
 }
 .page-subtitle {
   font-size: 14px;
-  color: var(--text-muted);
+  color: #71717a;
   margin-top: 4px;
   margin-bottom: 0;
 }
@@ -254,45 +286,186 @@ onMounted(() => {
   display: flex;
   align-items: center;
 }
-.glass-card {
-  background: var(--bg-card);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius-xl, 16px);
-  padding: 24px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
-}
-.table-wrapper {
-  padding: 12px;
-}
 .add-user-btn {
-  background-color: var(--el-color-primary) !important;
-  border-color: var(--el-color-primary) !important;
+  background-color: #0ea5e9 !important;
+  border-color: #0ea5e9 !important;
   border-radius: 8px;
   font-weight: 500;
   padding: 10px 20px;
 }
-.user-info-section {
+
+/* Table Card */
+.users-table-card {
+  background: #16181d;
+  border: 1px solid #1e2025;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.table-loading,
+.table-empty {
+  text-align: center;
+  padding: 60px 0;
+  color: #71717a;
+  font-size: 14px;
+}
+
+.table-empty i {
+  font-size: 36px;
+  margin-bottom: 12px;
+  display: block;
+  color: #27272a;
+}
+
+/* Custom Dark Table */
+.dark-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.dark-table thead {
+  border-bottom: 1px solid #1e2025;
+}
+
+.dark-table th {
+  padding: 14px 20px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #71717a;
+  background: transparent;
+}
+
+.dark-table tbody tr {
+  border-bottom: 1px solid rgba(30, 32, 37, 0.6);
+  transition: background 0.15s ease;
+}
+
+.dark-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.dark-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.dark-table td {
+  padding: 16px 20px;
+  font-size: 14px;
+  color: #a1a1aa;
+  vertical-align: middle;
+}
+
+/* User Info Cell */
+.user-info-cell {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
 }
+
+.user-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: white;
+  flex-shrink: 0;
+}
+
+.user-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
 .user-name {
   font-weight: 600;
-  color: var(--text-primary);
-  font-size: 15px;
+  color: #e4e4e7;
+  font-size: 14px;
 }
+
 .user-email {
-  color: var(--text-secondary);
-  font-size: 13px;
+  color: #71717a;
+  font-size: 12px;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
 }
-.action-buttons {
-  display: flex;
-  justify-content: center;
+
+.user-email i {
+  font-size: 10px;
+}
+
+.date-text {
+  color: #a1a1aa;
+  font-size: 13px;
+}
+
+/* Role Badges */
+.role-badge {
+  display: inline-flex;
   align-items: center;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.role-admin {
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.role-dev {
+  background: rgba(99, 102, 241, 0.12);
+  color: #818cf8;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+.role-pm {
+  background: rgba(245, 158, 11, 0.12);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.role-member {
+  background: rgba(113, 113, 122, 0.12);
+  color: #a1a1aa;
+  border: 1px solid rgba(113, 113, 122, 0.2);
+}
+
+/* Status Badges */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.status-active {
+  background: rgba(16, 185, 129, 0.1);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.status-suspended {
+  background: rgba(239, 68, 68, 0.1);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.status-badge i {
+  font-size: 11px;
 }
 </style>

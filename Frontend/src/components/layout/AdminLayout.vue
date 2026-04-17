@@ -17,14 +17,14 @@ import AdminSidebar from './AdminSidebar.vue'
 .admin-layout {
   display: flex;
   min-height: 100vh;
-  background-color: transparent;
-  color: var(--text-primary);
+  background-color: #0d0f11;
+  color: #e4e4e7;
   font-family: 'Inter', system-ui, sans-serif;
 }
 
 .admin-content {
   flex: 1;
-  background-color: transparent;
+  background-color: #0d0f11;
   padding: 32px 48px;
   overflow-y: auto;
   height: 100vh;

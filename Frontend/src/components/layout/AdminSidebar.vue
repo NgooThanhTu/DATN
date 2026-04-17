@@ -78,12 +78,12 @@ const activeMenu = computed(() => {
 <style scoped>
 .admin-sidebar {
   width: 250px;
-  background-color: var(--bg-card);
+  background-color: #0d0f11;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   display: flex;
   flex-direction: column;
-  border-right: 1px solid var(--border-color);
+  border-right: 1px solid #1e2025;
   z-index: 10;
 }
 
