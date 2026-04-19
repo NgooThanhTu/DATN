@@ -38,7 +38,7 @@ namespace TaskManagement.Infrastructure.Services
                 .Include(wt => wt.TaskType)
                 .Include(wt => wt.Reporter)
                 .Include(wt => wt.AssignedUser)
-                .Where(wt => wt.ProjectId == projectId && !wt.IsDeleted);
+                .Where(wt => wt.ProjectId == projectId && !wt.IsDeleted && !wt.IsArchived);
 
             // 3. Role-based filtering
             bool isManager = ManagerRoles.Contains(membership.ProjectRole, StringComparer.OrdinalIgnoreCase);
@@ -80,7 +80,8 @@ namespace TaskManagement.Infrastructure.Services
                     UpdatedAt = wt.UpdatedAt,
                     RowVersion = wt.RowVersion,
                     SortOrder = wt.SortOrder,
-                    SequenceId = wt.SequenceId
+                    SequenceId = wt.SequenceId,
+                    IsSubscribed = wt.Subscribers.Any(s => s.UserId == userId)
                 })
                 .ToListAsync();
 
@@ -358,7 +359,7 @@ namespace TaskManagement.Infrastructure.Services
                 .Include(wt => wt.TaskType)
                 .Include(wt => wt.Reporter)
                 .Include(wt => wt.AssignedUser)
-                .Where(wt => wt.ProjectId == projectId && !wt.IsDeleted)
+                .Where(wt => wt.ProjectId == projectId && !wt.IsDeleted && !wt.IsArchived)
                 .OrderByDescending(wt => wt.CreatedAt)
                 .Select(wt => new WorkTaskResponseDto
                 {
@@ -393,13 +394,7 @@ namespace TaskManagement.Infrastructure.Services
         public async Task<IEnumerable<WorkTaskResponseDto>> GetMyTasksAsync(Guid userId)
         {
             var tasks = await _context.WorkTasks
-                .AsNoTracking()
-                .Include(wt => wt.TaskStatus)
-                .Include(wt => wt.TaskType)
-                .Include(wt => wt.Reporter)
-                .Include(wt => wt.AssignedUser)
-                .Include(wt => wt.Project)
-                .Where(wt => wt.AssignedUserId == userId && !wt.IsDeleted)
+                .Where(wt => (wt.AssignedUserId == userId || wt.ReporterId == userId || wt.Subscribers.Any(s => s.UserId == userId)) && !wt.IsDeleted && !wt.IsArchived)
                 .OrderByDescending(wt => wt.UpdatedAt)
                 .Select(wt => new WorkTaskResponseDto
                 {
@@ -425,7 +420,8 @@ namespace TaskManagement.Infrastructure.Services
                     RowVersion = wt.RowVersion,
                     CreatedAt = wt.CreatedAt,
                     UpdatedAt = wt.UpdatedAt,
-                    ProjectName = wt.Project.Name
+                    ProjectName = wt.Project.Name,
+                    IsSubscribed = wt.Subscribers.Any(s => s.UserId == userId)
                 })
                 .ToListAsync();
 
@@ -498,11 +494,10 @@ namespace TaskManagement.Infrastructure.Services
                 .ToListAsync();
 
             var dbQuery = _context.WorkTasks
-                .Include(wt => wt.TaskStatus)
-                .Include(wt => wt.TaskType)
                 .Include(wt => wt.Reporter)
                 .Include(wt => wt.AssignedUser)
-                .Where(wt => userProjectIds.Contains(wt.ProjectId) && !wt.IsDeleted);
+                .Include(wt => wt.Subscribers)
+                .Where(wt => (userProjectIds.Contains(wt.ProjectId) || wt.Subscribers.Any(s => s.UserId == userId)) && !wt.IsDeleted && !wt.IsArchived);
 
             // Filtering
             if (!string.IsNullOrEmpty(query))
@@ -549,7 +544,8 @@ namespace TaskManagement.Infrastructure.Services
                     Priority = wt.Priority,
                     StoryPoints = wt.StoryPoints,
                     DueDate = wt.DueDate,
-                    CreatedAt = wt.CreatedAt
+                    CreatedAt = wt.CreatedAt,
+                    IsSubscribed = wt.Subscribers.Any(s => s.UserId == userId)
                 })
                 .ToListAsync();
 
@@ -633,6 +629,51 @@ namespace TaskManagement.Infrastructure.Services
             }
 
             return taskType.Id;
+        }
+
+        public async Task ArchiveAsync(Guid id)
+        {
+            var task = await _context.WorkTasks.FirstOrDefaultAsync(wt => wt.Id == id);
+            if (task == null) throw new ArgumentException("Tác vụ không tồn tại.");
+            
+            task.IsArchived = true;
+            task.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task RestoreAsync(Guid id)
+        {
+            var task = await _context.WorkTasks.FirstOrDefaultAsync(wt => wt.Id == id);
+            if (task == null) throw new ArgumentException("Tác vụ không tồn tại.");
+            
+            task.IsArchived = false;
+            task.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task<bool> ToggleSubscriptionAsync(Guid taskId, Guid userId)
+        {
+            var existing = await _context.TaskSubscribers
+                .FirstOrDefaultAsync(ts => ts.WorkTaskId == taskId && ts.UserId == userId);
+
+            bool isSubscribed;
+            if (existing != null)
+            {
+                _context.TaskSubscribers.Remove(existing);
+                isSubscribed = false;
+            }
+            else
+            {
+                _context.TaskSubscribers.Add(new TaskManagement.Domain.Entities.TaskSubscriber
+                {
+                    WorkTaskId = taskId,
+                    UserId = userId
+                });
+                isSubscribed = true;
+            }
+
+            await _context.SaveChangesAsync();
+            return isSubscribed;
         }
     }
 }

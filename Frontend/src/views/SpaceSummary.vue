@@ -7,7 +7,19 @@
         <div class="sh-left">
           <div class="breadcrumb">
             <span class="proj-icon">C</span>
-            <span class="proj-name">{{ project?.name || 'Cun' }}</span>
+            <el-dropdown trigger="click" @command="handleProjectCommand">
+              <span class="proj-name">
+                {{ project?.name || 'Cun' }}
+                <i class="fa-solid fa-chevron-down" style="font-size: 8px; margin-left: 4px;"></i>
+              </span>
+              <template #dropdown>
+                <el-dropdown-menu class="dark-dropdown">
+                  <el-dropdown-item command="archive">
+                    <i class="fa-regular fa-box-archive"></i> Archive space
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
             <i class="fa-solid fa-chevron-right separator"></i>
             <span class="active-page">
               <i class="fa-solid fa-layer-group"></i> Work Items
@@ -74,7 +86,12 @@
 
       <!-- Other Tab Views -->
       <div v-if="currentTab === 'list'" class="list-wrapper" style="padding: 16px;">
-         <ListView :tasks="filteredTasksList" @task-click="openTaskDetail" @task-created="handleListTaskCreate" />
+         <ListView 
+            :tasks="filteredTasksList" 
+            :projectMembers="projectMembers"
+            @task-click="openTaskDetail" 
+            @task-created="handleListTaskCreate"
+            @update-task="updateTask" />
       </div>
       <div v-if="currentTab === 'calendar'" class="calendar-wrapper">
          <CalendarTab :tasks="filteredTasksList" @open-task="openTaskDetail" />
@@ -111,6 +128,35 @@
                 <div class="issue-card" :class="{ 'active-card': selectedTask?.id === element.id }" @click="openTaskDetail(element)">
                   <p class="issue-sequence mb-1">{{ element.sequenceId || element.id.substring(0,8).toUpperCase() }}</p>
                   <p class="issue-title" :style="element.statusName === 'DONE' ? { textDecoration: 'line-through', color: '#A1A1AA' } : {}">{{ element.title }}</p>
+                  
+                  <div class="card-bottom">
+                    <div class="cb-left">
+                       <el-dropdown trigger="click" @command="(val) => updateTask(element, 'assigneeId', val)">
+                         <div class="card-pill hover:bg-[#27272A] cursor-pointer">
+                            <template v-if="element.assigneeName">
+                               <div class="avatar-xxs-kanban bg-teal-600">{{ element.assigneeName.charAt(0).toUpperCase() }}</div>
+                               <span>{{ element.assigneeName }}</span>
+                            </template>
+                            <template v-else>
+                               <i class="fa-regular fa-circle-user"></i>
+                               <span>Unassigned</span>
+                            </template>
+                         </div>
+                         <template #dropdown>
+                            <el-dropdown-menu class="plane-dropdown">
+                               <el-dropdown-item :command="null">Unassigned</el-dropdown-item>
+                               <el-dropdown-item v-for="m in projectMembers" :key="m.userId" :command="m.userId">
+                                  {{ m.fullName || m.userName }}
+                               </el-dropdown-item>
+                            </el-dropdown-menu>
+                         </template>
+                       </el-dropdown>
+                    </div>
+                    <div class="cb-right">
+                       <i class="fa-solid fa-ellipsis-vertical"></i>
+                    </div>
+                  </div>
+
                   <div class="issue-meta mt-2" style="display:flex; align-items:center; gap:8px;">
                      <div class="badge">
                        <i class="fa-regular fa-circle" v-if="(element.statusName||'').toUpperCase() === 'TO DO' || (element.statusName||'').toUpperCase() === 'TODO'"></i>
@@ -280,8 +326,9 @@
 <script setup>
 // AI 3: CHUYÊN VIÊN GHÉP NỐI LOGIC FRONT-TO-BACK
 import { ref, onMounted, computed, defineAsyncComponent } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import axiosClient from '@/api/axiosClient'
+import { ElMessageBox, ElMessage, ElNotification } from 'element-plus'
 import NexusLayout from '@/components/layout/NexusLayout.vue'
 import draggable from 'vuedraggable'
 import TaskDetailModal from '@/components/TaskDetailModal.vue'
@@ -291,6 +338,7 @@ import TimelineTab from '@/components/TimelineTab.vue'
 import SpreadsheetTab from '@/components/SpreadsheetTab.vue'
 import { onUnmounted } from 'vue';
 import { useWorkTaskStore } from '@/store/useWorkTaskStore';
+import { useActivityStore } from '@/store/useActivityStore';
 
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
@@ -312,8 +360,10 @@ const showDisplayDropdown = ref(false)
 const showAnalyticsSidebar = ref(false)
 
 const route = useRoute()
+const router = useRouter()
 const projectId = route.params.id
 const store = useWorkTaskStore();
+const actStore = useActivityStore();
 
 const project = ref({})
 const rawTasks = ref([])
@@ -437,8 +487,20 @@ const loadInitialData = async () => {
   if(!pid) {
       try {
           const res = await axiosClient.get('/projects');
-          if (res.data?.data?.length > 0) {
+          if (res.data?.data?.length === 0) {
+              const createRes = await axiosClient.post('/projects', {
+                 name: 'Cun',
+                 description: 'Auto-created project',
+                 startDate: new Date().toISOString()
+              });
+              if (createRes.data?.data?.id) {
+                  pid = createRes.data.data.id;
+              }
+          } else if (res.data?.data?.length > 0) {
               pid = res.data.data[0].id;
+          }
+          
+          if (pid) {
               dynamicProjectId = pid;
               localStorage.setItem('lastProjectId', pid);
           }
@@ -447,6 +509,8 @@ const loadInitialData = async () => {
           return;
       }
   }
+
+  if (!pid) return;
 
   try {
     const pRes = await axiosClient.get(`/projects/${pid}`)
@@ -494,6 +558,8 @@ const updateTask = async (task, field, value) => {
       const payload = {};
       payload[field] = value;
       await axiosClient.patch(`/projects/${pid}/WorkTasks/${task.id}`, payload);
+      const fieldLabels = { assigneeId: 'Assignee', statusName: 'Status', priority: 'Priority', title: 'Title' };
+      actStore.logActivity(`Updated ${fieldLabels[field] || field}`, `Task: ${task.title}`, 'fa-solid fa-pen-to-square');
       await fetchTasks();
    } catch (error) {
       console.error('Failed to update task:', error);
@@ -534,6 +600,7 @@ const submitInlineTask = async (col) => {
       inlineCreateColId.value = null;
       return;
    }
+   const titleForLog = inlineTaskTitle.value.trim();
    try {
       await axiosClient.post(`/projects/${getProjectId()}/WorkTasks`, {
          title: inlineTaskTitle.value.trim(),
@@ -542,9 +609,13 @@ const submitInlineTask = async (col) => {
          priority: 3
       });
       inlineTaskTitle.value = '';
-      fetchTasks();
+      inlineCreateColId.value = null; // <-- MUST CLOSE OVERLAY
+      await fetchTasks();
+      actStore.logActivity(`Created work item "${titleForLog}"`, 'in ' + col.name, 'fa-solid fa-plus');
+      ElNotification({ title: 'Thành công', message: 'Tạo công việc thành công', type: 'success' });
    } catch (e) {
-      console.error(e);
+      console.error('Lỗi khi tạo inline task:', e);
+      ElNotification({ title: 'Lỗi', message: e.response?.data?.message || 'Không thể tạo công việc', type: 'error' });
    }
 }
 
@@ -558,7 +629,8 @@ const handleListTaskCreate = async (payload) => {
          statusName: payload.statusName || 'BACKLOG',
          priority: payload.priority || 3
       });
-      fetchTasks();
+      await fetchTasks();
+      actStore.logActivity(`Created work item "${payload.title}"`, 'in List View', 'fa-solid fa-plus');
    } catch (error) {
       console.error(error);
    }
@@ -606,6 +678,36 @@ const handleDraggableChange = async (evt, group) => {
        }
     }
   }
+}
+
+const handleProjectCommand = (command) => {
+   if (command === 'archive') {
+      archiveProject();
+   }
+}
+
+const archiveProject = async () => {
+   try {
+      await ElMessageBox.confirm(
+         'Bạn có chắc muốn lưu trữ không gian này? Các công việc sẽ bị ẩn khỏi bảng điều khiển.',
+         'Xác nhận lưu trữ',
+         {
+            confirmButtonText: 'Lưu trữ',
+            cancelButtonText: 'Hủy',
+            type: 'warning',
+            confirmButtonClass: 'el-button--danger'
+         }
+      );
+      
+      const pid = getProjectId();
+      await axiosClient.put(`/projects/${pid}/archive`);
+      ElMessage.success('Đã lưu trữ không gian thành công');
+      router.push('/dashboard');
+   } catch (error) {
+      if (error !== 'cancel') {
+         ElMessage.error('Có lỗi xảy ra khi lưu trữ không gian');
+      }
+   }
 }
 
 

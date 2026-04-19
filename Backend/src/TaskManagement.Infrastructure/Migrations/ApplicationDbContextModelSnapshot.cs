@@ -608,6 +608,12 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Property<bool>("IsLocked")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsPrivate")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsStarred")
+                        .HasColumnType("bit");
+
                     b.Property<Guid>("ProjectId")
                         .HasColumnType("uniqueidentifier");
 
@@ -740,6 +746,9 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Property<string>("Identifier")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("bit");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
@@ -1231,6 +1240,24 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.ToTable("TaskStatuses");
                 });
 
+            modelBuilder.Entity("TaskManagement.Domain.Entities.TaskSubscriber", b =>
+                {
+                    b.Property<Guid>("WorkTaskId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("SubscribedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("WorkTaskId", "UserId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("TaskSubscribers");
+                });
+
             modelBuilder.Entity("TaskManagement.Domain.Entities.TaskType", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1460,6 +1487,9 @@ namespace TaskManagement.Infrastructure.Migrations
 
                     b.Property<DateTime?>("DueDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("bit");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
@@ -2148,6 +2178,25 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Navigation("Project");
                 });
 
+            modelBuilder.Entity("TaskManagement.Domain.Entities.TaskSubscriber", b =>
+                {
+                    b.HasOne("TaskManagement.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TaskManagement.Domain.Entities.WorkTask", "WorkTask")
+                        .WithMany("Subscribers")
+                        .HasForeignKey("WorkTaskId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+
+                    b.Navigation("WorkTask");
+                });
+
             modelBuilder.Entity("TaskManagement.Domain.Entities.TaskType", b =>
                 {
                     b.HasOne("TaskManagement.Domain.Entities.Project", "Project")
@@ -2460,6 +2509,8 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Navigation("IssueModules");
 
                     b.Navigation("PredecessorDependencies");
+
+                    b.Navigation("Subscribers");
 
                     b.Navigation("SuccessorDependencies");
 

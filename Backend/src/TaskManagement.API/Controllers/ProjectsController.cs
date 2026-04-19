@@ -41,8 +41,21 @@ namespace TaskManagement.API.Controllers
             return Ok(ApiResponse<List<ProjectDiscoveryDto>>.Success(projects));
         }
 
+        [HttpGet("archived")]
+        public async Task<IActionResult> GetArchived()
+        {
+            try
+            {
+                var projects = await _projectService.GetArchivedAsync();
+                return Ok(ApiResponse<List<ProjectDiscoveryDto>>.Success(projects));
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { statusCode = 500, message = ex.Message });
+            }
+        }
 
-        [HttpGet("{id}")]
+        [HttpGet("{id:guid}")]
         public async Task<IActionResult> GetById(Guid id)
         {
             var project = await _projectService.GetByIdAsync(id);
@@ -77,7 +90,7 @@ namespace TaskManagement.API.Controllers
             public Guid? ParentCommentId { get; set; }
         }
 
-        [HttpPost("{id}/Comments")]
+        [HttpPost("{id:guid}/Comments")]
         public async Task<IActionResult> CreateComment(Guid id, [FromBody] CreateCommentRequest request, [FromServices] TaskManagement.Infrastructure.Data.ApplicationDbContext context)
         {
             var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -117,7 +130,7 @@ namespace TaskManagement.API.Controllers
             }});
         }
 
-        [HttpPut("{id}")]
+        [HttpPut("{id:guid}")]
         public async Task<IActionResult> Update(Guid id, [FromBody] UpdateProjectDto dto)
         {
             try
@@ -134,7 +147,7 @@ namespace TaskManagement.API.Controllers
         /// <summary>
         /// 5.1 Archive: Vô hiệu hóa dự án
         /// </summary>
-        [HttpPut("{id}/archive")]
+        [HttpPut("{id:guid}/archive")]
         public async Task<IActionResult> Archive(Guid id)
         {
             try
@@ -148,7 +161,7 @@ namespace TaskManagement.API.Controllers
             }
         }
 
-        [HttpPut("{id}/restore")]
+        [HttpPut("{id:guid}/restore")]
         public async Task<IActionResult> Restore(Guid id)
         {
             try
@@ -165,7 +178,7 @@ namespace TaskManagement.API.Controllers
         /// <summary>
         /// 5.1 Soft Delete
         /// </summary>
-        [HttpDelete("{id}")]
+        [HttpDelete("{id:guid}")]
         public async Task<IActionResult> SoftDelete(Guid id)
         {
             try
@@ -176,6 +189,20 @@ namespace TaskManagement.API.Controllers
             catch (ArgumentException ex)
             {
                 return BadRequest(ApiResponse<object>.Error(ex.Message));
+            }
+        }
+
+        [HttpGet("{id:guid}/members")]
+        public async Task<IActionResult> GetMembers(Guid id)
+        {
+            try
+            {
+                var members = await _projectService.GetMembersAsync(id);
+                return Ok(ApiResponse<List<ProjectMemberResponseDto>>.Success(members));
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { statusCode = 500, message = ex.Message });
             }
         }
     }

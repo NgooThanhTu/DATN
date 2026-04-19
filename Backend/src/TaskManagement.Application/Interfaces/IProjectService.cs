@@ -12,5 +12,7 @@ namespace TaskManagement.Application.Interfaces
         Task ArchiveAsync(Guid id);
         Task RestoreAsync(Guid id);
         Task SoftDeleteAsync(Guid id);
+        Task<List<ProjectMemberResponseDto>> GetMembersAsync(Guid projectId);
+        Task<List<ProjectDiscoveryDto>> GetArchivedAsync();
     }
 }

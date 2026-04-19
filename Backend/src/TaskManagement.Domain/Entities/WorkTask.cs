@@ -32,6 +32,7 @@ namespace TaskManagement.Domain.Entities
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
         public bool IsDeleted { get; set; } = false;
+        public bool IsArchived { get; set; } = false;
         public double TotalEstimatedHours { get; set; }
         public double TotalActualHours { get; set; }
         
@@ -64,5 +65,6 @@ namespace TaskManagement.Domain.Entities
         public TaskVectorEmbedding? TaskVectorEmbedding { get; set; }
         public ICollection<IssueLabel> IssueLabels { get; set; } = new List<IssueLabel>();
         public ICollection<IssueModule> IssueModules { get; set; } = new List<IssueModule>();
+        public ICollection<TaskSubscriber> Subscribers { get; set; } = new List<TaskSubscriber>();
     }
 }

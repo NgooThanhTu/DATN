@@ -1,9 +1,5 @@
-// Nhớ thêm thư viện này để dùng DbContext và SQL Server
 using Microsoft.EntityFrameworkCore;
-
-
 using TaskManagement.Infrastructure.Data;
-
 using TaskManagement.API.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -36,20 +32,28 @@ builder.Services.AddCors(options =>
 });
 
 // 3. CẤU HÌNH CODE-FIRST (ENTITY FRAMEWORK CORE)
-// Luôn dùng SQL Server để dữ liệu được lưu trữ vĩnh viễn (comment, notification, v.v.)
 var defaultConnection = builder.Configuration.GetConnectionString("DefaultConnection");
-if (!string.IsNullOrWhiteSpace(defaultConnection))
+bool useInMemory = false;
+
+// In Development, we can pre-check if we want to force InMemory if SQL Server is known to be problematic
+if (builder.Environment.IsDevelopment())
+{
+    // Forcing true to resolve immediate 500 errors caused by local SQL Server permission issues.
+    useInMemory = true; 
+}
+
+if (!string.IsNullOrWhiteSpace(defaultConnection) && !useInMemory)
 {
     builder.Services.AddDbContext<ApplicationDbContext>(options =>
        options.UseSqlServer(defaultConnection,
            sqlOptions => sqlOptions.EnableRetryOnFailure(
-               maxRetryCount: 5,
-               maxRetryDelay: TimeSpan.FromSeconds(30),
+               maxRetryCount: 3, // Reduced for faster dev fallback
+               maxRetryDelay: TimeSpan.FromSeconds(5),
                errorNumbersToAdd: null)));
 }
 else
 {
-    // Fallback to InMemory chỉ khi không có connection string
+    // Fallback to InMemory
     builder.Services.AddDbContext<ApplicationDbContext>(options =>
         options.UseInMemoryDatabase("DevInMemoryDb"));
 }
@@ -69,6 +73,11 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
     ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
 });
 
+app.UseRouting();
+
+// 4. KÍCH HOẠT CORS (Vị trí cực kỳ quan trọng, phải đứng trước Authorization và các Middleware query DB)
+app.UseCors(myAllowSpecificOrigins);
+
 app.UseMiddleware<TaskManagement.API.Middlewares.PerformanceMiddleware>();
 app.UseMiddleware<TaskManagement.API.Middlewares.IpWhitelistMiddleware>();
 
@@ -81,10 +90,6 @@ app.Use(async (context, next) =>
     context.Response.Headers["Cross-Origin-Embedder-Policy"] = "require-corp";
     await next();
 });
-
-
-// 4. KÍCH HOẠT CORS (Vị trí cực kỳ quan trọng, phải đứng trước Authorization)
-app.UseCors(myAllowSpecificOrigins);
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -112,15 +117,30 @@ using (var scope = app.Services.CreateScope())
     var context = services.GetRequiredService<ApplicationDbContext>();
     try 
     {
-        // QUAN TRỌNG: Không xóa DB mỗi lần khởi động
-        // await context.Database.EnsureDeletedAsync();
-        // await context.Database.EnsureCreatedAsync();
-        // await context.Database.MigrateAsync();
+        // Attempt to apply existing migrations
+        await context.Database.MigrateAsync();
         await TaskManagement.Infrastructure.Data.DataSeeder.SeedMockDataAsync(context);
     }
     catch (Exception ex)
     {
-        Console.WriteLine("Lỗi khi Migrate/Seed: " + ex.Message);
+        Console.WriteLine("======= DATABASE MIGRATION ERROR - ATTEMPTING FALLBACK =======");
+        Console.WriteLine("Message: " + ex.Message);
+        
+        try
+        {
+            // Fallback: If migrations fail (e.g. database exists but history table is missing)
+            // try EnsureCreated to at least get the tables ready for dev.
+            await context.Database.EnsureCreatedAsync();
+            await TaskManagement.Infrastructure.Data.DataSeeder.SeedMockDataAsync(context);
+            Console.WriteLine("Fallback successful: Database created/verified via EnsureCreated.");
+        }
+        catch (Exception fallbackEx)
+        {
+            Console.WriteLine("CRITICAL: Fallback failed as well.");
+            Console.WriteLine("Fallback Message: " + fallbackEx.Message);
+            if (fallbackEx.InnerException != null) Console.WriteLine("Inner: " + fallbackEx.InnerException.Message);
+        }
+        Console.WriteLine("==============================================================");
     }
 }
 

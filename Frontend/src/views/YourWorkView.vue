@@ -11,23 +11,82 @@ const myTasks = ref([])
 const loading = ref(false)
 const actStore = useActivityStore()
 
-onMounted(async () => {
+import { ElNotification } from 'element-plus'
+
+const currentUserId = computed(() => {
+  const u = localStorage.getItem('user')
+  return u ? JSON.parse(u).id : null
+})
+
+const fetchMyTasks = async () => {
   try {
     loading.value = true
-    const res = await axiosClient.get('/tasks/my-tasks')
+    const res = await axiosClient.get('/tasks/search') // Get all tasks across all projects
     myTasks.value = res.data?.data || []
-    await actStore.fetchRecentActivities()
+    actStore.fetchRecentActivities()
+    
+    // Auto-sync backend tasks to local activity log
+    const existingIds = new Set(actStore.activities.map(a => a.id))
+    let added = false
+    myTasks.value.forEach(t => {
+        const id = 'db-' + t.id
+        if (!existingIds.has(id)) {
+            let action = t.reporterId === currentUserId.value ? 'Created' : 'Assigned to'
+            actStore.activities.push({
+               id: id,
+               icon: 'fa-solid fa-list-check',
+               text: `${action} work item`,
+               bold: `"${t.title}"`,
+               time: new Date(t.createdAt).toLocaleString(),
+               _ts: new Date(t.createdAt).getTime()
+            })
+            added = true
+        }
+    })
+    
+    if (added) {
+        actStore.activities.forEach(a => { 
+           if(!a._ts) {
+               // Try to parse time intelligently, fallback to now if failed
+               const ts = Date.parse(a.time);
+               a._ts = isNaN(ts) ? Date.now() : ts;
+           }
+        })
+        actStore.activities.sort((a,b) => b._ts - a._ts)
+        actStore.activities = actStore.activities.slice(0, 50)
+        localStorage.setItem('nexus_activities', JSON.stringify(actStore.activities))
+    }
+    
   } catch (err) {
     console.error('Lỗi load tasks:', err)
   } finally {
     loading.value = false
   }
+}
+
+onMounted(() => {
+  fetchMyTasks()
 })
 
+const seedMockData = async () => {
+  try {
+    loading.value = true
+    const res = await axiosClient.post('/tasks/seed-mock')
+    ElNotification({ title: 'Thành công', message: res.data.message || 'Đã tạo dữ liệu mẫu', type: 'success' })
+    actStore.logActivity('Seeded 20 mock work items successfully', 'System Data', 'fa-solid fa-seedling')
+    await fetchMyTasks()
+  } catch (err) {
+    ElNotification({ title: 'Lỗi', message: 'Lỗi khi tạo dữ liệu mẫu', type: 'error' })
+    console.error(err)
+  } finally {
+    loading.value = false
+  }
+}
+
 const overview = computed(() => ({
-  created: 0, 
-  assigned: myTasks.value.length, 
-  subscribed: 0 
+  created: myTasks.value.filter(t => t.reporterId === currentUserId.value).length, 
+  assigned: myTasks.value.filter(t => t.assignedUserId === currentUserId.value).length, 
+  subscribed: myTasks.value.filter(t => t.isSubscribed).length
 }))
 
 const workload = computed(() => {
@@ -55,11 +114,11 @@ const recentActivity = computed(() => {
 const listData = computed(() => {
   let list = myTasks.value;
   if (activeTab.value === 'Assigned') {
-    list = myTasks.value;
+    list = myTasks.value.filter(t => t.assignedUserId === currentUserId.value);
   } else if (activeTab.value === 'Created') {
-    list = myTasks.value; // Just a mock for now, API needs to return created
+    list = myTasks.value.filter(t => t.reporterId === currentUserId.value);
   } else if (activeTab.value === 'Subscribed') {
-    list = myTasks.value; 
+    list = myTasks.value.filter(t => t.isSubscribed);
   }
 
   return list.map(t => ({
@@ -77,17 +136,54 @@ const listData = computed(() => {
 
 const updateTaskProperty = async (task, field, value) => {
    try {
-      const payload = {};
-      payload[field] = value;
-      await axiosClient.patch(`/projects/default/WorkTasks/${task.id}`, payload);
-      const res = await axiosClient.get('/tasks/my-tasks');
-      myTasks.value = res.data?.data || [];
+      const idx = myTasks.value.findIndex(t => t.id === task.id)
+      if (idx !== -1) {
+         myTasks.value[idx][field] = value
+         
+         const updatePayload = {}
+         updatePayload[field] = value
+         if (task.projectId) {
+            await axiosClient.patch(`/projects/${task.projectId}/WorkTasks/${task.id}`, updatePayload)
+         }
+         
+         let activityText = `Updated ${field} to ${value}`
+         if (field === 'statusName') activityText = `Changed status to ${value}`
+         if (field === 'priority') activityText = `Changed priority to ${value === 1 ? 'Urgent' : value === 2 ? 'High' : value === 3 ? 'Normal' : 'Low'}`
+         actStore.logActivity(activityText, 'on ' + (task.sequenceId || task.id), 'fa-solid fa-pen-to-square')
+      }
    } catch (error) {
       console.error('Failed to update task:', error);
    }
 }
 
 const pageActivities = computed(() => actStore.activities)
+
+const downloadWordActivity = () => {
+    let htmlContent = `
+    <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+    <head><meta charset='utf-8'><title>Activity Log</title></head><body>
+    <h2>Lịch sử hoạt động (Activity History)</h2>
+    <ul>
+    `;
+    
+    actStore.activities.forEach(act => {
+        htmlContent += `<li><strong>${act.time}</strong> - ${act.text} <em>${act.bold}</em></li>`;
+    });
+    
+    htmlContent += "</ul></body></html>";
+    
+    const blob = new Blob(['\ufeff', htmlContent], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Activity_Log_${new Date().toISOString().slice(0,10)}.doc`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    ElNotification({ title: 'Thành công', message: 'Đã xuất file Word lịch sử hoạt động', type: 'success' });
+}
 </script>
 
 <template>
@@ -96,8 +192,9 @@ const pageActivities = computed(() => actStore.activities)
       
       <!-- Main Content -->
       <div class="yw-main">
-        <header class="yw-header">
+        <header class="yw-header flex-between">
            <span class="yw-title"><i class="fa-regular fa-user"></i> Your work</span>
+           <button class="plane-primary-btn" @click="seedMockData" style="background: #10B981"><i class="fa-solid fa-seedling mr-2"></i> Seed Mock Data</button>
         </header>
 
         <div class="yw-tabs">
@@ -196,12 +293,16 @@ const pageActivities = computed(() => actStore.activities)
 
            <!-- Recent activity -->
            <h3 class="section-title mt-4">Recent activity</h3>
-           <div class="activity-list">
-              <div v-for="act in recentActivity" :key="act.id" class="activity-item">
-                 <div class="avatar-sm">C</div>
-                 <div class="act-info">
-                    <div class="act-text">{{ act.text }}</div>
-                    <div class="act-time">{{ act.time }}</div>
+           <div class="list-body">
+              <div class="list-row" style="cursor: default;" v-for="act in recentActivity" :key="act.id">
+                 <div class="lr-left">
+                    <span class="lr-id" style="min-width: 30px;"><i class="fa-solid fa-clock-rotate-left" style="color: #A1A1AA"></i></span>
+                    <span class="lr-title">{{ act.text }}</span>
+                 </div>
+                 <div class="lr-right">
+                    <div class="lr-badge cursor-not-allowed">
+                       <i class="fa-regular fa-clock"></i> {{ act.time }}
+                    </div>
                  </div>
               </div>
            </div>
@@ -275,15 +376,19 @@ const pageActivities = computed(() => actStore.activities)
         <div class="yw-scrollable" v-else-if="activeTab === 'Activity'">
            <div class="activity-page-header mt-4 flex-between">
               <h3 class="section-title" style="margin: 0;">Recent activity</h3>
-              <button class="plane-primary-btn">Download today's activity</button>
+              <button class="plane-primary-btn" @click="downloadWordActivity">Download today's activity</button>
            </div>
            
-           <div class="page-activity-list mt-4">
-              <div class="p-act-row" v-for="(act, idx) in pageActivities" :key="idx">
-                 <div class="p-act-icon"><i :class="act.icon"></i></div>
-                 <div class="p-act-content">
-                    <span class="p-ac-text">{{ act.text }} <span class="p-ac-bold">{{ act.bold }}</span></span>
-                    <span class="p-ac-time">{{ act.time }}</span>
+           <div class="list-body mt-4">
+              <div class="list-row" style="cursor: default;" v-for="(act, idx) in pageActivities" :key="idx">
+                 <div class="lr-left">
+                    <span class="lr-id" style="min-width: 30px;"><i :class="act.icon || 'fa-solid fa-bell'"></i></span>
+                    <span class="lr-title">{{ act.text }} <span class="p-ac-bold text-white">{{ act.bold }}</span></span>
+                 </div>
+                 <div class="lr-right">
+                    <div class="lr-badge cursor-not-allowed">
+                       <i class="fa-regular fa-clock"></i> {{ act.time }}
+                    </div>
                  </div>
               </div>
            </div>

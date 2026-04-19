@@ -38,7 +38,7 @@ namespace TaskManagement.Infrastructure.Services
                 .AsNoTracking()
                 .Include(p => p.Creator)
                 .Include(p => p.Department)
-                .Where(p => !p.IsDeleted && p.ProjectMembers.Any(pm => pm.UserId == userId && pm.Status))
+                .Where(p => !p.IsDeleted && !p.IsArchived && p.ProjectMembers.Any(pm => pm.UserId == userId && pm.Status))
                 .Select(p => new ProjectResponseDto
                 {
                     Id = p.Id,
@@ -70,7 +70,7 @@ namespace TaskManagement.Infrastructure.Services
                 .AsNoTracking()
                 .Include(p => p.Creator)
                 .Include(p => p.Department)
-                .Where(p => !p.IsDeleted && p.Status)
+                .Where(p => !p.IsDeleted && !p.IsArchived && p.Status)
                 .Select(p => new ProjectDiscoveryDto
                 {
                     Id = p.Id,
@@ -92,6 +92,39 @@ namespace TaskManagement.Infrastructure.Services
                 })
                 .ToListAsync();
         }
+
+        public async Task<List<ProjectDiscoveryDto>> GetArchivedAsync()
+        {
+            var userIdString = _httpContextAccessor.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier);
+            Guid? userId = Guid.TryParse(userIdString, out Guid uid) ? uid : null;
+
+            return await _context.Projects
+                .AsNoTracking()
+                .Include(p => p.Creator)
+                .Include(p => p.Department)
+                .Where(p => !p.IsDeleted && p.IsArchived)
+                .Select(p => new ProjectDiscoveryDto
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    Description = p.Description,
+                    StartDate = p.StartDate,
+                    EndDate = p.EndDate,
+                    Status = p.Status,
+                    CreatorName = p.Creator.FullName,
+                    DepartmentId = p.DepartmentId,
+                    DepartmentName = p.Department != null ? p.Department.Name : null,
+                    ActiveMemberCount = p.ProjectMembers.Count(m => m.Status == true),
+                    CreatedAt = p.CreatedAt,
+                    UpdatedAt = p.UpdatedAt,
+                    IsMember = userId.HasValue && p.ProjectMembers.Any(pm => pm.UserId == userId.Value && pm.Status),
+                    MyRole = userId.HasValue
+                        ? p.ProjectMembers.Where(pm => pm.UserId == userId.Value && pm.Status).Select(pm => pm.ProjectRole).FirstOrDefault()
+                        : null
+                })
+                .ToListAsync();
+        }
+
 
 
         public async Task<ProjectResponseDto?> GetByIdAsync(Guid id)
@@ -289,17 +322,13 @@ namespace TaskManagement.Infrastructure.Services
 
             return (await GetByIdAsync(project.Id))!;
         }
-
-        /// <summary>
-        /// 5.1 Archive: Set Status = false (ẩn khỏi danh sách active, vẫn xem được lịch sử)
-        /// </summary>
         public async Task ArchiveAsync(Guid id)
         {
             var project = await _context.Projects.FirstOrDefaultAsync(p => p.Id == id);
             if (project == null)
                 throw new ArgumentException("Dự án không tồn tại.");
 
-            project.Status = false;
+            project.IsArchived = true;
             project.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
         }
@@ -310,7 +339,7 @@ namespace TaskManagement.Infrastructure.Services
             if (project == null)
                 throw new ArgumentException("Dự án không tồn tại.");
 
-            project.Status = true;
+            project.IsArchived = false;
             project.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
         }
@@ -327,6 +356,23 @@ namespace TaskManagement.Infrastructure.Services
             project.IsDeleted = true;
             project.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
+        }
+
+        public async Task<List<ProjectMemberResponseDto>> GetMembersAsync(Guid projectId)
+        {
+            return await _context.ProjectMembers
+                .AsNoTracking()
+                .Include(pm => pm.User)
+                .Where(pm => pm.ProjectId == projectId && pm.Status)
+                .Select(pm => new ProjectMemberResponseDto
+                {
+                    UserId = pm.UserId,
+                    FullName = pm.User.FullName ?? pm.User.Email,
+                    Email = pm.User.Email,
+                    ProjectRole = pm.ProjectRole,
+                    JoinedAt = pm.JoinedAt
+                })
+                .ToListAsync();
         }
 
         /// <summary>

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using TaskManagement.Application.DTOs.Auth;
 using TaskManagement.Application.Interfaces;
 using System.Security.Claims;
+using Microsoft.EntityFrameworkCore;
 
 namespace TaskManagement.API.Controllers
 {
@@ -269,23 +270,21 @@ namespace TaskManagement.API.Controllers
             [FromServices] TaskManagement.Infrastructure.Data.ApplicationDbContext context,
             [FromServices] IWebHostEnvironment env)
         {
+            // Only allow in development mode
             if (!env.IsDevelopment())
-                return NotFound();
+                return NotFound(new { statusCode = 404, message = "Endpoint only available in Development environment" });
 
             try
             {
                 var email = "dev@sprinta.local";
-                var user = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
-                    .FirstOrDefaultAsync(
-                        Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
-                            .ThenInclude(
-                                Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
-                                    .Include(context.Users, u => u.UserRoles),
-                                ur => ur.Role),
-                        u => u.Email == email && !u.IsDeleted);
+                var user = await context.Users
+                    .Include(u => u.UserRoles)
+                    .ThenInclude(ur => ur.Role)
+                    .FirstOrDefaultAsync(u => u.Email == email && !u.IsDeleted);
 
                 if (user == null)
                 {
+                    // Create dev user if not exists
                     user = new TaskManagement.Domain.Entities.User
                     {
                         Id = Guid.NewGuid(),
@@ -299,8 +298,7 @@ namespace TaskManagement.API.Controllers
                     context.Users.Add(user);
 
                     // Ensure Admin role exists
-                    var adminRole = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
-                        .FirstOrDefaultAsync(context.Roles, r => r.Name == "Admin");
+                    var adminRole = await context.Roles.FirstOrDefaultAsync(r => r.Name == "Admin");
                     if (adminRole == null)
                     {
                         adminRole = new TaskManagement.Domain.Entities.Role 
@@ -324,13 +322,24 @@ namespace TaskManagement.API.Controllers
                     await context.SaveChangesAsync();
                 }
 
-                var roles = user.UserRoles?.Select(ur => ur.Role.Name).ToList() ?? new List<string> { "Admin" };
+                // Extract roles safely. If user exists but has no roles, default to Admin.
+                var roles = user.UserRoles?
+                    .Where(ur => ur.Role != null)
+                    .Select(ur => ur.Role!.Name)
+                    .ToList() ?? new List<string>();
+
+                if (roles.Count == 0)
+                {
+                    roles.Add("Admin");
+                }
+
                 var accessToken = jwtService.GenerateAccessToken(user, roles);
                 var refreshToken = jwtService.GenerateRefreshToken();
 
                 user.RefreshToken = refreshToken;
                 user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
 
+                // Add to RefreshTokens table for multi-device support/consistency
                 context.RefreshTokens.Add(new TaskManagement.Domain.Entities.RefreshToken
                 {
                     Id = Guid.NewGuid(),
@@ -346,7 +355,7 @@ namespace TaskManagement.API.Controllers
                 var cookieOptions = new CookieOptions
                 {
                     HttpOnly = true,
-                    Secure = false,
+                    Secure = false, // Set to true if using HTTPS in Dev
                     SameSite = SameSiteMode.Lax,
                     Expires = DateTime.UtcNow.AddDays(7)
                 };
@@ -368,7 +377,14 @@ namespace TaskManagement.API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { statusCode = 500, message = "Dev login lỗi: " + ex.Message });
+                // Detailed error for dev debugging
+                return StatusCode(500, new { 
+                    statusCode = 500, 
+                    message = "Dev login lỗi hệ thống", 
+                    error = ex.Message,
+                    innerError = ex.InnerException?.Message,
+                    stackTrace = env.IsDevelopment() ? ex.StackTrace : null
+                });
             }
         }
 
@@ -393,4 +409,5 @@ namespace TaskManagement.API.Controllers
         }
     }
 }
+
 
