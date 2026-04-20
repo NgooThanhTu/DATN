@@ -5,13 +5,26 @@
         <div class="breadcrumb">
           <i class="fa-solid fa-file-lines"></i> System / Audit Log
         </div>
-        <h1 class="page-title">Nhật ký Hệ thống (Audit Log)</h1>
-        <p class="page-subtitle">Theo dõi và tra cứu các hoạt động, sự kiện quan trọng trong hệ thống.</p>
+        <h1 class="page-title">{{ t('System Audit Log', 'Nhật ký Hệ thống (Audit Log)') }}</h1>
+        <p class="page-subtitle">{{ t('Monitor and search important system activities and events.', 'Theo dõi và tra cứu các hoạt động, sự kiện quan trọng trong hệ thống.') }}</p>
       </div>
       <div class="header-actions">
-        <el-input v-model="searchQuery" class="glass-input" placeholder="Search logs..." style="width: 220px; margin-right: 12px" @input="debounceSearch" clearable />
+        <el-tooltip class="box-item" effect="dark" :content="t('Auto-refresh every 10 seconds', 'Tự động làm mới dữ liệu mỗi 10 giây (Auto Refresh)')" placement="top">
+          <el-switch
+            v-model="isRealtime"
+            inline-prompt
+            active-text="Realtime"
+            inactive-text="Paused"
+            style="margin-right: 16px; --el-switch-on-color: #10b981; --el-switch-off-color: #27272a"
+            @change="handleRealtimeToggle"
+          />
+        </el-tooltip>
         
-        <el-select v-model="selectedProjectId" class="glass-input" placeholder="All Projects" style="width: 180px; margin-right: 12px" @change="fetchLogs" clearable>
+        <el-tooltip effect="dark" :content="t('Search by Name, Email, Resource, or Action', 'Tìm kiếm theo Tên, Email, Tài nguyên, hoặc Hành động')" placement="top">
+          <el-input v-model="searchQuery" class="glass-input" :placeholder="t('Search logs...', 'Tìm kiếm log...')" style="width: 220px; margin-right: 12px" @input="debounceSearch" clearable />
+        </el-tooltip>
+        
+        <el-select v-model="selectedProjectId" class="glass-input" :placeholder="t('All Projects', 'Tất cả Dự án')" style="width: 180px; margin-right: 12px" @change="fetchLogs" clearable>
            <el-option v-for="p in projects" :key="p.id" :label="p.name" :value="p.id" />
         </el-select>
 
@@ -19,8 +32,8 @@
           v-model="dateRange"
           type="daterange"
           range-separator="->"
-          start-placeholder="Từ ngày"
-          end-placeholder="Đến ngày"
+          :start-placeholder="t('From Date', 'Từ ngày')"
+          :end-placeholder="t('To Date', 'Đến ngày')"
           :disabled-date="disabledDate"
           style="width: 260px"
           class="glass-input custom-date-picker"
@@ -31,13 +44,25 @@
 
     <div class="admin-card" v-loading="loading">
       <el-table :data="logs" style="width: 100%" class="admin-table" :show-header="true">
-        <el-table-column prop="timestamp" label="TIMESTAMP" min-width="150" />
-        <el-table-column prop="user" label="USER" min-width="180" />
-        <el-table-column prop="action" label="ACTION" min-width="120" />
+        <el-table-column prop="timestamp" :label="t('TIMESTAMP', 'THỜI GIAN')" min-width="150">
+           <template #default="scope">
+             {{ formatDateLocal(scope.row.timestamp) }}
+           </template>
+        </el-table-column>
+        <el-table-column prop="user" :label="t('USER', 'NGƯỜI DÙNG')" min-width="180" />
+        <el-table-column prop="action" :label="t('ACTION', 'HÀNH ĐỘNG')" min-width="120" />
         <el-table-column prop="resource" label="RESOURCE" min-width="260">
            <template #default="scope">
              <div style="font-weight: 500; font-size: 13px;">{{ scope.row.resource }}</div>
              <div style="color: #64748b; font-size: 12px;">{{ scope.row.targetId }}</div>
+           </template>
+        </el-table-column>
+        <el-table-column prop="summary" :label="t('DETAILS', 'CHI TIẾT')" min-width="250">
+           <template #default="scope">
+             <div style="font-size: 13px; color: #44546f; line-height: 1.5" v-if="scope.row.summary">
+               {{ scope.row.summary }}
+             </div>
+             <span v-else style="color: #94a3b8">--</span>
            </template>
         </el-table-column>
         
@@ -66,9 +91,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import AdminLayout from '@/components/layout/AdminLayout.vue'
 import axiosClient from '@/api/axiosClient'
+import { useLocale } from '@/composables/useLocale'
+
+const { t, formatDateLocal } = useLocale()
 
 const selectedProjectId = ref(null)
 const searchQuery = ref('')
@@ -78,6 +106,10 @@ const currentPage = ref(1)
 const total = ref(0)
 const logs = ref([])
 const projects = ref([])
+
+// Real-time polling
+const isRealtime = ref(true)
+let pollingInterval = null
 
 // Giới hạn chỉ được tra cứu trong 90 ngày quá khứ
 const disabledDate = (time) => {
@@ -110,8 +142,10 @@ const fetchProjects = async () => {
     }
 }
 
-const fetchLogs = async () => {
-    loading.value = true
+const fetchLogs = async (isBackground = false) => {
+    if (!isBackground) {
+        loading.value = true
+    }
     try {
         const params = {
             page: currentPage.value,
@@ -130,13 +164,48 @@ const fetchLogs = async () => {
     } catch(e) {
         console.error(e)
     } finally {
-        loading.value = false
+        if (!isBackground) {
+            loading.value = false
+        }
+    }
+}
+
+const startPolling = () => {
+    if (pollingInterval) clearInterval(pollingInterval)
+    pollingInterval = setInterval(() => {
+        // Only auto refresh when on page 1 and no specific historical filters
+        if (isRealtime.value && currentPage.value === 1) {
+            fetchLogs(true) // background fetch
+        }
+    }, 1000) // Poll every 1 seconds
+}
+
+const stopPolling = () => {
+    if (pollingInterval) {
+        clearInterval(pollingInterval)
+        pollingInterval = null
+    }
+}
+
+const handleRealtimeToggle = () => {
+    if (isRealtime.value) {
+        fetchLogs(true)
+        startPolling()
+    } else {
+        stopPolling()
     }
 }
 
 onMounted(() => {
     fetchProjects()
     fetchLogs()
+    if (isRealtime.value) {
+        startPolling()
+    }
+})
+
+onUnmounted(() => {
+    stopPolling()
 })
 </script>
 

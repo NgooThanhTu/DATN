@@ -135,7 +135,7 @@ namespace TaskManagement.API.Controllers
 
         public class ChangePasswordRequest
         {
-            public string OldPassword { get; set; } = string.Empty;
+            public string OtpCode { get; set; } = string.Empty;
             public string NewPassword { get; set; } = string.Empty;
             public bool LogoutOthers { get; set; } = false;
         }
@@ -150,11 +150,13 @@ namespace TaskManagement.API.Controllers
             var user = await _context.Users.FindAsync(userId);
             if (user == null) return NotFound(new { message = "User not found" });
 
-            if (string.IsNullOrEmpty(user.PasswordHash)) 
-                return BadRequest(new { statusCode = 400, message = "Tài khoản của bạn được liên kết qua Google/Github. Không thể đổi mật khẩu." });
+            // Validate OTP
+            if (string.IsNullOrEmpty(request.OtpCode))
+                return BadRequest(new { statusCode = 400, message = "Vui lòng nhập mã OTP." });
 
-            bool isValidOld = BCrypt.Net.BCrypt.Verify(request.OldPassword, user.PasswordHash);
-            if (!isValidOld) return BadRequest(new { statusCode = 400, message = "Mật khẩu hiện tại không chính xác." });
+            var isValidOtp = _otpService.ValidateOtp(user.Email, request.OtpCode);
+            if (!isValidOtp)
+                return BadRequest(new { statusCode = 400, message = "Mã OTP không hợp lệ hoặc đã hết hạn." });
 
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
             user.UpdatedAt = DateTime.UtcNow;
@@ -162,6 +164,32 @@ namespace TaskManagement.API.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(new { statusCode = 200, message = "Đổi mật khẩu thành công" });
+        }
+
+        public class SendChangePasswordOtpRequest
+        {
+            public string Email { get; set; } = string.Empty;
+        }
+
+        [HttpPost("send-change-password-otp")]
+        public async Task<IActionResult> SendChangePasswordOtp([FromBody] SendChangePasswordOtpRequest request)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out Guid userId))
+                return Unauthorized(new { statusCode = 401, message = "Unauthorized." });
+
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null) return NotFound(new { message = "User not found" });
+
+            // Verify the email matches the user's account email
+            if (!string.Equals(user.Email, request.Email, StringComparison.OrdinalIgnoreCase))
+                return BadRequest(new { statusCode = 400, message = "Email không khớp với tài khoản của bạn." });
+
+            var otpCode = _otpService.GenerateOtp();
+            _otpService.StoreOtp(user.Email, otpCode);
+            await _emailService.SendOtpEmailAsync(user.Email, otpCode);
+
+            return Ok(new { statusCode = 200, message = "Đã gửi mã OTP đến email của bạn." });
         }
 
         [HttpPost("send-set-password-otp")]

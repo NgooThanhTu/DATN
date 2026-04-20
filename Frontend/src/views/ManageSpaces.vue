@@ -96,7 +96,8 @@ const canManageSpace = computed(() => {
 })
 
 const goToAdmin = (projectId) => {
-  router.push('/admin/configuration')
+  const adminUrl = router.resolve('/admin/configuration').href
+  window.open(adminUrl, '_blank')
 }
 
 const coverGradients = [
