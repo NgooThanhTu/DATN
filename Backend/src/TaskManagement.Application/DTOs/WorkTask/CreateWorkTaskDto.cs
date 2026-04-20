@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
 namespace TaskManagement.Application.DTOs.WorkTask
@@ -30,6 +31,9 @@ namespace TaskManagement.Application.DTOs.WorkTask
         public DateTime? DueDate { get; set; }
 
         public Guid? AssignedUserId { get; set; }
+        public List<Guid>? AssigneeIds { get; set; }
+        public Guid? ModuleId { get; set; }
+        public List<Guid>? LabelIds { get; set; }
         public double TotalEstimatedHours { get; set; }
     }
 }

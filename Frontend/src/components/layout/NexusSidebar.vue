@@ -16,7 +16,7 @@
           </router-link>
         </li>
         <li class="nav-item">
-          <router-link to="/drafts" class="nav-link">
+          <router-link to="/drafts" class="nav-link" exact-active-class="active">
             <i class="fa-solid fa-pen-nib"></i>
             <span>Drafts</span>
           </router-link>
@@ -31,6 +31,12 @@
           <router-link to="/stickies" class="nav-link">
             <i class="fa-solid fa-note-sticky"></i>
             <span>Stickies</span>
+          </router-link>
+        </li>
+        <li class="nav-item">
+          <router-link to="/rewards" class="nav-link">
+            <i class="fa-solid fa-trophy"></i>
+            <span>Rewards</span>
           </router-link>
         </li>
       </ul>
@@ -100,7 +106,7 @@
       <ul class="nav-menu">
         <!-- Active Project Folder -->
         <li class="nav-item">
-          <div class="nav-link active proj-folder">
+          <div class="nav-link proj-folder" :class="{ active: isSpaceRoute }">
             <span class="proj-icon">C</span>
             <span>Cun</span>
           </div>
@@ -114,10 +120,10 @@
           </router-link>
         </li>
         <li class="nav-item sub-item">
-          <router-link :to="`/space/${projectId}/cycles`" class="nav-link">
+          <div class="nav-link" :class="{'active': route.name === 'CyclesView'}" @click="router.push(`/space/${projectId}/cycles`)">
             <i class="fa-solid fa-arrows-spin"></i>
             <span>Cycles</span>
-          </router-link>
+          </div>
         </li>
         <!-- Hidden as requested -->
         <li class="nav-item sub-item" v-if="false">
@@ -127,13 +133,13 @@
           </router-link>
         </li>
         <li class="nav-item sub-item">
-          <router-link :to="`/space/${projectId}/modules`" class="nav-link">
+          <div class="nav-link" :class="{'active': route.name === 'ModulesView'}" @click="router.push(`/space/${projectId}/modules`)">
             <i class="fa-solid fa-table-cells-large"></i>
             <span>Modules</span>
-          </router-link>
+          </div>
         </li>
         <li class="nav-item sub-item">
-          <router-link :to="`/space/${projectId}/views`" class="nav-link">
+          <router-link :to="`/space/${projectId}/views`" class="nav-link" active-class="active">
             <i class="fa-solid fa-list-ul"></i>
             <span>Views</span>
           </router-link>
@@ -158,10 +164,11 @@
 
 <script setup>
 import { computed, ref, defineProps, defineEmits, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useSprintStore } from '@/store/useSprintStore'
 
 const route = useRoute()
+const router = useRouter()
 const showMorePanel = ref(false)
 const projectId = computed(() => {
   return route.params.id || localStorage.getItem('currentProjectId') || 'default'
@@ -180,6 +187,8 @@ const favoriteSprints = computed(() => {
    if (!sprintStore.sprints) return [];
    return sprintStore.sprints.filter(s => s.isFavorite);
 })
+
+const isSpaceRoute = computed(() => route.path.startsWith('/space/'))
 
 watch(projectId, (newVal) => {
    if (newVal && newVal !== 'default') {

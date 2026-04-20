@@ -8,7 +8,12 @@ namespace TaskManagement.Application.DTOs.Sprint
         public DateTime StartDate { get; set; }
         public DateTime EndDate { get; set; }
         public bool Status { get; set; }
+        public string State { get; set; } = "Upcoming";
+        public int ProgressPercent { get; set; }
         public int TaskCount { get; set; }
+        public int CompletedTaskCount { get; set; }
+        public int InProgressTaskCount { get; set; }
+        public int BacklogTaskCount { get; set; }
         public DateTime CreatedAt { get; set; }
     }
 }

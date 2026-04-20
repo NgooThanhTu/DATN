@@ -1,71 +1,274 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, computed, onMounted, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
 import axiosClient from '@/api/axiosClient'
+import { ElMessageBox, ElMessage } from 'element-plus'
 
 const props = defineProps({
   projectId: { type: String, required: true }
 })
 const projectId = props.projectId
+const router = useRouter()
 
 const modules = ref([])
+const projectMembers = ref([])
 
-const mockUsers = ref([])
+// Status config for display
+const statusConfig = {
+  'backlog': { label: 'Backlog', icon: 'fa-solid fa-expand', color: '#71717A', bg: 'rgba(113,113,122,0.15)' },
+  'planned': { label: 'Planned', icon: 'fa-regular fa-circle', color: '#60A5FA', bg: 'rgba(96,165,250,0.15)' },
+  'in progress': { label: 'In Progress', icon: 'fa-solid fa-circle-notch', color: '#FBBF24', bg: 'rgba(251,191,36,0.15)' },
+  'paused': { label: 'Paused', icon: 'fa-solid fa-pause', color: '#A1A1AA', bg: 'rgba(161,161,170,0.15)' },
+  'completed': { label: 'Completed', icon: 'fa-regular fa-circle-check', color: '#4ADE80', bg: 'rgba(74,222,128,0.15)' },
+  'cancelled': { label: 'Cancelled', icon: 'fa-regular fa-circle-xmark', color: '#F87171', bg: 'rgba(248,113,113,0.15)' },
+}
+
+const getStatusKey = (raw) => {
+  if (!raw) return 'backlog'
+  const s = raw.toLowerCase().trim()
+  if (s.includes('progress') || s === 'active') return 'in progress'
+  if (s.includes('complete') || s === 'done') return 'completed'
+  if (s.includes('cancel')) return 'cancelled'
+  if (s.includes('plan')) return 'planned'
+  if (s.includes('pause')) return 'paused'
+  return 'backlog'
+}
+
+const formatDateRange = (startDate, targetDate) => {
+  const fmt = (d) => {
+    if (!d) return null
+    const dt = new Date(d)
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+    return `${months[dt.getMonth()]} ${dt.getDate()}`
+  }
+  const s = fmt(startDate)
+  const e = fmt(targetDate)
+  if (s && e) return `${s} - ${e}, ${new Date(targetDate).getFullYear()}`
+  if (s) return `${s}, ${new Date(startDate).getFullYear()}`
+  return 'Start date → End date'
+}
 
 const fetchMembers = async () => {
-  if (!projectId) return;
+  if (!projectId) return
   try {
-    console.log('[ModulesTab] Fetching members for project:', projectId);
-    const res = await axiosClient.get(`/projects/${projectId}/members`);
-    console.log('[ModulesTab] Raw members response:', JSON.stringify(res.data));
-    const rawMembers = res.data?.data || res.data || [];
-    mockUsers.value = (Array.isArray(rawMembers) ? rawMembers : []).map(m => ({
+    const res = await axiosClient.get(`/projects/${projectId}/members`)
+    const raw = res.data?.data || res.data || []
+    projectMembers.value = (Array.isArray(raw) ? raw : []).map(m => ({
       id: m.userId || m.id,
       name: m.fullName || m.name || m.userName || m.email || 'Unknown',
       avatar: (m.fullName || m.name || m.userName || 'U').substring(0, 1).toUpperCase()
-    }));
-    console.log('[ModulesTab] Mapped members:', JSON.stringify(mockUsers.value));
-  } catch (error) {
-    console.error('[ModulesTab] Failed to fetch members', error);
+    }))
+  } catch (e) {
+    console.error('[ModulesTab] Failed to fetch members', e)
   }
 }
 
-// Mock Tasks per module to calculate progress
-// e.g. module 1 has 3 tasks, 2 are completed (100%), 1 is 0%. Progress = 66%
-const mockTasksByModule = {
-  '1': [ { id: 't1', progress: 100 }, { id: 't2', progress: 0 }, { id: 't3', progress: 0 } ], // 33.33%
-  '2': [ { id: 't4', progress: 100 }, { id: 't5', progress: 100 } ], // 100%
-}
-
 const fetchModules = async () => {
-  if (!projectId) return;
+  if (!projectId) return
   try {
-    const res = await axiosClient.get(`/projects/${projectId}/modules`);
-    modules.value = res.data.data.map(m => {
-      const tasks = mockTasksByModule[m.id] || []
-      const totalProgress = tasks.length ? tasks.reduce((sum, t) => sum + t.progress, 0) / tasks.length : 0
-      
-      return {
-        id: m.id,
-        name: m.name,
-        progress: totalProgress,
-        status: m.status?.toLowerCase() === 'completed' ? 'completed' : (m.status?.toLowerCase() === 'active' ? 'active' : 'backlog'),
-        statusText: m.status?.toLowerCase() === 'completed' ? 'Done' : (m.status?.toLowerCase() === 'active' ? 'In Progress' : 'Backlog'),
-        lead: m.leadName ? m.leadName.substring(0, 1).toUpperCase() : 'L',
-        dateRange: m.targetDate ? `Apr 14 - 28, 2026` : 'Apr 12 - 26, 2026'
-      }
-    });
-  } catch (error) {
-    console.error('Failed to fetch modules', error);
+    const res = await axiosClient.get(`/projects/${projectId}/modules`)
+    modules.value = (res.data?.data || []).map(m => ({
+      id: m.id,
+      name: m.name,
+      description: m.description || '',
+      statusKey: getStatusKey(m.status),
+      statusRaw: m.status || 'Backlog',
+      leadId: m.leadId || null,
+      startDate: m.startDate || null,
+      targetDate: m.targetDate || null,
+      dateRange: formatDateRange(m.startDate, m.targetDate),
+      isFavorite: m.isFavorite || false,
+      progress: m.progressPercent ?? m.progress ?? 0
+    }))
+  } catch (e) {
+    console.error('[ModulesTab] Failed to fetch modules', e)
   }
 }
 
 onMounted(() => {
-  fetchModules();
-  fetchMembers();
+  fetchModules()
+  fetchMembers()
 })
 
-// === Create/Edit Module logic ===
+// ===== Active Module (double-click → task table view) =====
+const activeModule = ref(null)
+const moduleTasks = ref([])
+const loadingTasks = ref(false)
+
+const openModuleTaskView = async (mod) => {
+  router.push({
+    name: 'SpaceSummary',
+    params: { id: projectId },
+    query: {
+      tab: 'spreadsheet',
+      moduleId: mod.id,
+      moduleName: mod.name
+    }
+  })
+  return
+
+  activeModule.value = mod
+  loadingTasks.value = true
+  try {
+    const res = await axiosClient.get(`/projects/${projectId}/WorkTasks`)
+    const allTasks = res.data?.data || []
+    // Filter tasks that belong to this module
+    moduleTasks.value = allTasks.filter(t => t.moduleId === mod.id).map(t => ({
+      id: t.id,
+      identifier: t.identifier || `CYBWF-${t.sequenceNumber || '?'}`,
+      title: t.title,
+      status: t.statusName || t.status || 'Backlog',
+      priority: t.priority || 'None',
+      assigneeName: Array.isArray(t.assignees) && t.assignees.length
+        ? t.assignees.map(a => a.fullName || a.email).filter(Boolean).join(', ')
+        : (t.assigneeName || null),
+      dueDate: t.dueDate ? new Date(t.dueDate).toLocaleDateString() : null
+    }))
+  } catch (e) {
+    console.error('[ModulesTab] Failed to fetch module tasks', e)
+    moduleTasks.value = []
+  }
+  loadingTasks.value = false
+}
+
+const closeModuleTaskView = () => {
+  activeModule.value = null
+  moduleTasks.value = []
+}
+
+// ===== Status update (inline on row) =====
+const updateModuleStatus = async (mod, newStatusKey) => {
+  const cfg = statusConfig[newStatusKey]
+  if (!cfg) return
+  try {
+    await axiosClient.put(`/projects/${projectId}/modules/${mod.id}`, {
+      name: mod.name,
+      status: cfg.label
+    })
+    mod.statusKey = newStatusKey
+    mod.statusRaw = cfg.label
+    ElMessage.success(`Status updated to ${cfg.label}`)
+  } catch (e) {
+    console.error('[ModulesTab] Failed to update status', e)
+    ElMessage.error('Failed to update status')
+  }
+}
+
+// ===== Delete =====
+const deleteModule = async (mod) => {
+  try {
+    await ElMessageBox.confirm(
+      `Are you sure you want to delete "${mod.name}"? This action cannot be undone.`,
+      'Delete Module',
+      { confirmButtonText: 'Delete', cancelButtonText: 'Cancel', type: 'warning', customClass: 'dark-confirm-box' }
+    )
+    await axiosClient.delete(`/projects/${projectId}/modules/${mod.id}`)
+    modules.value = modules.value.filter(m => m.id !== mod.id)
+    ElMessage.success('Module deleted')
+  } catch (e) {
+    if (e !== 'cancel') {
+      console.error('[ModulesTab] Failed to delete module', e)
+      ElMessage.error('Failed to delete module')
+    }
+  }
+}
+
+// ===== Favorite / Star =====
+const toggleFavorite = (mod) => {
+  mod.isFavorite = !mod.isFavorite
+  // Note: Backend doesn't have favorite API for modules yet, so this is local only
+  ElMessage.info(mod.isFavorite ? `"${mod.name}" added to favorites` : `"${mod.name}" removed from favorites`)
+}
+
+// ===== Row Date picker =====
+const rowCalendarModId = ref(null)
+const rowCalMonth = ref(new Date().getMonth())
+const rowCalYear = ref(new Date().getFullYear())
+const rowDateStep = ref(0)
+const rowTempStart = ref(null)
+const rowTempEnd = ref(null)
+
+const toggleRowCalendar = (mod) => {
+  if (rowCalendarModId.value === mod.id) {
+    rowCalendarModId.value = null
+    return
+  }
+  rowCalendarModId.value = mod.id
+  rowCalMonth.value = new Date().getMonth()
+  rowCalYear.value = new Date().getFullYear()
+  rowDateStep.value = 0
+  rowTempStart.value = mod.startDate ? new Date(mod.startDate) : null
+  rowTempEnd.value = mod.targetDate ? new Date(mod.targetDate) : null
+}
+
+const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"]
+const dayNames = ["SU","MO","TU","WE","TH","FR","SA"]
+
+const rowDaysInMonth = computed(() => {
+  const days = []
+  const date = new Date(rowCalYear.value, rowCalMonth.value, 1)
+  const firstDay = date.getDay()
+  const lastDate = new Date(rowCalYear.value, rowCalMonth.value + 1, 0).getDate()
+  const prevLastDate = new Date(rowCalYear.value, rowCalMonth.value, 0).getDate()
+  for (let i = firstDay - 1; i >= 0; i--) days.push({ day: prevLastDate - i, isCurrent: false, date: null })
+  for (let i = 1; i <= lastDate; i++) days.push({ day: i, isCurrent: true, date: new Date(rowCalYear.value, rowCalMonth.value, i) })
+  const rem = days.length % 7
+  if (rem !== 0) for (let i = 1; i <= 7 - rem; i++) days.push({ day: i, isCurrent: false, date: null })
+  return days
+})
+
+const rowMoveMonth = (dir) => {
+  rowCalMonth.value += dir
+  if (rowCalMonth.value > 11) { rowCalMonth.value = 0; rowCalYear.value++ }
+  if (rowCalMonth.value < 0) { rowCalMonth.value = 11; rowCalYear.value-- }
+}
+
+const isSameDate = (d1, d2) => d1 && d2 && d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate()
+const isToday = (d) => d && isSameDate(d, new Date())
+
+const rowSelectDate = async (dObj, mod) => {
+  if (!dObj.isCurrent) return
+  const picked = dObj.date
+  if (rowDateStep.value === 0) {
+    rowTempStart.value = picked
+    rowTempEnd.value = null
+    rowDateStep.value = 1
+  } else {
+    if (picked < rowTempStart.value) {
+      rowTempStart.value = picked
+      rowTempEnd.value = null
+    } else {
+      rowTempEnd.value = picked
+      rowDateStep.value = 0
+      rowCalendarModId.value = null
+      // Save to backend
+      try {
+        await axiosClient.put(`/projects/${projectId}/modules/${mod.id}`, {
+          name: mod.name,
+          status: mod.statusRaw,
+          startDate: rowTempStart.value.toISOString(),
+          targetDate: rowTempEnd.value.toISOString()
+        })
+        mod.startDate = rowTempStart.value.toISOString()
+        mod.targetDate = rowTempEnd.value.toISOString()
+        mod.dateRange = formatDateRange(mod.startDate, mod.targetDate)
+        ElMessage.success('Date range updated')
+      } catch (e) {
+        console.error('[ModulesTab] Failed to update dates', e)
+      }
+    }
+  }
+}
+
+const isRowSelectedStart = (d) => isSameDate(d, rowTempStart.value)
+const isRowSelectedEnd = (d) => isSameDate(d, rowTempEnd.value)
+const isRowInRange = (dObj) => {
+  const d = dObj.date
+  if (!d || !rowTempStart.value || !rowTempEnd.value || !dObj.isCurrent) return false
+  return d.getTime() > rowTempStart.value.getTime() && d.getTime() < rowTempEnd.value.getTime()
+}
+
+// ===== Create / Edit Module Modal =====
 const showCreateModal = ref(false)
 const isEditing = ref(false)
 const editingModuleId = ref(null)
@@ -74,167 +277,140 @@ const newModule = ref({ name: '', description: '', startDate: null, endDate: nul
 const showCalendar = ref(false)
 const currentMonth = ref(new Date().getMonth())
 const currentYear = ref(new Date().getFullYear())
-
 const dateSelectionStep = ref(0)
 const tempStart = ref(null)
 const tempEnd = ref(null)
 
 const toggleCalendar = () => {
-    showCalendar.value = !showCalendar.value
-    if (showCalendar.value) {
-       tempStart.value = newModule.value.startDate
-       tempEnd.value = newModule.value.endDate
-       dateSelectionStep.value = 0
-    }
-}
-
-const monthNames = ["Tháng 1", "Tháng 2", "Tháng 3", "Tháng 4", "Tháng 5", "Tháng 6", "Tháng 7", "Tháng 8", "Tháng 9", "Tháng 10", "Tháng 11", "Tháng 12"]
-const dayNames = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"]
-
-const daysInMonth = computed(() => {
-   const days = []
-   const date = new Date(currentYear.value, currentMonth.value, 1)
-   const firstDay = date.getDay()
-   const lastDate = new Date(currentYear.value, currentMonth.value + 1, 0).getDate()
-   const prevLastDate = new Date(currentYear.value, currentMonth.value, 0).getDate()
-
-   for (let i = firstDay - 1; i >= 0; i--) {
-      days.push({ day: prevLastDate - i, isCurrent: false, date: null })
-   }
-   for (let i = 1; i <= lastDate; i++) {
-      days.push({ day: i, isCurrent: true, date: new Date(currentYear.value, currentMonth.value, i) })
-   }
-   const rem = days.length % 7
-   if (rem !== 0) {
-      for (let i = 1; i <= 7 - rem; i++) {
-         days.push({ day: i, isCurrent: false, date: null })
-      }
-   }
-   return days
-})
-
-const moveMonth = (dir) => {
-   currentMonth.value += dir
-   if (currentMonth.value > 11) { currentMonth.value = 0; currentYear.value++ }
-   if (currentMonth.value < 0) { currentMonth.value = 11; currentYear.value-- }
-}
-
-const isSameDate = (d1, d2) => d1 && d2 && d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate()
-
-const selectDate = (dObj) => {
-   if (!dObj.isCurrent) return
-   const picked = dObj.date
-   if (dateSelectionStep.value === 0) {
-      tempStart.value = picked
-      tempEnd.value = null
-      dateSelectionStep.value = 1
-      newModule.value.startDate = picked
-      newModule.value.endDate = null
-   } else {
-      if (picked < tempStart.value) {
-         tempStart.value = picked
-         tempEnd.value = null
-         newModule.value.startDate = picked
-         newModule.value.endDate = null
-      } else {
-         tempEnd.value = picked
-         dateSelectionStep.value = 0
-         newModule.value.endDate = picked
-         showCalendar.value = false
-      }
-   }
-}
-
-const isSelectedStart = (d) => isSameDate(d, tempStart.value)
-const isSelectedEnd = (d) => isSameDate(d, tempEnd.value)
-const isInRange = (dObj) => {
-   const d = dObj.date
-   if(!d || !tempStart.value || !tempEnd.value || !dObj.isCurrent) return false
-   const tStart = new Date(tempStart.value.getFullYear(), tempStart.value.getMonth(), tempStart.value.getDate()).getTime()
-   const tEnd = new Date(tempEnd.value.getFullYear(), tempEnd.value.getMonth(), tempEnd.value.getDate()).getTime()
-   const tD = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
-   return tD > tStart && tD < tEnd
-}
-
-const formatBtnDate = (d) => d ? `${d.getDate()} Thg ${d.getMonth() + 1}, ${d.getFullYear()}` : ''
-
-const btnDateText = computed(() => {
-   if (!newModule.value.startDate) return "Start date \u2192 End date"
-   const start = formatBtnDate(newModule.value.startDate)
-   const end = newModule.value.endDate ? formatBtnDate(newModule.value.endDate) : '...'
-   return `${start} \u2192 ${end}`
-})
-
-const openCreateModal = () => {
-    isEditing.value = false;
-    newModule.value = { name: '', description: '', startDate: null, endDate: null, status: 'Backlog', lead: null, members: [] }
-    showCreateModal.value = true;
-}
-
-const editModule = (mod) => {
-    isEditing.value = true;
-    editingModuleId.value = mod.id;
-    newModule.value = { 
-        name: mod.name, 
-        description: '', 
-        status: mod.statusText, 
-        lead: null, 
-        members: [],
-        startDate: null,
-        endDate: null
-    }
-    showCreateModal.value = true;
-}
-
-const submitCreateModule = async () => {
-  if (!newModule.value.name || !projectId) return;
-  try {
-    if (isEditing.value) {
-       await axiosClient.put(`/projects/${projectId}/modules/${editingModuleId.value}`, {
-          name: newModule.value.name,
-          description: newModule.value.description,
-          status: newModule.value.status,
-          leadId: newModule.value.lead,
-          memberIds: Array.from(newModule.value.members),
-          startDate: newModule.value.startDate,
-          targetDate: newModule.value.endDate
-       });
-    } else {
-        await axiosClient.post(`/projects/${projectId}/modules`, {
-          name: newModule.value.name,
-          description: newModule.value.description,
-          status: newModule.value.status,
-          leadId: newModule.value.lead,
-          memberIds: Array.from(newModule.value.members),
-          startDate: newModule.value.startDate,
-          targetDate: newModule.value.endDate
-        });
-    }
-    showCreateModal.value = false;
-    await fetchModules();
-  } catch (error) {
-    console.error('Failed to create/update module', error);
+  showCalendar.value = !showCalendar.value
+  if (showCalendar.value) {
+    tempStart.value = newModule.value.startDate
+    tempEnd.value = newModule.value.endDate
+    dateSelectionStep.value = 0
   }
 }
 
-// === Module Detail Slide Panel ===
-const detailedModule = ref(null)
+const modalDaysInMonth = computed(() => {
+  const days = []
+  const date = new Date(currentYear.value, currentMonth.value, 1)
+  const firstDay = date.getDay()
+  const lastDate = new Date(currentYear.value, currentMonth.value + 1, 0).getDate()
+  const prevLastDate = new Date(currentYear.value, currentMonth.value, 0).getDate()
+  for (let i = firstDay - 1; i >= 0; i--) days.push({ day: prevLastDate - i, isCurrent: false, date: null })
+  for (let i = 1; i <= lastDate; i++) days.push({ day: i, isCurrent: true, date: new Date(currentYear.value, currentMonth.value, i) })
+  const rem = days.length % 7
+  if (rem !== 0) for (let i = 1; i <= 7 - rem; i++) days.push({ day: i, isCurrent: false, date: null })
+  return days
+})
 
-const openModuleDetail = (mod) => {
-    detailedModule.value = mod
+const modalMoveMonth = (dir) => {
+  currentMonth.value += dir
+  if (currentMonth.value > 11) { currentMonth.value = 0; currentYear.value++ }
+  if (currentMonth.value < 0) { currentMonth.value = 11; currentYear.value-- }
 }
 
+const modalSelectDate = (dObj) => {
+  if (!dObj.isCurrent) return
+  const picked = dObj.date
+  if (dateSelectionStep.value === 0) {
+    tempStart.value = picked; tempEnd.value = null; dateSelectionStep.value = 1
+    newModule.value.startDate = picked; newModule.value.endDate = null
+  } else {
+    if (picked < tempStart.value) {
+      tempStart.value = picked; tempEnd.value = null
+      newModule.value.startDate = picked; newModule.value.endDate = null
+    } else {
+      tempEnd.value = picked; dateSelectionStep.value = 0
+      newModule.value.endDate = picked; showCalendar.value = false
+    }
+  }
+}
+
+const isModalSelectedStart = (d) => isSameDate(d, tempStart.value)
+const isModalSelectedEnd = (d) => isSameDate(d, tempEnd.value)
+const isModalInRange = (dObj) => {
+  const d = dObj.date
+  if (!d || !tempStart.value || !tempEnd.value || !dObj.isCurrent) return false
+  return d.getTime() > tempStart.value.getTime() && d.getTime() < tempEnd.value.getTime()
+}
+
+const formatBtnDate = (d) => d ? `${d.getDate()} Thg ${d.getMonth() + 1}, ${d.getFullYear()}` : ''
+const btnDateText = computed(() => {
+  if (!newModule.value.startDate) return "Start date → End date"
+  const s = formatBtnDate(newModule.value.startDate)
+  const e = newModule.value.endDate ? formatBtnDate(newModule.value.endDate) : '...'
+  return `${s} → ${e}`
+})
+
+const openCreateModal = () => {
+  isEditing.value = false
+  newModule.value = { name: '', description: '', startDate: null, endDate: null, status: 'Backlog', lead: null, members: [] }
+  showCreateModal.value = true
+}
+
+const editModule = (mod) => {
+  isEditing.value = true
+  editingModuleId.value = mod.id
+  newModule.value = {
+    name: mod.name,
+    description: mod.description || '',
+    status: statusConfig[mod.statusKey]?.label || 'Backlog',
+    lead: mod.leadId,
+    members: [],
+    startDate: mod.startDate ? new Date(mod.startDate) : null,
+    endDate: mod.targetDate ? new Date(mod.targetDate) : null
+  }
+  showCreateModal.value = true
+}
+
+const submitCreateModule = async () => {
+  if (!newModule.value.name || !projectId) return
+  try {
+    const payload = {
+      name: newModule.value.name,
+      description: newModule.value.description,
+      status: newModule.value.status,
+      leadId: newModule.value.lead,
+      memberIds: Array.from(newModule.value.members),
+      startDate: newModule.value.startDate?.toISOString?.() || newModule.value.startDate,
+      targetDate: newModule.value.endDate?.toISOString?.() || newModule.value.endDate
+    }
+    if (isEditing.value) {
+      await axiosClient.put(`/projects/${projectId}/modules/${editingModuleId.value}`, payload)
+    } else {
+      await axiosClient.post(`/projects/${projectId}/modules`, payload)
+    }
+    showCreateModal.value = false
+    await fetchModules()
+    ElMessage.success(isEditing.value ? 'Module updated' : 'Module created')
+  } catch (e) {
+    console.error('[ModulesTab] Failed to save module', e)
+    ElMessage.error('Failed to save module')
+  }
+}
+
+// Get lead avatar letter
+const getLeadAvatar = (mod) => {
+  if (!mod.leadId) return null
+  const member = projectMembers.value.find(m => m.id === mod.leadId)
+  return member ? member.avatar : null
+}
 </script>
 
 <template>
   <div class="plane-modules-wrapper">
-    <!-- Header Controls -->
+    <!-- Header -->
     <div class="modules-view-header">
        <div class="vh-left">
           <div class="flex items-center gap-2 text-[13px] font-medium text-gray-400">
              <i class="fa-solid fa-certificate" style="color: #F59E0B"></i> CYBWF
              <i class="fa-solid fa-chevron-right text-[9px] mx-1"></i>
-             <i class="fa-solid fa-cube text-gray-500"></i> <span class="text-gray-200">Modules</span>
+             <i class="fa-solid fa-cube text-gray-500"></i>
+             <span class="text-gray-200 cursor-pointer" @click="closeModuleTaskView">Modules</span>
+             <template v-if="activeModule">
+                <i class="fa-solid fa-chevron-right text-[9px] mx-1"></i>
+                <span class="text-gray-200">{{ activeModule.name }}</span>
+             </template>
           </div>
        </div>
        <div class="vh-right">
@@ -250,8 +426,44 @@ const openModuleDetail = (mod) => {
        </div>
     </div>
 
-    <!-- Body / List -->
-    <div class="modules-body">
+    <!-- ===== MODULE TASK TABLE VIEW (double-click) ===== -->
+    <div class="modules-body" v-if="activeModule">
+       <div class="flex items-center gap-3 mb-4">
+          <button class="icon-action hover:text-white" @click="closeModuleTaskView"><i class="fa-solid fa-arrow-left"></i></button>
+          <h2 class="text-lg font-semibold text-gray-200">{{ activeModule.name }}</h2>
+          <span class="text-xs px-2 py-0.5 rounded" :style="{ background: statusConfig[activeModule.statusKey]?.bg, color: statusConfig[activeModule.statusKey]?.color }">
+            {{ statusConfig[activeModule.statusKey]?.label }}
+          </span>
+       </div>
+
+       <div v-if="loadingTasks" class="text-gray-500 text-sm py-8 text-center">Loading tasks...</div>
+       <div v-else-if="moduleTasks.length === 0" class="empty-state-wrapper" style="height: 40vh">
+          <div class="es-icon"><i class="fa-solid fa-layer-group"></i></div>
+          <h3 class="es-title">No work items</h3>
+          <p class="es-desc">No tasks have been added to this module yet.</p>
+       </div>
+       <div v-else class="module-task-table">
+          <div class="mtt-header">
+             <div class="mtt-col mtt-id">ID</div>
+             <div class="mtt-col mtt-title">Title</div>
+             <div class="mtt-col mtt-status">Status</div>
+             <div class="mtt-col mtt-priority">Priority</div>
+             <div class="mtt-col mtt-assignee">Assignee</div>
+             <div class="mtt-col mtt-due">Due Date</div>
+          </div>
+          <div class="mtt-row" v-for="task in moduleTasks" :key="task.id">
+             <div class="mtt-col mtt-id text-blue-400">{{ task.identifier }}</div>
+             <div class="mtt-col mtt-title">{{ task.title }}</div>
+             <div class="mtt-col mtt-status"><span class="task-status-chip">{{ task.status }}</span></div>
+             <div class="mtt-col mtt-priority">{{ task.priority }}</div>
+             <div class="mtt-col mtt-assignee">{{ task.assigneeName || '—' }}</div>
+             <div class="mtt-col mtt-due">{{ task.dueDate || '—' }}</div>
+          </div>
+       </div>
+    </div>
+
+    <!-- ===== MODULE LIST VIEW ===== -->
+    <div class="modules-body" v-else>
       <div class="empty-state-wrapper" v-if="modules.length === 0">
          <div class="es-icon"><i class="fa-solid fa-cube"></i></div>
          <h3 class="es-title">No modules found</h3>
@@ -259,47 +471,74 @@ const openModuleDetail = (mod) => {
          <button class="primary-action mt-4" @click="openCreateModal"><i class="fa-solid fa-plus mr-2"></i> Create Module</button>
       </div>
       <div class="modules-list" v-else>
-         <div class="module-row" v-for="mod in modules" :key="mod.id" @click="openModuleDetail(mod)">
-             <div class="mr-left">
+         <div class="module-row" v-for="mod in modules" :key="mod.id" @dblclick="openModuleTaskView(mod)">
+            <div class="mr-left">
                <div class="m-progress-ring">{{ Math.round(mod.progress) }}%</div>
                <div class="m-title">{{ mod.name }}</div>
-               <i class="fa-solid fa-circle-info m-info" @click.stop="openModuleDetail(mod)"></i>
             </div>
             
             <div class="mr-right" @click.stop>
-               <div class="m-date cursor-pointer hover:bg-[#1E2025] px-2 py-1 transition rounded">{{ mod.dateRange }}</div>
-               
-               <el-dropdown trigger="click" popper-class="plane-dropdown dark !p-0">
-                  <div class="m-status-chip cursor-pointer" :class="mod.status">{{ mod.statusText }}</div>
+               <!-- Date Range Picker -->
+               <div class="dp-wrapper-inline">
+                  <div class="m-date" @click="toggleRowCalendar(mod)">
+                     <i class="fa-regular fa-calendar text-[10px] mr-1 opacity-60"></i>{{ mod.dateRange }}
+                  </div>
+                  <div class="dp-popover-row" v-if="rowCalendarModId === mod.id" @click.stop>
+                     <div class="dp-header">
+                        <div class="dp-month-year">
+                           <span>{{ monthNames[rowCalMonth] }} <i class="fa-solid fa-chevron-down text-xs"></i></span>
+                           <span>{{ rowCalYear }} <i class="fa-solid fa-chevron-down text-xs"></i></span>
+                        </div>
+                        <div class="dp-nav">
+                           <button @click.prevent="rowMoveMonth(-1)"><i class="fa-solid fa-chevron-left"></i></button>
+                           <button @click.prevent="rowMoveMonth(1)"><i class="fa-solid fa-chevron-right"></i></button>
+                        </div>
+                     </div>
+                     <div class="dp-grid">
+                        <div class="dp-day-num headday" v-for="dn in dayNames" :key="dn">{{ dn }}</div>
+                        <div class="dp-day-wrapper" v-for="(dObj, idx) in rowDaysInMonth" :key="idx">
+                           <div class="dp-bg-range" v-if="isRowInRange(dObj) || (isRowSelectedStart(dObj.date) && rowTempEnd) || isRowSelectedEnd(dObj.date)"
+                                :class="{ 'range-start': isRowSelectedStart(dObj.date) && rowTempEnd, 'range-end': isRowSelectedEnd(dObj.date), 'range-mid': isRowInRange(dObj) }"></div>
+                           <div class="dp-day-num" :class="{ 'current-month': dObj.isCurrent, 'selected': isRowSelectedStart(dObj.date) || isRowSelectedEnd(dObj.date), 'today-dot': isToday(dObj.date) }"
+                                @click="rowSelectDate(dObj, mod)">{{ dObj.day }}</div>
+                        </div>
+                     </div>
+                  </div>
+               </div>
+
+               <!-- Status Dropdown -->
+               <el-dropdown trigger="click" popper-class="plane-dropdown dark !p-0" @command="(key) => updateModuleStatus(mod, key)">
+                  <div class="m-status-chip cursor-pointer" :style="{ background: statusConfig[mod.statusKey]?.bg, color: statusConfig[mod.statusKey]?.color }">
+                    {{ statusConfig[mod.statusKey]?.label }}
+                  </div>
                   <template #dropdown>
-                     <el-dropdown-menu class="dark-dropdown custom-menu w-40 bg-[#1B1C20]">
-                       <el-dropdown-item><i class="fa-solid fa-expand text-gray-500 mr-2"></i> Backlog</el-dropdown-item>
-                       <el-dropdown-item><i class="fa-regular fa-circle text-blue-500 mr-2"></i> Planned</el-dropdown-item>
-                       <el-dropdown-item><i class="fa-solid fa-circle-notch text-orange-500 mr-2"></i> In Progress</el-dropdown-item>
-                       <el-dropdown-item><i class="fa-solid fa-pause text-gray-400 mr-2"></i> Paused</el-dropdown-item>
-                       <el-dropdown-item><i class="fa-regular fa-circle-check text-green-500 mr-2"></i> Completed</el-dropdown-item>
-                       <el-dropdown-item><i class="fa-regular fa-circle-xmark text-red-500 mr-2"></i> Cancelled</el-dropdown-item>
+                     <el-dropdown-menu class="dark-dropdown custom-menu w-44">
+                        <el-dropdown-item v-for="(cfg, key) in statusConfig" :key="key" :command="key">
+                           <i :class="cfg.icon" class="mr-2" :style="{ color: cfg.color }"></i> {{ cfg.label }}
+                        </el-dropdown-item>
                      </el-dropdown-menu>
                   </template>
                </el-dropdown>
 
-               <div class="m-avatar cursor-pointer hover:bg-[#27272A]"><i class="fa-solid fa-user text-xs"></i></div>
-               <button class="icon-action m-icon hover:text-yellow-500"><i class="fa-regular fa-star"></i></button>
+               <!-- Lead Avatar (display only) -->
+               <div class="m-avatar" :class="{ 'has-lead': getLeadAvatar(mod) }" :title="mod.leadId ? 'Module Lead' : 'No lead assigned'">
+                  <span v-if="getLeadAvatar(mod)" class="text-[10px] font-bold text-white">{{ getLeadAvatar(mod) }}</span>
+                  <i v-else class="fa-solid fa-user text-xs"></i>
+               </div>
+
+               <!-- Star / Favorite -->
+               <button class="icon-action m-icon" :class="{ 'is-fav': mod.isFavorite }" @click="toggleFavorite(mod)">
+                  <i :class="mod.isFavorite ? 'fa-solid fa-star text-yellow-400' : 'fa-regular fa-star'"></i>
+               </button>
                
+               <!-- 3-dot Menu -->
                <el-dropdown trigger="click" popper-class="plane-dropdown dark !p-0">
                   <button class="icon-action m-icon cursor-pointer"><i class="fa-solid fa-ellipsis"></i></button>
                   <template #dropdown>
-                     <el-dropdown-menu class="dark-dropdown custom-menu w-48 bg-[#1B1C20] py-1">
-                        <el-dropdown-item @click="editModule(mod)"><i class="fa-solid fa-pen mr-2"></i> Edit</el-dropdown-item>
-                        <el-dropdown-item><i class="fa-solid fa-arrow-up-right-from-square mr-2"></i> Open in new tab</el-dropdown-item>
-                        <el-dropdown-item><i class="fa-solid fa-link mr-2"></i> Copy link</el-dropdown-item>
-                        <el-dropdown-item divided class="!text-gray-400 block h-auto">
-                           <div class="flex flex-col py-1">
-                              <span><i class="fa-solid fa-box-archive mr-2"></i> Archive</span>
-                              <span class="text-[10px] text-gray-500 break-words whitespace-normal mt-1 leading-tight">Only completed or cancelled modules can be archived</span>
-                           </div>
-                        </el-dropdown-item>
-                        <el-dropdown-item class="!text-red-400 hover:!bg-red-900/20"><i class="fa-regular fa-trash-can mr-2"></i> Delete</el-dropdown-item>
+                     <el-dropdown-menu class="dark-dropdown custom-menu w-48 py-1">
+                        <el-dropdown-item @click="editModule(mod)"><i class="fa-solid fa-pen mr-2 text-gray-400"></i> Edit</el-dropdown-item>
+                        <el-dropdown-item @click="openModuleTaskView(mod)"><i class="fa-solid fa-arrow-up-right-from-square mr-2 text-gray-400"></i> Open</el-dropdown-item>
+                        <el-dropdown-item divided class="!text-red-400" @click="deleteModule(mod)"><i class="fa-regular fa-trash-can mr-2"></i> Delete</el-dropdown-item>
                      </el-dropdown-menu>
                   </template>
                </el-dropdown>
@@ -307,115 +546,8 @@ const openModuleDetail = (mod) => {
          </div>
       </div>
     </div>
-    
-    <!-- Module Detail Side Panel -->
-    <div class="m-panel-overlay" v-if="detailedModule" @click.self="detailedModule = null"></div>
-    <div class="m-side-panel" :class="{ 'open': detailedModule }">
-       <div class="msp-header">
-          <button class="icon-action hover-circle" @click="detailedModule = null"><i class="fa-solid fa-chevron-right text-xs"></i></button>
-          <div class="ms-status-chip">Backlog</div>
-          <button class="icon-action hover-circle ml-auto"><i class="fa-solid fa-ellipsis"></i></button>
-       </div>
-       
-       <div class="msp-body no-scrollbar">
-          <h2 class="msp-title">{{ detailedModule?.name }}</h2>
-          <p class="msp-desc">Everything about getting started - creating a project, inviting teammates.</p>
-          
-          <div class="msp-props">
-             <div class="p-row">
-                <div class="p-label"><i class="fa-regular fa-calendar"></i> Date range</div>
-                <div class="p-val-badge">Apr 14, 2026 <i class="fa-solid fa-arrow-right text-[10px] mx-1"></i> Apr 28, 2026</div>
-             </div>
-             <div class="p-row mt-3">
-                <div class="p-label"><i class="fa-regular fa-user"></i> Lead</div>
-                <div class="p-val-badge gap-1.5 px-2 py-1"><i class="fa-regular fa-user text-gray-500"></i> Lead</div>
-             </div>
-             <div class="p-row mt-3">
-                <div class="p-label"><i class="fa-solid fa-user-group"></i> Members</div>
-                <div class="p-val-badge gap-1.5 px-2 py-1"><i class="fa-solid fa-user-group text-gray-500"></i> Members</div>
-             </div>
-             <div class="p-row mt-4">
-                <div class="p-label"><i class="fa-solid fa-layer-group"></i> Work items</div>
-                <div class="p-val pl-1">0/5</div>
-             </div>
-          </div>
-          
-          <div class="collapsible-section mt-8">
-             <div class="cs-head">
-                <span class="font-medium">progress</span>
-                <i class="fa-solid fa-chevron-up"></i>
-             </div>
-             <div class="cs-body pt-4">
-                 <div class="chart-mockup-side relative h-48 w-full border-b border-l border-gray-800 ml-4">
-                    <div class="absolute left-[-15px] bottom-1/4 text-gray-600 text-[10px] transform -rotate-90 origin-left tracking-widest whitespace-nowrap">COMPLETION</div>
-                    <div class="absolute left-1/2 -bottom-6 text-gray-600 text-[10px] tracking-widest">DATE</div>
-                    
-                    <div class="grid-line" style="top: 0%"><span>9</span></div>
-                    <div class="grid-line" style="top: 25%"><span>7</span></div>
-                    <div class="grid-line" style="top: 50%"><span>5</span></div>
-                    <div class="grid-line" style="top: 75%"><span>2</span></div>
-                    <div class="grid-line" style="top: 100%"><span>0</span></div>
-                    
-                    <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute; width:100%; height:100%; top:0; left:10px;">
-                       <line x1="10" y1="50" x2="90" y2="100" stroke="#71717A" stroke-width="1.5" stroke-dasharray="3,3"/>
-                       <circle cx="10" cy="50" r="2.5" fill="#A1A1AA"/>
-                       <circle cx="90" cy="100" r="2.5" fill="#A1A1AA"/>
-                       <circle cx="20" cy="55" r="2" fill="#fff"/>
-                       
-                       <path d="M 10 50 L 15 50 L 20 100 L 90 100" fill="none" stroke="#3B82F6" stroke-width="1.5"/>
-                       <path d="M 10 50 L 15 50 L 20 100 L 90 100 L 90 100 L 10 100 Z" fill="rgba(37, 99, 235, 0.2)"/>
-                       <circle cx="10" cy="50" r="2.5" fill="#3B82F6"/>
-                       <circle cx="15" cy="50" r="2" fill="#3B82F6" stroke="#111" stroke-width="1"/>
-                       <circle cx="20" cy="100" r="2" fill="#3B82F6" stroke="#111" stroke-width="1"/>
-                       <!-- Tooltip Mock -->
-                       <g transform="translate(18, 30)">
-                          <rect width="90" height="40" rx="4" fill="#16181D" stroke="#27272A"/>
-                          <text x="5" y="12" fill="#fff" font-size="6" font-weight="bold">Apr 15</text>
-                          <text x="12" y="22" fill="#555" font-size="5">Current work items: 5</text>
-                          <rect x="5" y="19" width="4" height="4" fill="#1E40AF" rx="1"/>
-                          <text x="12" y="32" fill="#bbb" font-size="5">Ideal ... </text>
-                          <text x="35" y="32" fill="#fff" font-size="5" font-weight="bold">4.64285...</text>
-                          <rect x="5" y="29" width="4" height="4" fill="#E5E7EB" rx="1"/>
-                       </g>
-                    </svg>
-                    
-                    <div class="absolute -bottom-4 right-0 text-[9px] text-gray-500 w-full flex justify-between px-2 pl-4">
-                       <span>Apr 16</span><span>Apr 22</span><span>Apr 28</span>
-                    </div>
-                 </div>
-                 
-                 <div class="flex-center gap-4 mt-10 text-[11px] text-gray-400 font-medium">
-                    <span class="flex items-center gap-1.5"><div class="w-2 h-2 rounded bg-blue-500"></div> Current work items</span>
-                    <span class="flex items-center gap-1.5"><div class="w-2 h-2 rounded bg-gray-300"></div> Ideal work items</span>
-                 </div>
-             </div>
-          </div>
-          
-          <div class="msp-tabs mt-8">
-             <div class="msp-tab">States</div>
-             <div class="msp-tab active">Assignees</div>
-             <div class="msp-tab">Labels</div>
-          </div>
-          
-          <div class="msp-tab-content mt-4 border-t border-[#27272A] pt-4">
-             <div class="flex justify-between items-center text-[13px] mb-3">
-                <div class="flex items-center gap-2 text-gray-300">
-                   <div class="w-3 h-3 rounded-full bg-purple-600"></div>
-                   concepts
-                </div>
-                <div class="text-gray-400">0% of 2</div>
-             </div>
-             <div class="flex justify-between items-center text-[13px]">
-                <div class="flex items-center gap-2 text-gray-400 pl-5">
-                   No labels yet
-                </div>
-                <div class="text-gray-400">0% of 3</div>
-             </div>
-          </div>
-       </div>
-    </div>
 
-    <!-- Create Module Modal Overlay -->
+    <!-- ===== CREATE / EDIT MODULE MODAL ===== -->
     <div class="modal-overlay" v-if="showCreateModal" @click.self="showCreateModal = false; showCalendar = false">
        <div class="create-module-modal">
           <div class="cm-header">
@@ -429,13 +561,12 @@ const openModuleDetail = (mod) => {
              <input type="text" class="cm-input border-focus" placeholder="Title" v-model="newModule.name" autofocus />
              <textarea class="cm-textarea mt-3 border-focus" placeholder="Description" rows="4" v-model="newModule.description"></textarea>
              
-             <!-- Toolbars -->
              <div class="cm-toolbar mt-4">
+                <!-- Date picker -->
                 <div class="dp-wrapper">
                    <button class="cbr-btn" @click="toggleCalendar">
                       <i class="fa-regular fa-calendar text-gray-400"></i> {{ btnDateText }}
                    </button>
-                   
                    <div class="dp-popover" v-if="showCalendar">
                       <div class="dp-header">
                          <div class="dp-month-year">
@@ -443,79 +574,70 @@ const openModuleDetail = (mod) => {
                             <span>{{ currentYear }} <i class="fa-solid fa-chevron-down text-xs"></i></span>
                          </div>
                          <div class="dp-nav">
-                            <button @click.prevent="moveMonth(-1)"><i class="fa-solid fa-chevron-left"></i></button>
-                            <button @click.prevent="moveMonth(1)"><i class="fa-solid fa-chevron-right"></i></button>
+                            <button @click.prevent="modalMoveMonth(-1)"><i class="fa-solid fa-chevron-left"></i></button>
+                            <button @click.prevent="modalMoveMonth(1)"><i class="fa-solid fa-chevron-right"></i></button>
                          </div>
                       </div>
-                      
                       <div class="dp-grid">
                          <div class="dp-day-num headday" v-for="dn in dayNames" :key="dn">{{ dn }}</div>
-                         <div class="dp-day-wrapper" v-for="(dObj, idx) in daysInMonth" :key="idx">
-                            <div 
-                              class="dp-bg-range" 
-                              v-if="isInRange(dObj) || (isSelectedStart(dObj.date) && tempEnd) || (isSelectedEnd(dObj.date))"
-                              :class="{ 'range-start': isSelectedStart(dObj.date) && tempEnd, 'range-end': isSelectedEnd(dObj.date), 'range-mid': isInRange(dObj) }"
-                            ></div>
-                            <div 
-                              class="dp-day-num" 
-                              :class="{ 'current-month': dObj.isCurrent, 'selected': isSelectedStart(dObj.date) || isSelectedEnd(dObj.date) }"
-                              @click="selectDate(dObj)"
-                            >
-                              {{ dObj.day }}
-                            </div>
+                         <div class="dp-day-wrapper" v-for="(dObj, idx) in modalDaysInMonth" :key="idx">
+                            <div class="dp-bg-range" v-if="isModalInRange(dObj) || (isModalSelectedStart(dObj.date) && tempEnd) || isModalSelectedEnd(dObj.date)"
+                                 :class="{ 'range-start': isModalSelectedStart(dObj.date) && tempEnd, 'range-end': isModalSelectedEnd(dObj.date), 'range-mid': isModalInRange(dObj) }"></div>
+                            <div class="dp-day-num" :class="{ 'current-month': dObj.isCurrent, 'selected': isModalSelectedStart(dObj.date) || isModalSelectedEnd(dObj.date) }"
+                                 @click="modalSelectDate(dObj)">{{ dObj.day }}</div>
                          </div>
                       </div>
                    </div>
                 </div>
-                
+
+                <!-- Status -->
                 <el-dropdown trigger="click" popper-class="plane-dropdown dark !p-0" @command="(val) => newModule.status = val">
                    <button class="cbr-btn"><i class="fa-solid fa-expand text-gray-500"></i> {{ newModule.status }}</button>
                    <template #dropdown>
-                       <el-dropdown-menu class="dark-dropdown custom-menu w-40 bg-[#1B1C20] border border-[#2D2F36]">
-                         <el-dropdown-item command="Backlog"><i class="fa-solid fa-expand text-gray-500 mr-2"></i> Backlog</el-dropdown-item>
-                         <el-dropdown-item command="Planned"><i class="fa-regular fa-circle text-blue-500 mr-2"></i> Planned</el-dropdown-item>
-                         <el-dropdown-item command="In Progress"><i class="fa-solid fa-circle-notch text-orange-500 mr-2"></i> In Progress</el-dropdown-item>
-                         <el-dropdown-item command="Paused"><i class="fa-solid fa-pause text-gray-400 mr-2"></i> Paused</el-dropdown-item>
-                         <el-dropdown-item command="Completed"><i class="fa-regular fa-circle-check text-green-500 mr-2"></i> Completed</el-dropdown-item>
-                         <el-dropdown-item command="Cancelled"><i class="fa-regular fa-circle-xmark text-red-500 mr-2"></i> Cancelled</el-dropdown-item>
-                       </el-dropdown-menu>
+                      <el-dropdown-menu class="dark-dropdown custom-menu w-40">
+                         <el-dropdown-item v-for="(cfg, key) in statusConfig" :key="key" :command="cfg.label">
+                            <i :class="cfg.icon" class="mr-2" :style="{ color: cfg.color }"></i> {{ cfg.label }}
+                         </el-dropdown-item>
+                      </el-dropdown-menu>
                    </template>
                 </el-dropdown>
                 
+                <!-- Lead -->
                 <el-dropdown trigger="click" popper-class="plane-dropdown dark !p-0" @command="(uid) => newModule.lead = uid">
                    <button class="cbr-btn">
-                     <i class="fa-regular fa-user text-gray-400"></i> 
-                     {{ mockUsers.find(u => u.id === newModule.lead)?.name || 'Lead' }}
+                     <i class="fa-regular fa-user text-gray-400"></i>
+                     {{ projectMembers.find(u => u.id === newModule.lead)?.name || 'Lead' }}
                    </button>
                    <template #dropdown>
-                       <el-dropdown-menu class="dark-dropdown custom-menu w-48 bg-[#1B1C20] border border-[#2D2F36]">
-                          <el-dropdown-item v-for="u in mockUsers" :key="u.id" :command="u.id">
-                              <div class="flex items-center gap-2">
-                                <div class="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center text-white text-[10px]">{{ u.avatar }}</div>
-                                {{ u.name }}
-                              </div>
-                          </el-dropdown-item>
-                          <el-dropdown-item v-if="!mockUsers.length" disabled class="text-xs text-gray-500 text-center py-2 relative pointer-events-none">No assignees found</el-dropdown-item>
-                       </el-dropdown-menu>
+                      <el-dropdown-menu class="dark-dropdown custom-menu w-48">
+                         <el-dropdown-item v-for="u in projectMembers" :key="u.id" :command="u.id">
+                            <div class="flex items-center gap-2">
+                               <div class="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center text-white text-[10px]">{{ u.avatar }}</div>
+                               {{ u.name }}
+                            </div>
+                         </el-dropdown-item>
+                         <el-dropdown-item v-if="!projectMembers.length" disabled>No members found</el-dropdown-item>
+                      </el-dropdown-menu>
                    </template>
                 </el-dropdown>
 
-                <el-popover placement="bottom" trigger="click" popper-class="plane-popover dark !p-2 bg-[#1B1C20] border-[#2D2F36]" :width="200">
+                <!-- Members -->
+                <el-popover placement="bottom" trigger="click" popper-class="plane-popover dark !p-2" :width="220">
                   <template #reference>
                      <button class="cbr-btn">
-                       <i class="fa-solid fa-user-group text-gray-400"></i> 
+                       <i class="fa-solid fa-user-group text-gray-400"></i>
                        {{ newModule.members.length > 0 ? newModule.members.length + ' Members' : 'Members' }}
                      </button>
                   </template>
-                  <div class="flex flex-col gap-1 max-h-40 overflow-y-auto w-full">
-                     <label v-for="u in mockUsers" :key="u.id" class="flex items-center gap-3 p-2 hover:bg-[#27272A] rounded cursor-pointer transition">
-                        <input type="checkbox" :value="u.id" v-model="newModule.members" class="accent-blue-500 w-3 h-3 bg-[#16181D] border-[#3F3F46] rounded" />
+                  <div class="flex flex-col gap-1 max-h-48 overflow-y-auto">
+                     <label v-for="u in projectMembers" :key="u.id" class="flex items-center gap-3 p-2 hover:bg-[#27272A] rounded cursor-pointer transition">
+                        <input type="checkbox" :value="u.id" v-model="newModule.members" class="accent-blue-500 w-3 h-3" />
                         <div class="flex items-center gap-2">
                            <div class="w-5 h-5 rounded-full bg-purple-500 flex items-center justify-center text-white text-[10px]">{{ u.avatar }}</div>
                            <span class="text-xs text-gray-200">{{ u.name }}</span>
                         </div>
                      </label>
-                     <div v-if="!mockUsers.length" class="text-xs text-gray-500 text-center py-2">No assignees found</div>
+                     <div v-if="!projectMembers.length" class="text-xs text-gray-500 text-center py-2">No members found</div>
                   </div>
                 </el-popover>
              </div>
@@ -549,235 +671,135 @@ const openModuleDetail = (mod) => {
   padding: 16px 24px;
   border-bottom: 1px solid #1E2025;
 }
-
-.vh-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.icon-action {
-  background: transparent;
-  border: none;
-  color: #A1A1AA;
-  cursor: pointer;
-  font-size: 14px;
-}
+.vh-right { display: flex; align-items: center; gap: 12px; }
+.icon-action { background: transparent; border: none; color: #A1A1AA; cursor: pointer; font-size: 14px; }
 .icon-action:hover { color: #E4E4E7; }
-.filter-action {
-  background: transparent;
-  border: 1px solid #27272A;
-  color: #E4E4E7;
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 13px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
+.filter-action { background: transparent; border: 1px solid #27272A; color: #E4E4E7; padding: 6px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
 .filter-action:hover { background: #1E2025; }
-
 .view-toggles { display: flex; gap: 2px; background: #16181D; padding: 2px; border-radius: 6px; }
 .view-btn { border: none; background: transparent; color: #71717A; padding: 4px 8px; border-radius: 4px; cursor: pointer; }
 .view-btn.active { background: #27272A; color: #E4E4E7; }
-
-.primary-action {
-  background: #0EA5E9;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  padding: 6px 16px;
-  font-size: 13px;
-  cursor: pointer;
-  font-weight: 500;
-}
+.primary-action { background: #0EA5E9; color: white; border: none; border-radius: 6px; padding: 6px 16px; font-size: 13px; cursor: pointer; font-weight: 500; }
 .primary-action:hover { background: #0284C7; }
 
-/* Body / List View */
-.modules-body {
-  padding: 24px;
-  flex: 1;
-}
-.modules-list { display: flex; flex-direction: column; gap: 4px; }
+/* Module List */
+.modules-body { padding: 24px; flex: 1; }
+.modules-list { display: flex; flex-direction: column; gap: 2px; }
 .module-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
-  border-radius: 8px;
-  background: transparent;
-  transition: background 0.2s;
-  cursor: pointer;
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 20px; border-radius: 8px; background: transparent;
+  transition: background 0.2s; cursor: pointer;
 }
 .module-row:hover { background: #16181D; }
-
 .mr-left { display: flex; align-items: center; gap: 16px; flex: 1; }
 .m-progress-ring {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: 4px solid #27272A;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-  color: #71717A;
+  width: 32px; height: 32px; border-radius: 50%; border: 3px solid #27272A;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; color: #71717A; font-weight: 600; flex-shrink: 0;
 }
 .m-title { font-size: 14px; font-weight: 500; color: #E4E4E7; }
-.m-info { font-size: 14px; color: #71717A; border: 1px solid #3F3F46; border-radius: 50%; width:16px; height: 16px; display:flex; align-items:center; justify-content:center; padding: 1px; font-size: 10px; }
-.m-info:hover { color: #E4E4E7; border-color: #E4E4E7; }
-
-.mr-right { display: flex; align-items: center; gap: 16px; }
-.m-date { font-size: 12px; color: #A1A1AA; border: 1px solid #27272A; padding: 4px 8px; border-radius: 4px;}
-.m-status-chip {
-  padding: 4px 12px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 500;
-  background: #1E2025;
-  color: #A1A1AA;
+.mr-right { display: flex; align-items: center; gap: 12px; }
+.m-date {
+  font-size: 12px; color: #A1A1AA; border: 1px solid #27272A;
+  padding: 4px 10px; border-radius: 6px; cursor: pointer;
+  transition: background 0.2s; white-space: nowrap; display: flex; align-items: center;
 }
-.m-status-chip.planned { background: rgba(37, 99, 235, 0.1); color: #60A5FA; }
-.m-status-chip.active { background: rgba(245, 158, 11, 0.1); color: #FBBF24; }
-.m-avatar { width: 24px; height: 24px; border-radius: 50%; border: 1px dashed #71717A; display: flex; align-items: center; justify-content: center; color: #71717A; }
-.m-icon { color: #71717A; }
+.m-date:hover { background: #1E2025; }
+.m-status-chip {
+  padding: 4px 12px; border-radius: 6px; font-size: 12px;
+  font-weight: 600; cursor: pointer; white-space: nowrap;
+  transition: filter 0.2s;
+}
+.m-status-chip:hover { filter: brightness(1.2); }
+.m-avatar {
+  width: 26px; height: 26px; border-radius: 50%;
+  border: 1px dashed #52525B; display: flex; align-items: center;
+  justify-content: center; color: #71717A; flex-shrink: 0;
+}
+.m-avatar.has-lead {
+  border: none; background: #3B82F6;
+}
+.m-icon { color: #52525B; font-size: 14px; }
 .m-icon:hover { color: #E4E4E7; }
+.m-icon.is-fav { color: #FBBF24; }
 
 /* Empty State */
-.empty-state-wrapper {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 60vh;
-  text-align: center;
-}
+.empty-state-wrapper { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 60vh; text-align: center; }
 .es-icon { font-size: 48px; color: #3F3F46; margin-bottom: 24px; }
 .es-title { font-size: 20px; font-weight: 600; color: #E4E4E7; margin-bottom: 8px; }
 .es-desc { font-size: 14px; color: #A1A1AA; max-width: 400px; line-height: 1.5; }
 
-/* Side Panel */
-.m-panel-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 900; background: rgba(0,0,0,0.2) }
-.m-side-panel {
-  position: fixed;
-  top: 0;
-  bottom: 0;
-  right: -500px;
-  width: 450px;
-  background: #16181D;
-  border-left: 1px solid #27272A;
-  z-index: 1000;
-  box-shadow: -10px 0 30px rgba(0,0,0,0.5);
-  transition: right 0.3s ease;
-  display: flex;
-  flex-direction: column;
+/* Module Task Table */
+.module-task-table { border: 1px solid #1E2025; border-radius: 8px; overflow: hidden; }
+.mtt-header { display: flex; background: #16181D; border-bottom: 1px solid #1E2025; padding: 10px 16px; font-size: 12px; font-weight: 600; color: #71717A; text-transform: uppercase; letter-spacing: 0.5px; }
+.mtt-row { display: flex; padding: 12px 16px; border-bottom: 1px solid #1E2025; font-size: 13px; transition: background 0.15s; }
+.mtt-row:hover { background: #16181D; }
+.mtt-row:last-child { border-bottom: none; }
+.mtt-col { display: flex; align-items: center; }
+.mtt-id { width: 120px; flex-shrink: 0; }
+.mtt-title { flex: 1; color: #E4E4E7; font-weight: 500; }
+.mtt-status { width: 110px; flex-shrink: 0; }
+.mtt-priority { width: 90px; flex-shrink: 0; color: #A1A1AA; }
+.mtt-assignee { width: 120px; flex-shrink: 0; color: #A1A1AA; }
+.mtt-due { width: 110px; flex-shrink: 0; color: #A1A1AA; }
+.task-status-chip { padding: 2px 8px; background: rgba(113,113,122,0.15); color: #A1A1AA; border-radius: 4px; font-size: 11px; font-weight: 500; }
+
+/* Row Date Picker */
+.dp-wrapper-inline { position: relative; }
+.dp-popover-row {
+  position: absolute; top: 100%; right: 0; margin-top: 8px;
+  background: #141518; border: 1px solid #2D2F36; border-radius: 8px;
+  width: 290px; padding: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+  z-index: 2000;
 }
-.m-side-panel.open { right: 0; }
 
-.msp-header {
-  padding: 16px 20px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  border-bottom: 1px solid transparent;
-}
-.hover-circle { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: #27272A; }
-.ms-status-chip { background: #27272A; color: #A1A1AA; padding: 4px 12px; border-radius: 4px; font-size: 12px; font-weight: 500;}
-
-.msp-body { padding: 20px 24px; overflow-y: auto; flex: 1; }
-.msp-title { font-size: 18px; font-weight: 600; color: #E4E4E7; margin: 0 0 8px 0; }
-.msp-desc { font-size: 14px; color: #A1A1AA; line-height: 1.5; margin: 0 0 24px 0; }
-
-.msp-props { display: flex; flex-direction: column; }
-.p-row { display: flex; align-items: center; font-size: 13px; }
-.p-label { width: 130px; color: #A1A1AA; display: flex; align-items: center; gap: 8px; }
-.p-val-badge { background: #27272A; padding: 4px 12px; border-radius: 4px; color: #E4E4E7; display: flex; align-items: center; font-weight: 500; font-size: 12px; }
-
-.collapsible-section .cs-head { display: flex; justify-content: space-between; font-size: 13px; font-weight: 500; color: #E4E4E7; text-transform: uppercase; cursor: pointer; }
-
-.grid-line { position: absolute; left: 0; right: 0; height: 1px; background: rgba(255,255,255,0.05); }
-.grid-line span { position: absolute; left: -14px; top: -6px; font-size: 10px; color: #71717A; }
-
-.msp-tabs { display: flex; background: #1E2025; padding: 4px; border-radius: 6px; gap: 4px; }
-.msp-tab { flex: 1; text-align: center; font-size: 12px; color: #A1A1AA; padding: 6px 0; border-radius: 4px; cursor: pointer; }
-.msp-tab.active { background: #27272A; color: #E4E4E7; font-weight: 500; }
-
-
-/* Modal Overlay Create */
+/* Modal */
 .modal-overlay {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5); display: flex; align-items: center;
+  justify-content: center; z-index: 1000;
 }
 .create-module-modal {
-  width: 650px;
-  background: #1B1C20;
-  border: 1px solid #2D2F36;
-  border-radius: 12px;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+  width: 650px; background: #1B1C20; border: 1px solid #2D2F36;
+  border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.8);
   overflow: visible;
 }
-.cm-header {
-  padding: 24px 24px 16px 24px;
-}
-.cm-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: transparent;
-  border: 1px solid #3F3F46;
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 12px;
-  color: #E4E4E7;
-  font-weight: 500;
-  margin-bottom: 16px;
-}
+.cm-header { padding: 24px 24px 16px 24px; }
+.cm-badge { display: inline-flex; align-items: center; gap: 8px; background: transparent; border: 1px solid #3F3F46; padding: 4px 10px; border-radius: 6px; font-size: 12px; color: #E4E4E7; font-weight: 500; margin-bottom: 16px; }
 .cm-title { font-size: 20px; font-weight: 600; color: #E4E4E7; margin: 0; }
 .cm-body { padding: 0 24px 24px 24px; display: flex; flex-direction: column; overflow: visible; }
-.cm-input {
-  width: 100%; background: #141518; border: 1px solid #2D2F36; border-radius: 6px; padding: 12px 16px; color: #E4E4E7; font-size: 15px; outline: none; font-family: inherit; font-weight: 500;
-}
-.cm-textarea {
-  width: 100%; background: #141518; border: 1px solid #2D2F36; border-radius: 6px; padding: 12px 16px; color: #E4E4E7; font-size: 14px; outline: none; font-family: inherit; resize: none;
-}
-.border-focus:focus { border-color: #38BDF8; background: #1B1C20;}
-
-/* Toolbar Items */
-.cm-toolbar { display: flex; gap: 12px; align-items: center; position: relative; overflow: visible; }
-.cbr-btn { background: transparent; border: 1px solid #2D2F36; color: #E4E4E7; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; cursor: pointer; transition: 0.2s;}
+.cm-input { width: 100%; background: #141518; border: 1px solid #2D2F36; border-radius: 6px; padding: 12px 16px; color: #E4E4E7; font-size: 15px; outline: none; font-family: inherit; font-weight: 500; }
+.cm-textarea { width: 100%; background: #141518; border: 1px solid #2D2F36; border-radius: 6px; padding: 12px 16px; color: #E4E4E7; font-size: 14px; outline: none; font-family: inherit; resize: none; }
+.border-focus:focus { border-color: #38BDF8; background: #1B1C20; }
+.cm-toolbar { display: flex; gap: 12px; align-items: center; position: relative; overflow: visible; flex-wrap: wrap; }
+.cbr-btn { background: transparent; border: 1px solid #2D2F36; color: #E4E4E7; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; cursor: pointer; transition: 0.2s; }
 .cbr-btn:hover { background: #27272A; }
-
-.cm-footer {
-  padding: 16px 24px; border-top: 1px solid #2D2F36; display: flex; justify-content: flex-end; gap: 12px; background: #141518; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;
-}
+.cm-footer { padding: 16px 24px; border-top: 1px solid #2D2F36; display: flex; justify-content: flex-end; gap: 12px; background: #141518; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }
 .cm-btn-cancel { background: transparent; border: 1px solid #3F3F46; border-radius: 6px; padding: 8px 16px; color: #E4E4E7; font-size: 13px; font-weight: 600; cursor: pointer; }
 .cm-btn-cancel:hover { background: #27272A; }
 .cm-btn-create { background: #38BDF8; border: none; border-radius: 6px; padding: 8px 16px; color: white; font-size: 13px; font-weight: 600; cursor: pointer; }
 .cm-btn-create:hover { background: #0284C7; }
 
-/* Calendar Dropdown */
+/* Calendar shared styles */
 .dp-wrapper { position: relative; }
-.dp-popover { position: absolute; top: 100%; left: 0; margin-top: 8px; background: #141518; border: 1px solid #2D2F36; border-radius: 8px; width: 280px; padding: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); z-index: 100; }
+.dp-popover { position: absolute; top: 100%; left: 0; margin-top: 8px; background: #141518; border: 1px solid #2D2F36; border-radius: 8px; width: 290px; padding: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); z-index: 2000; }
 .dp-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
 .dp-month-year { display: flex; gap: 12px; font-size: 15px; font-weight: 600; color: #E4E4E7; }
 .dp-nav { display: flex; gap: 8px; }
 .dp-nav button { background: transparent; border: none; color: #71717A; cursor: pointer; padding: 4px; }
 .dp-nav button:hover { color: #E4E4E7; }
-.dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); row-gap: 8px; }
-.headday { font-size: 10px; font-weight: 700; color: #E4E4E7; margin-bottom: 8px; text-align: center; pointer-events: none; }
+.dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); row-gap: 6px; }
+.headday { font-size: 10px; font-weight: 700; color: #A1A1AA; margin-bottom: 8px; text-align: center; pointer-events: none; }
 .dp-day-wrapper { position: relative; display: flex; align-items: center; justify-content: center; height: 32px; }
 .dp-bg-range { position: absolute; top: 0; bottom: 0; left: 0; right: 0; background: #1D435E; z-index: 1; }
 .range-start { border-top-left-radius: 16px; border-bottom-left-radius: 16px; }
 .range-end { border-top-right-radius: 16px; border-bottom-right-radius: 16px; }
-.dp-day-num { position: relative; z-index: 2; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 12px; color: #71717A; cursor: pointer; transition: 0.2s;}
+.dp-day-num { position: relative; z-index: 2; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 12px; color: #52525B; cursor: pointer; transition: 0.2s; }
 .dp-day-num.current-month { color: #A1A1AA; }
 .dp-day-num:hover:not(.headday) { background: #27272A; color: white; }
 .dp-day-num.selected { background: #0EA5E9; color: white; border: 1px solid #38BDF8; }
+.dp-day-num.today-dot { position: relative; }
+.dp-day-num.today-dot::after { content: ''; position: absolute; bottom: 2px; width: 4px; height: 4px; border-radius: 50%; background: #0EA5E9; }
 
 .no-scrollbar::-webkit-scrollbar { display: none; }
 </style>

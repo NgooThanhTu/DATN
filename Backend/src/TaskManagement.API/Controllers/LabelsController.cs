@@ -99,6 +99,21 @@ namespace TaskManagement.API.Controllers
         [HttpPost("tasks/{taskId}/labels")]
         public async Task<IActionResult> AssignLabel(Guid projectId, Guid taskId, [FromBody] AssignLabelRequest request)
         {
+            var task = await _context.WorkTasks
+                .AsNoTracking()
+                .FirstOrDefaultAsync(wt => wt.Id == taskId && wt.ProjectId == projectId && !wt.IsDeleted);
+            if (task == null)
+                return NotFound(new { statusCode = 404, message = "Tac vu khong ton tai trong du an nay." });
+
+            var project = await _context.Projects.AsNoTracking().FirstOrDefaultAsync(p => p.Id == projectId);
+            if (project == null)
+                return NotFound(new { statusCode = 404, message = "Du an khong ton tai." });
+
+            var labelExists = await _context.Labels.AnyAsync(label => label.Id == request.LabelId
+                && (label.ProjectId == projectId || (label.ProjectId == null && label.WorkspaceId == project.WorkspaceId)));
+            if (!labelExists)
+                return BadRequest(new { statusCode = 400, message = "Nhan khong thuoc du an nay." });
+
             var exists = await _context.IssueLabels.AnyAsync(il => il.WorkTaskId == taskId && il.LabelId == request.LabelId);
             if (exists)
                 return BadRequest(new { statusCode = 400, message = "Nhãn đã được gán cho công việc này." });
@@ -117,7 +132,14 @@ namespace TaskManagement.API.Controllers
         [HttpDelete("tasks/{taskId}/labels/{labelId}")]
         public async Task<IActionResult> RemoveLabel(Guid projectId, Guid taskId, Guid labelId)
         {
-            var link = await _context.IssueLabels.FirstOrDefaultAsync(il => il.WorkTaskId == taskId && il.LabelId == labelId);
+            var link = await _context.IssueLabels
+                .Include(il => il.WorkTask)
+                .Include(il => il.Label)
+                .FirstOrDefaultAsync(il => il.WorkTaskId == taskId
+                    && il.LabelId == labelId
+                    && il.WorkTask.ProjectId == projectId
+                    && !il.WorkTask.IsDeleted
+                    && (il.Label.ProjectId == projectId || il.Label.ProjectId == null));
             if (link == null)
                 return NotFound(new { statusCode = 404, message = "Nhãn chưa được gán." });
 

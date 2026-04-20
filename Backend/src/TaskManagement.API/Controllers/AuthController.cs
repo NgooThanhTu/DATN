@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Mvc;
 using TaskManagement.Application.DTOs.Auth;
 using TaskManagement.Application.Interfaces;
 using System.Security.Claims;
-using Microsoft.EntityFrameworkCore;
 
 namespace TaskManagement.API.Controllers
 {
@@ -122,74 +121,6 @@ namespace TaskManagement.API.Controllers
             catch (Exception ex)
             {
                 return StatusCode(500, new { statusCode = 500, message = "Internal server error: " + ex.Message });
-            }
-        }
-
-        [HttpGet("invite-info")]
-        public async Task<IActionResult> GetInviteInfo([FromQuery] string token)
-        {
-            try
-            {
-                var result = await _authService.GetInviteInfoAsync(token);
-                return Ok(new { statusCode = 200, message = "Success", data = result });
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                return Unauthorized(new { statusCode = 401, message = ex.Message });
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(new { statusCode = 400, message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { statusCode = 500, message = ex.Message });
-            }
-        }
-
-        [HttpPost("accept-invite-token")]
-        public async Task<IActionResult> AcceptInviteToken([FromBody] AcceptInviteTokenRequestDto request)
-        {
-            try
-            {
-                var result = await _authService.AcceptInviteTokenAsync(request);
-
-                if (!string.IsNullOrEmpty(result.RefreshToken))
-                {
-                    var cookieOptions = new CookieOptions
-                    {
-                        HttpOnly = true,
-                        Secure = Request.IsHttps,
-                        SameSite = SameSiteMode.Lax,
-                        Expires = DateTime.UtcNow.AddDays(7)
-                    };
-                    Response.Cookies.Append("refreshToken", result.RefreshToken, cookieOptions);
-                }
-
-                return Ok(new
-                {
-                    statusCode = 200,
-                    message = result.RequiresLogin ? "Invite accepted. Please log in." : "Invite accepted.",
-                    data = new
-                    {
-                        result.Email,
-                        result.RequiresLogin,
-                        result.RedirectPath,
-                        auth = result.Response
-                    }
-                });
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                return Unauthorized(new { statusCode = 401, message = ex.Message });
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(new { statusCode = 400, message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { statusCode = 500, message = ex.Message });
             }
         }
 
@@ -338,21 +269,23 @@ namespace TaskManagement.API.Controllers
             [FromServices] TaskManagement.Infrastructure.Data.ApplicationDbContext context,
             [FromServices] IWebHostEnvironment env)
         {
-            // Only allow in development mode
             if (!env.IsDevelopment())
-                return NotFound(new { statusCode = 404, message = "Endpoint only available in Development environment" });
+                return NotFound();
 
             try
             {
                 var email = "dev@sprinta.local";
-                var user = await context.Users
-                    .Include(u => u.UserRoles)
-                    .ThenInclude(ur => ur.Role)
-                    .FirstOrDefaultAsync(u => u.Email == email && !u.IsDeleted);
+                var user = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+                    .FirstOrDefaultAsync(
+                        Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+                            .ThenInclude(
+                                Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+                                    .Include(context.Users, u => u.UserRoles),
+                                ur => ur.Role),
+                        u => u.Email == email && !u.IsDeleted);
 
                 if (user == null)
                 {
-                    // Create dev user if not exists
                     user = new TaskManagement.Domain.Entities.User
                     {
                         Id = Guid.NewGuid(),
@@ -366,7 +299,8 @@ namespace TaskManagement.API.Controllers
                     context.Users.Add(user);
 
                     // Ensure Admin role exists
-                    var adminRole = await context.Roles.FirstOrDefaultAsync(r => r.Name == "Admin");
+                    var adminRole = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+                        .FirstOrDefaultAsync(context.Roles, r => r.Name == "Admin");
                     if (adminRole == null)
                     {
                         adminRole = new TaskManagement.Domain.Entities.Role 
@@ -390,7 +324,48 @@ namespace TaskManagement.API.Controllers
                     await context.SaveChangesAsync();
                 }
 
-                // Extract roles safely. If user exists but has no roles, default to Admin.
+                // ─── Auto-enroll dev user into ALL projects & workspaces ───
+                var allProjects = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+                    .ToListAsync(context.Projects);
+                foreach (var proj in allProjects)
+                {
+                    var isMember = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+                        .AnyAsync(context.ProjectMembers, pm => pm.ProjectId == proj.Id && pm.UserId == user.Id);
+                    if (!isMember)
+                    {
+                        context.ProjectMembers.Add(new TaskManagement.Domain.Entities.ProjectMember
+                        {
+                            ProjectId = proj.Id,
+                            UserId = user.Id,
+                            ProjectRole = "PM",
+                            JoinedAt = DateTime.UtcNow,
+                            Status = true
+                        });
+                    }
+                }
+
+                var allWorkspaces = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+                    .ToListAsync(context.Workspaces);
+                foreach (var ws in allWorkspaces)
+                {
+                    var isWsMember = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+                        .AnyAsync(context.WorkspaceMembers, wm => wm.WorkspaceId == ws.Id && wm.UserId == user.Id);
+                    if (!isWsMember)
+                    {
+                        context.WorkspaceMembers.Add(new TaskManagement.Domain.Entities.WorkspaceMember
+                        {
+                            WorkspaceId = ws.Id,
+                            UserId = user.Id,
+                            WorkspaceRole = "ADMIN",
+                            JoinedAt = DateTime.UtcNow,
+                            IsActive = true
+                        });
+                    }
+                }
+
+                await context.SaveChangesAsync();
+                // ─── End auto-enroll ───
+
                 var roles = user.UserRoles?
                     .Where(ur => ur.Role != null)
                     .Select(ur => ur.Role!.Name)
@@ -400,14 +375,12 @@ namespace TaskManagement.API.Controllers
                 {
                     roles.Add("Admin");
                 }
-
                 var accessToken = jwtService.GenerateAccessToken(user, roles);
                 var refreshToken = jwtService.GenerateRefreshToken();
 
                 user.RefreshToken = refreshToken;
                 user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
 
-                // Add to RefreshTokens table for multi-device support/consistency
                 context.RefreshTokens.Add(new TaskManagement.Domain.Entities.RefreshToken
                 {
                     Id = Guid.NewGuid(),
@@ -423,7 +396,7 @@ namespace TaskManagement.API.Controllers
                 var cookieOptions = new CookieOptions
                 {
                     HttpOnly = true,
-                    Secure = false, // Set to true if using HTTPS in Dev
+                    Secure = false,
                     SameSite = SameSiteMode.Lax,
                     Expires = DateTime.UtcNow.AddDays(7)
                 };
@@ -445,14 +418,7 @@ namespace TaskManagement.API.Controllers
             }
             catch (Exception ex)
             {
-                // Detailed error for dev debugging
-                return StatusCode(500, new { 
-                    statusCode = 500, 
-                    message = "Dev login lỗi hệ thống", 
-                    error = ex.Message,
-                    innerError = ex.InnerException?.Message,
-                    stackTrace = env.IsDevelopment() ? ex.StackTrace : null
-                });
+                return StatusCode(500, new { statusCode = 500, message = "Dev login lỗi: " + ex.Message });
             }
         }
 
@@ -477,5 +443,4 @@ namespace TaskManagement.API.Controllers
         }
     }
 }
-
 

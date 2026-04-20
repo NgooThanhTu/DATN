@@ -712,12 +712,21 @@ namespace TaskManagement.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("TransactionType")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
                     b.Property<Guid>("UserWalletUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("WorkTaskId")
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserWalletUserId");
+                    b.HasIndex("WorkTaskId");
+
+                    b.HasIndex("UserWalletUserId", "WorkTaskId", "TransactionType");
 
                     b.ToTable("PointTransactions");
                 });
@@ -1142,6 +1151,17 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Property<DateTime>("ActualStartDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("BlockReason")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("BlockedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<double>("ContributionWeight")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("float")
+                        .HasDefaultValue(1.0);
+
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
 
@@ -1151,6 +1171,12 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Property<int>("Priority")
                         .HasColumnType("int");
 
+                    b.Property<double>("ProgressPercent")
+                        .HasColumnType("float");
+
+                    b.Property<DateTime?>("ProgressUpdatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<bool>("Status")
                         .HasColumnType("bit");
 
@@ -1158,6 +1184,8 @@ namespace TaskManagement.Infrastructure.Migrations
                         .HasColumnType("float");
 
                     b.HasKey("WorkTaskId", "UserId");
+
+                    b.HasIndex("BlockedByUserId");
 
                     b.HasIndex("UserId");
 
@@ -1965,7 +1993,14 @@ namespace TaskManagement.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("TaskManagement.Domain.Entities.WorkTask", "WorkTask")
+                        .WithMany()
+                        .HasForeignKey("WorkTaskId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("UserWallet");
+
+                    b.Navigation("WorkTask");
                 });
 
             modelBuilder.Entity("TaskManagement.Domain.Entities.Project", b =>
@@ -2121,6 +2156,11 @@ namespace TaskManagement.Infrastructure.Migrations
 
             modelBuilder.Entity("TaskManagement.Domain.Entities.TaskAssignment", b =>
                 {
+                    b.HasOne("TaskManagement.Domain.Entities.User", "BlockedByUser")
+                        .WithMany()
+                        .HasForeignKey("BlockedByUserId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("TaskManagement.Domain.Entities.User", "User")
                         .WithMany("TaskAssignments")
                         .HasForeignKey("UserId")
@@ -2132,6 +2172,8 @@ namespace TaskManagement.Infrastructure.Migrations
                         .HasForeignKey("WorkTaskId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("BlockedByUser");
 
                     b.Navigation("User");
 

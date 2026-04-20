@@ -18,13 +18,14 @@ namespace TaskManagement.API.Controllers
     public class WorkTasksController : ControllerBase
     {
         private readonly IWorkTaskService _workTaskService;
+        private static readonly string[] ManagerRoles = { "PM", "PO", "SM", "PROJECT_MANAGER", "SCRUM_MASTER" };
 
         public WorkTasksController(IWorkTaskService workTaskService)
         {
             _workTaskService = workTaskService;
         }
 
-        [HttpGet("projects/{projectId:guid}/WorkTasks")]
+        [HttpGet("projects/{projectId}/WorkTasks")]
         public async Task<IActionResult> GetByProject(Guid projectId)
         {
             try
@@ -88,7 +89,67 @@ namespace TaskManagement.API.Controllers
             }
         }
 
-        [HttpPost("projects/{projectId:guid}/WorkTasks")]
+        [HttpGet("projects/{projectId}/task-statuses")]
+        public async Task<IActionResult> GetProjectTaskStatuses(Guid projectId, [FromServices] ApplicationDbContext context)
+        {
+            try
+            {
+                var statuses = await context.TaskStatuses
+                    .Where(ts => ts.ProjectId == projectId)
+                    .OrderBy(ts => ts.Position)
+                    .Select(ts => new
+                    {
+                        ts.Id,
+                        ts.Name,
+                        DisplayName = ts.Name
+                    })
+                    .ToListAsync();
+
+                if (!statuses.Any())
+                {
+                    var defaults = new[]
+                    {
+                        new { Name = "BACKLOG", Position = 0 },
+                        new { Name = "TO DO", Position = 1 },
+                        new { Name = "IN PROGRESS", Position = 2 },
+                        new { Name = "DONE", Position = 3 },
+                        new { Name = "CANCELLED", Position = 4 }
+                    };
+
+                    foreach (var item in defaults)
+                    {
+                        context.TaskStatuses.Add(new TaskManagement.Domain.Entities.TaskStatus
+                        {
+                            Id = Guid.NewGuid(),
+                            ProjectId = projectId,
+                            Name = item.Name,
+                            Position = item.Position
+                        });
+                    }
+
+                    await context.SaveChangesAsync();
+
+                    statuses = await context.TaskStatuses
+                        .Where(ts => ts.ProjectId == projectId)
+                        .OrderBy(ts => ts.Position)
+                        .Select(ts => new
+                        {
+                            ts.Id,
+                            ts.Name,
+                            DisplayName = ts.Name
+                        })
+                        .ToListAsync();
+                }
+
+                return Ok(new { statusCode = 200, message = "Success", data = statuses });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { statusCode = 500, message = ex.Message });
+            }
+        }
+
+        [HttpPost("projects/{projectId}/WorkTasks")]
         public async Task<IActionResult> Create(Guid projectId, [FromBody] CreateWorkTaskDto request)
         {
             request.ProjectId = projectId;
@@ -121,170 +182,18 @@ namespace TaskManagement.API.Controllers
             }
         }
 
-        [HttpPost("tasks/seed-mock")]
-        public async Task<IActionResult> SeedGlobalMockTasks([FromServices] ApplicationDbContext context)
-        {
-            var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (!Guid.TryParse(userIdStr, out Guid userId))
-                return Unauthorized();
-
-            // Find ALL projects where the user is a member or creator
-            var projects = await context.Projects.Where(p => p.CreatorId == userId).ToListAsync();
-            
-            if (!projects.Any()) {
-                var first = await context.Projects.FirstOrDefaultAsync();
-                if (first != null) projects.Add(first);
-            }
-
-            if (!projects.Any()) return NotFound(new { message = "Không tìm thấy dự án nào để tạo dữ liệu." });
-
-            int totalCreated = 0;
-            string lastProjectName = "";
-
-            foreach (var project in projects)
-            {
-                var projectId = project.Id;
-                lastProjectName = project.Name;
-
-                var defaultType = await context.TaskTypes.FirstOrDefaultAsync(tt => tt.ProjectId == projectId);
-                if (defaultType == null)
-                {
-                    defaultType = new TaskManagement.Domain.Entities.TaskType { Id = Guid.NewGuid(), Name = "Task", ColorCode = "#FFFFFF", Icon = "icon-task", ProjectId = projectId };
-                    context.TaskTypes.Add(defaultType);
-                    await context.SaveChangesAsync();
-                }
-
-                var statusNames = new[] { "BACKLOG", "TO DO", "IN PROGRESS", "IN REVIEW" };
-                var statusEntities = new List<TaskManagement.Domain.Entities.TaskStatus>();
-
-                for (int i = 0; i < statusNames.Length; i++)
-                {
-                    var sName = statusNames[i];
-                    var status = await context.TaskStatuses.FirstOrDefaultAsync(ts => ts.ProjectId == projectId && ts.Name == sName);
-                    if (status == null)
-                    {
-                        status = new TaskManagement.Domain.Entities.TaskStatus { Id = Guid.NewGuid(), Name = sName, ColorCode = "#A1A1AA", Position = i + 1, ProjectId = projectId };
-                        context.TaskStatuses.Add(status);
-                    }
-                    statusEntities.Add(status);
-                }
-                await context.SaveChangesAsync();
-
-                // Delete old mock tasks to avoid duplicates if they spam the button
-                var oldMocks = await context.WorkTasks.Where(t => t.ProjectId == projectId && t.Title.StartsWith("Mock Task")).ToListAsync();
-                context.WorkTasks.RemoveRange(oldMocks);
-                await context.SaveChangesAsync();
-
-                for (int i = 0; i < 20; i++)
-                {
-                    project.IssueSequence++;
-                    var sId = statusEntities[i / 5].Id;
-                    var t = new TaskManagement.Domain.Entities.WorkTask
-                    {
-                        Id = Guid.NewGuid(),
-                        ProjectId = projectId,
-                        Title = $"Mock Task {i + 1} of {project.Name}",
-                        Description = $"Nội dung mẫu {i + 1}",
-                        Priority = ((i % 4) + 1), // 1..4 (Urgent = 1, Low = 4)
-                        TaskTypeId = defaultType.Id,
-                        TaskStatusId = sId,
-                        ReporterId = userId,
-                        WorkspaceId = project.WorkspaceId,
-                        SequenceId = $"{project.Identifier}-{project.IssueSequence}",
-                        CreatedAt = DateTime.UtcNow,
-                        UpdatedAt = DateTime.UtcNow,
-                        SortOrder = 65536 * (i + 1),
-                        AssignedUserId = (i % 3 == 0) ? userId : null // assign to me every 3rd task
-                    };
-                    context.WorkTasks.Add(t);
-                    
-                    // Add me as subscriber to every even task
-                    if (i % 2 == 0) {
-                        context.TaskSubscribers.Add(new TaskManagement.Domain.Entities.TaskSubscriber { WorkTaskId = t.Id, UserId = userId });
-                    }
-                    totalCreated++;
-                }
-                await context.SaveChangesAsync();
-            }
-
-            return Ok(new { statusCode = 200, message = $"Đã reset và tạo {totalCreated} task thành công trên {projects.Count} dự án." });
-        }
-
-
-
-        [HttpPost("projects/{projectId:guid}/WorkTasks/seed-mock")]
-        public async Task<IActionResult> SeedMockTasks(Guid projectId, [FromServices] ApplicationDbContext context)
-        {
-            var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (!Guid.TryParse(userIdStr, out Guid userId))
-                return Unauthorized();
-
-            var project = await context.Projects.FirstOrDefaultAsync(p => p.Id == projectId && !p.IsDeleted);
-            if (project == null) return NotFound(new { message = "Dự án không tồn tại." });
-
-            var defaultType = await context.TaskTypes.FirstOrDefaultAsync(tt => tt.ProjectId == projectId);
-            if (defaultType == null)
-            {
-                defaultType = new TaskManagement.Domain.Entities.TaskType { Id = Guid.NewGuid(), Name = "Task", ColorCode = "#FFFFFF", Icon = "icon-task", ProjectId = projectId };
-                context.TaskTypes.Add(defaultType);
-                await context.SaveChangesAsync();
-            }
-
-            var statusNames = new[] { "BACKLOG", "TO DO", "IN PROGRESS", "IN REVIEW" };
-            var statusEntities = new List<TaskManagement.Domain.Entities.TaskStatus>();
-
-            for (int i = 0; i < statusNames.Length; i++)
-            {
-                var sName = statusNames[i];
-                var status = await context.TaskStatuses.FirstOrDefaultAsync(ts => ts.ProjectId == projectId && ts.Name == sName);
-                if (status == null)
-                {
-                    status = new TaskManagement.Domain.Entities.TaskStatus { Id = Guid.NewGuid(), Name = sName, ColorCode = "#A1A1AA", Position = i + 1, ProjectId = projectId };
-                    context.TaskStatuses.Add(status);
-                }
-                statusEntities.Add(status);
-            }
-            await context.SaveChangesAsync();
-
-            for (int i = 0; i < 20; i++)
-            {
-                project.IssueSequence++;
-                var sId = statusEntities[i / 5].Id;
-                var t = new TaskManagement.Domain.Entities.WorkTask
-                {
-                    Id = Guid.NewGuid(),
-                    ProjectId = projectId,
-                    Title = $"Mock Task {i+1} of {project.Name}",
-                    Description = $"Nội dung mẫu {i+1}",
-                    Priority = (i % 4), // 0..3
-                    TaskTypeId = defaultType.Id,
-                    TaskStatusId = sId,
-                    ReporterId = userId,
-                    WorkspaceId = project.WorkspaceId,
-                    SequenceId = $"{project.Identifier}-{project.IssueSequence}",
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow,
-                    SortOrder = 65536 * (i+1),
-                    AssignedUserId = (i % 3 == 0) ? userId : null // assign to me every 3rd task
-                };
-                context.WorkTasks.Add(t);
-                
-                // Add me as subscriber to every even task
-                if (i % 2 == 0) {
-                    context.TaskSubscribers.Add(new TaskManagement.Domain.Entities.TaskSubscriber { WorkTaskId = t.Id, UserId = userId });
-                }
-            }
-            await context.SaveChangesAsync();
-
-            return Ok(new { statusCode = 200, message = "Đã tạo 20 task thành công (5 mỗi trạng thái)." });
-        }
-
-        [HttpPut("projects/{projectId:guid}/WorkTasks/{id:guid}/status")]
+        [HttpPut("projects/{projectId}/WorkTasks/{id}/status")]
         public async Task<IActionResult> UpdateStatus(Guid projectId, Guid id, [FromBody] UpdateTaskStatusRequestDto request)
         {
             try
             {
-                await _workTaskService.UpdateTaskStatusAsync(id, request);
+                var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (!Guid.TryParse(userIdString, out Guid userId))
+                {
+                    return Unauthorized(new { statusCode = 401, message = "Vui long dang nhap." });
+                }
+
+                await _workTaskService.UpdateTaskStatusAsync(id, userId, request);
                 return Ok(new { statusCode = 200, message = "Success", data = "Cập nhật trạng thái tác vụ thành công." });
             }
             catch (DbUpdateConcurrencyException)
@@ -305,7 +214,7 @@ namespace TaskManagement.API.Controllers
             }
         }
 
-        [HttpPut("projects/{projectId:guid}/WorkTasks/{id:guid}")]
+        [HttpPut("projects/{projectId}/WorkTasks/{id}")]
         public async Task<IActionResult> Update(Guid projectId, Guid id, [FromBody] UpdateWorkTaskDto dto)
         {
             try
@@ -341,13 +250,41 @@ namespace TaskManagement.API.Controllers
             }
         }
 
-        [HttpPatch("projects/{projectId:guid}/WorkTasks/{id:guid}")]
-        public async Task<IActionResult> PartialUpdate(Guid projectId, Guid id, [FromBody] System.Text.Json.JsonElement updates, [FromServices] TaskManagement.Infrastructure.Data.ApplicationDbContext context)
+        [HttpPatch("projects/{projectId}/WorkTasks/{id}")]
+        public async Task<IActionResult> PartialUpdate(Guid projectId, Guid id, [FromBody] System.Text.Json.JsonElement updates, [FromServices] TaskManagement.Infrastructure.Data.ApplicationDbContext context, [FromServices] IGamificationService gamificationService)
         {
             try
             {
-                var task = await context.WorkTasks.FirstOrDefaultAsync(wt => wt.Id == id && wt.ProjectId == projectId && !wt.IsDeleted);
+                var task = await context.WorkTasks
+                    .Include(wt => wt.TaskAssignments)
+                    .Include(wt => wt.IssueModules)
+                    .Include(wt => wt.TaskStatus)
+                    .FirstOrDefaultAsync(wt => wt.Id == id && wt.ProjectId == projectId && !wt.IsDeleted);
                 if (task == null) return NotFound(new { statusCode = 404, message = "Task không tồn tại." });
+
+                var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (!Guid.TryParse(userIdString, out Guid userId))
+                {
+                    return Unauthorized(new { statusCode = 401, message = "Vui long dang nhap." });
+                }
+
+                var membership = await context.ProjectMembers
+                    .FirstOrDefaultAsync(pm => pm.ProjectId == projectId && pm.UserId == userId && pm.Status);
+                if (membership == null)
+                {
+                    return StatusCode(403, new { statusCode = 403, message = "Ban khong phai thanh vien cua du an nay." });
+                }
+
+                var canUpdateTask = ManagerRoles.Contains(membership.ProjectRole, StringComparer.OrdinalIgnoreCase)
+                    || task.ReporterId == userId
+                    || task.AssignedUserId == userId
+                    || task.TaskAssignments.Any(ta => ta.UserId == userId && ta.Status);
+                if (!canUpdateTask)
+                {
+                    return StatusCode(403, new { statusCode = 403, message = "Ban khong co quyen sua tac vu nay." });
+                }
+                var oldStatusName = task.TaskStatus?.Name;
+                string? newStatusName = null;
 
                 if (updates.TryGetProperty("title", out var titleProp) && titleProp.ValueKind != System.Text.Json.JsonValueKind.Null)
                     task.Title = titleProp.GetString() ?? task.Title;
@@ -358,10 +295,148 @@ namespace TaskManagement.API.Controllers
                 if (updates.TryGetProperty("priority", out var prioProp) && prioProp.ValueKind != System.Text.Json.JsonValueKind.Null)
                     task.Priority = prioProp.GetInt32();
 
+                if (updates.TryGetProperty("sortOrder", out var sortProp) && sortProp.ValueKind != System.Text.Json.JsonValueKind.Null)
+                    task.SortOrder = sortProp.GetDouble();
+
                 if (updates.TryGetProperty("assigneeId", out var assigneeProp))
                 {
                     if (assigneeProp.ValueKind == System.Text.Json.JsonValueKind.Null) task.AssignedUserId = null;
-                    else if (Guid.TryParse(assigneeProp.GetString(), out Guid aId)) task.AssignedUserId = aId;
+                    else if (Guid.TryParse(assigneeProp.GetString(), out Guid aId))
+                    {
+                        var assigneeIsMember = await context.ProjectMembers
+                            .AnyAsync(pm => pm.ProjectId == projectId && pm.UserId == aId && pm.Status);
+                        if (!assigneeIsMember)
+                        {
+                            return BadRequest(new { statusCode = 400, message = "Assignee khong thuoc du an nay." });
+                        }
+
+                        task.AssignedUserId = aId;
+                    }
+                }
+
+                if (updates.TryGetProperty("assigneeIds", out var assigneeIdsProp) && assigneeIdsProp.ValueKind == System.Text.Json.JsonValueKind.Array)
+                {
+                    var parsedIds = assigneeIdsProp.EnumerateArray()
+                        .Select(item => item.GetString())
+                        .Where(value => !string.IsNullOrWhiteSpace(value) && Guid.TryParse(value, out _))
+                        .Select(value => Guid.Parse(value!))
+                        .Distinct()
+                        .ToList();
+
+                    if (parsedIds.Any())
+                    {
+                        var validAssigneeCount = await context.ProjectMembers
+                            .CountAsync(pm => pm.ProjectId == projectId && pm.Status && parsedIds.Contains(pm.UserId));
+                        if (validAssigneeCount != parsedIds.Count)
+                        {
+                            return BadRequest(new { statusCode = 400, message = "Mot hoac nhieu assignee khong thuoc du an nay." });
+                        }
+                    }
+
+                    var existingAssignments = task.TaskAssignments.ToList();
+
+                    foreach (var assignment in existingAssignments.Where(ta => !parsedIds.Contains(ta.UserId)))
+                    {
+                        context.TaskAssignments.Remove(assignment);
+                    }
+
+                    foreach (var assigneeId in parsedIds.Where(idValue => existingAssignments.All(ta => ta.UserId != idValue)))
+                    {
+                        context.TaskAssignments.Add(new TaskManagement.Domain.Entities.TaskAssignment
+                        {
+                            WorkTaskId = task.Id,
+                            UserId = assigneeId,
+                            Status = true
+                        });
+                    }
+
+                    task.AssignedUserId = parsedIds.FirstOrDefault();
+                    if (!parsedIds.Any())
+                    {
+                        task.AssignedUserId = null;
+                    }
+                }
+
+                var progressRewardRequests = new List<(Guid AssigneeId, double OldProgress, double NewProgress)>();
+                if (updates.TryGetProperty("assigneeProgress", out var assigneeProgressProp))
+                {
+                    var progressItems = new List<System.Text.Json.JsonElement>();
+                    if (assigneeProgressProp.ValueKind == System.Text.Json.JsonValueKind.Array)
+                    {
+                        progressItems.AddRange(assigneeProgressProp.EnumerateArray());
+                    }
+                    else if (assigneeProgressProp.ValueKind == System.Text.Json.JsonValueKind.Object)
+                    {
+                        progressItems.Add(assigneeProgressProp);
+                    }
+
+                    foreach (var item in progressItems)
+                    {
+                        Guid assigneeId = Guid.Empty;
+                        if (item.TryGetProperty("userId", out var userIdProp))
+                        {
+                            Guid.TryParse(userIdProp.GetString(), out assigneeId);
+                        }
+
+                        if (assigneeId == Guid.Empty)
+                        {
+                            continue;
+                        }
+
+                        var assignment = task.TaskAssignments.FirstOrDefault(ta => ta.UserId == assigneeId);
+                        if (assignment == null)
+                        {
+                            assignment = new TaskManagement.Domain.Entities.TaskAssignment
+                            {
+                                WorkTaskId = task.Id,
+                                UserId = assigneeId,
+                                Status = true
+                            };
+                            context.TaskAssignments.Add(assignment);
+                            task.TaskAssignments.Add(assignment);
+                        }
+
+                        var oldProgress = assignment.ProgressPercent;
+                        if (item.TryGetProperty("progressPercent", out var progressProp) && progressProp.ValueKind != System.Text.Json.JsonValueKind.Null)
+                        {
+                            var progress = progressProp.GetDouble();
+                            assignment.ProgressPercent = Math.Clamp(progress, 0, 100);
+                            assignment.ProgressUpdatedAt = DateTime.UtcNow;
+                        }
+
+                        if (item.TryGetProperty("contributionWeight", out var weightProp) && weightProp.ValueKind != System.Text.Json.JsonValueKind.Null)
+                        {
+                            assignment.ContributionWeight = Math.Max(0, weightProp.GetDouble());
+                        }
+
+                        if (item.TryGetProperty("estimatedHours", out var estimatedProp) && estimatedProp.ValueKind != System.Text.Json.JsonValueKind.Null)
+                        {
+                            assignment.EstimatedHours = Math.Max(0, estimatedProp.GetDouble());
+                        }
+
+                        if (item.TryGetProperty("blockedByUserId", out var blockedByProp))
+                        {
+                            assignment.BlockedByUserId = blockedByProp.ValueKind == System.Text.Json.JsonValueKind.Null
+                                ? null
+                                : Guid.TryParse(blockedByProp.GetString(), out var blockedByUserId) ? blockedByUserId : null;
+                        }
+
+                        if (item.TryGetProperty("blockReason", out var blockReasonProp))
+                        {
+                            assignment.BlockReason = blockReasonProp.ValueKind == System.Text.Json.JsonValueKind.Null
+                                ? null
+                                : blockReasonProp.GetString();
+                        }
+
+                        if (oldProgress != assignment.ProgressPercent)
+                        {
+                            progressRewardRequests.Add((assigneeId, oldProgress, assignment.ProgressPercent));
+                        }
+                    }
+
+                    var activeAssignments = task.TaskAssignments.Where(ta => ta.Status).ToList();
+                    var firstAssignee = activeAssignments.OrderByDescending(ta => ta.ProgressPercent).FirstOrDefault();
+                    task.AssignedUserId = firstAssignee?.UserId;
                 }
 
                 if (updates.TryGetProperty("plannedStartDate", out var startProp))
@@ -379,30 +454,89 @@ namespace TaskManagement.API.Controllers
                 if (updates.TryGetProperty("sprintId", out var sprintProp))
                 {
                     if (sprintProp.ValueKind == System.Text.Json.JsonValueKind.Null) task.SprintId = null;
-                    else if (Guid.TryParse(sprintProp.GetString(), out Guid sId)) task.SprintId = sId;
+                    else if (Guid.TryParse(sprintProp.GetString(), out Guid sId))
+                    {
+                        var sprintExists = await context.Sprints.AnyAsync(s => s.Id == sId && s.ProjectId == projectId);
+                        if (!sprintExists)
+                        {
+                            return BadRequest(new { statusCode = 400, message = "Cycle khong thuoc du an nay." });
+                        }
+
+                        task.SprintId = sId;
+                    }
                 }
 
                 if (updates.TryGetProperty("moduleId", out var modProp))
                 {
-                    // Assuming Task model has ModuleId? Or similar, if not just ignore or map properly
-                    // task.ModuleId = ...
+                    context.IssueModules.RemoveRange(task.IssueModules);
+
+                    if (modProp.ValueKind != System.Text.Json.JsonValueKind.Null
+                        && Guid.TryParse(modProp.GetString(), out Guid moduleId))
+                    {
+                        var moduleExists = await context.Modules.AnyAsync(m => m.Id == moduleId && m.ProjectId == projectId);
+                        if (!moduleExists)
+                        {
+                            return BadRequest(new { statusCode = 400, message = "Module khong thuoc du an nay." });
+                        }
+
+                        context.IssueModules.Add(new TaskManagement.Domain.Entities.IssueModule
+                        {
+                            WorkTaskId = task.Id,
+                            ModuleId = moduleId,
+                            AssignedAt = DateTime.UtcNow
+                        });
+                    }
                 }
 
                 if (updates.TryGetProperty("parentId", out var parProp))
                 {
                     if (parProp.ValueKind == System.Text.Json.JsonValueKind.Null) task.ParentTaskId = null;
-                    else if (Guid.TryParse(parProp.GetString(), out Guid pId)) task.ParentTaskId = pId;
+                    else if (Guid.TryParse(parProp.GetString(), out Guid pId))
+                    {
+                        if (pId == task.Id)
+                        {
+                            return BadRequest(new { statusCode = 400, message = "Task khong the tu lam parent." });
+                        }
+
+                        var parentExists = await context.WorkTasks
+                            .AnyAsync(wt => wt.Id == pId && wt.ProjectId == projectId && !wt.IsDeleted);
+                        if (!parentExists)
+                        {
+                            return BadRequest(new { statusCode = 400, message = "Parent task khong thuoc du an nay." });
+                        }
+
+                        task.ParentTaskId = pId;
+                    }
                 }
 
                 if (updates.TryGetProperty("statusName", out var statusProp) && statusProp.ValueKind != System.Text.Json.JsonValueKind.Null)
                 {
                     var statusName = statusProp.GetString();
                     var newStatus = await context.TaskStatuses.FirstOrDefaultAsync(ts => ts.ProjectId == projectId && ts.Name == statusName);
-                    if (newStatus != null) task.TaskStatusId = newStatus.Id;
+                    if (newStatus != null)
+                    {
+                        var isDoneStatus = newStatus.Name.Contains("DONE", StringComparison.OrdinalIgnoreCase) ||
+                                           newStatus.Name.Contains("Complete", StringComparison.OrdinalIgnoreCase);
+                        if (isDoneStatus && task.TaskAssignments.Any(ta => ta.Status && ta.ProgressPercent < 100))
+                        {
+                            return BadRequest(new { statusCode = 400, message = "Chua the hoan thanh task khi van con assignee chua dat 100%." });
+                        }
+
+                        task.TaskStatusId = newStatus.Id;
+                        newStatusName = newStatus.Name;
+                    }
                 }
 
                 task.UpdatedAt = DateTime.UtcNow;
                 await context.SaveChangesAsync();
+                if (userId != Guid.Empty && !string.IsNullOrWhiteSpace(newStatusName))
+                {
+                    await gamificationService.ApplyStatusChangeRewardsAsync(id, userId, oldStatusName, newStatusName);
+                }
+                foreach (var rewardRequest in progressRewardRequests)
+                {
+                    await gamificationService.ApplyAssignmentProgressRewardsAsync(id, rewardRequest.AssigneeId, userId, rewardRequest.OldProgress, rewardRequest.NewProgress);
+                }
                 return Ok(new { statusCode = 200, message = "Saved", data = task });
             }
             catch (Exception ex)
@@ -411,7 +545,7 @@ namespace TaskManagement.API.Controllers
             }
         }
 
-        [HttpGet("{id:guid}/comments")]
+        [HttpGet("{id}/comments")]
         public async Task<IActionResult> GetComments(Guid projectId, Guid id, [FromServices] TaskManagement.Infrastructure.Data.ApplicationDbContext context)
         {
             try
@@ -444,14 +578,39 @@ namespace TaskManagement.API.Controllers
         /// <summary>
         /// Kanban Drag-Drop: Reorder task (update SortOrder + optionally change status)
         /// </summary>
-        [HttpPut("projects/{projectId:guid}/WorkTasks/{id:guid}/reorder")]
-        public async Task<IActionResult> Reorder(Guid projectId, Guid id, [FromBody] ReorderTaskDto dto, [FromServices] TaskManagement.Infrastructure.Data.ApplicationDbContext context)
+        [HttpPut("projects/{projectId}/WorkTasks/{id}/reorder")]
+        public async Task<IActionResult> Reorder(Guid projectId, Guid id, [FromBody] ReorderTaskDto dto, [FromServices] TaskManagement.Infrastructure.Data.ApplicationDbContext context, [FromServices] IGamificationService gamificationService)
         {
             try
             {
-                var task = await context.WorkTasks.FirstOrDefaultAsync(wt => wt.Id == id && !wt.IsDeleted);
+                var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (!Guid.TryParse(userIdString, out Guid userId))
+                    return Unauthorized(new { statusCode = 401, message = "Vui long dang nhap." });
+
+                var task = await context.WorkTasks
+                    .Include(wt => wt.TaskStatus)
+                    .Include(wt => wt.TaskAssignments)
+                    .FirstOrDefaultAsync(wt => wt.Id == id && wt.ProjectId == projectId && !wt.IsDeleted);
                 if (task == null)
                     return NotFound(new { statusCode = 404, message = "Tác vụ không tồn tại." });
+
+                var oldStatusName = task.TaskStatus?.Name;
+                string? newStatusName = null;
+                var membership = await context.ProjectMembers
+                    .FirstOrDefaultAsync(pm => pm.ProjectId == projectId && pm.UserId == userId && pm.Status);
+                if (membership == null)
+                {
+                    return StatusCode(403, new { statusCode = 403, message = "Ban khong phai thanh vien cua du an nay." });
+                }
+
+                var canUpdateTask = ManagerRoles.Contains(membership.ProjectRole, StringComparer.OrdinalIgnoreCase)
+                    || task.ReporterId == userId
+                    || task.AssignedUserId == userId
+                    || task.TaskAssignments.Any(ta => ta.UserId == userId && ta.Status);
+                if (!canUpdateTask)
+                {
+                    return StatusCode(403, new { statusCode = 403, message = "Ban khong co quyen sap xep tac vu nay." });
+                }
 
                 task.SortOrder = dto.SortOrder;
                 task.UpdatedAt = DateTime.UtcNow;
@@ -463,11 +622,23 @@ namespace TaskManagement.API.Controllers
                         .FirstOrDefaultAsync(ts => ts.ProjectId == projectId && ts.Name == dto.NewStatusName);
                     if (newStatus != null)
                     {
+                        var isDoneStatus = newStatus.Name.Contains("DONE", StringComparison.OrdinalIgnoreCase) ||
+                                           newStatus.Name.Contains("Complete", StringComparison.OrdinalIgnoreCase);
+                        if (isDoneStatus && task.TaskAssignments.Any(ta => ta.Status && ta.ProgressPercent < 100))
+                        {
+                            return BadRequest(new { statusCode = 400, message = "Chua the hoan thanh task khi van con assignee chua dat 100%." });
+                        }
+
                         task.TaskStatusId = newStatus.Id;
+                        newStatusName = newStatus.Name;
                     }
                 }
 
                 await context.SaveChangesAsync();
+                if (!string.IsNullOrWhiteSpace(newStatusName))
+                {
+                    await gamificationService.ApplyStatusChangeRewardsAsync(id, userId, oldStatusName, newStatusName);
+                }
                 return Ok(new { statusCode = 200, message = "Cập nhật thứ tự thành công." });
             }
             catch (Exception ex)
@@ -479,7 +650,7 @@ namespace TaskManagement.API.Controllers
         /// <summary>
         /// GET /api/projects/{projectId}/WorkTasks/{parentId}/subtasks
         /// </summary>
-        [HttpGet("projects/{projectId:guid}/WorkTasks/{parentId:guid}/subtasks")]
+        [HttpGet("projects/{projectId}/WorkTasks/{parentId}/subtasks")]
         public async Task<IActionResult> GetSubtasks(Guid projectId, Guid parentId, [FromServices] ApplicationDbContext context)
         {
             var subtasks = await context.WorkTasks
@@ -507,7 +678,7 @@ namespace TaskManagement.API.Controllers
         /// <summary>
         /// POST /api/projects/{projectId}/WorkTasks/{parentId}/subtasks — Create a child task
         /// </summary>
-        [HttpPost("projects/{projectId:guid}/WorkTasks/{parentId:guid}/subtasks")]
+        [HttpPost("projects/{projectId}/WorkTasks/{parentId}/subtasks")]
         public async Task<IActionResult> CreateSubtask(Guid projectId, Guid parentId, [FromBody] CreateWorkTaskDto request, [FromServices] ApplicationDbContext context)
         {
             var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -558,6 +729,7 @@ namespace TaskManagement.API.Controllers
                     subtask.Id,
                     subtask.Title,
                     subtask.Priority,
+                    subtask.ParentTaskId,
                     subtask.SequenceId,
                     StatusName = defaultStatus.Name,
                     subtask.CreatedAt
@@ -622,47 +794,6 @@ namespace TaskManagement.API.Controllers
                     byPriority = priorityGroups
                 }
             });
-        }
-
-        [HttpPut("projects/{projectId:guid}/WorkTasks/{id:guid}/archive")]
-        public async Task<IActionResult> Archive(Guid projectId, Guid id)
-        {
-            try
-            {
-                await _workTaskService.ArchiveAsync(id);
-                return Ok(new { statusCode = 200, message = "Đã lưu trữ công việc thành công." });
-            }
-            catch (ArgumentException ex) { return BadRequest(new { statusCode = 400, message = ex.Message }); }
-            catch (Exception ex) { return StatusCode(500, new { statusCode = 500, message = ex.Message }); }
-        }
-
-        [HttpPut("projects/{projectId:guid}/WorkTasks/{id:guid}/restore")]
-        public async Task<IActionResult> Restore(Guid projectId, Guid id)
-        {
-            try
-            {
-                await _workTaskService.RestoreAsync(id);
-                return Ok(new { statusCode = 200, message = "Đã khôi phục công việc thành công." });
-            }
-            catch (ArgumentException ex) { return BadRequest(new { statusCode = 400, message = ex.Message }); }
-            catch (Exception ex) { return StatusCode(500, new { statusCode = 500, message = ex.Message }); }
-        }
-
-        [HttpPost("tasks/{id:guid}/subscribe")]
-        public async Task<IActionResult> ToggleSubscription(Guid id)
-        {
-            try
-            {
-                var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                if (!Guid.TryParse(userIdString, out Guid userId))
-                {
-                    return Unauthorized(new { statusCode = 401, message = "Vui lòng đăng nhập." });
-                }
-
-                var isSubscribed = await _workTaskService.ToggleSubscriptionAsync(id, userId);
-                return Ok(new { statusCode = 200, message = "Success", data = new { isSubscribed } });
-            }
-            catch (Exception ex) { return StatusCode(500, new { statusCode = 500, message = ex.Message }); }
         }
     }
 

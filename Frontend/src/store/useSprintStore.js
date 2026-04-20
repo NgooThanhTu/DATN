@@ -15,7 +15,7 @@ export const useSprintStore = defineStore('sprint', {
       try {
         const res = await axiosClient.get(`/projects/${projectId}/sprints`);
         this.sprints = res.data?.data || [];
-        this.activeSprint = this.sprints.find(s => s.status === true) || null;
+        this.activeSprint = this.sprints.find(s => (s.state || '').toLowerCase() === 'active') || null;
       } catch (err) {
         this.error = err.message;
         console.error('Failed to fetch sprints:', err);

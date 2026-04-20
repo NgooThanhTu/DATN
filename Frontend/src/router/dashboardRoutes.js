@@ -20,6 +20,11 @@ export default [
     component: () => import('../views/StickiesView.vue')
   },
   {
+    path: '/rewards',
+    name: 'Rewards',
+    component: () => import('../views/RewardsView.vue')
+  },
+  {
     path: '/drafts',
     name: 'Drafts',
     component: () => import('../views/DraftsView.vue')

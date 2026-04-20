@@ -1,8 +1,17 @@
+// Nhớ thêm thư viện này để dùng DbContext và SQL Server
+using System.Security.Claims;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.SqlClient;
+
 using TaskManagement.Infrastructure.Data;
+
 using TaskManagement.API.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
 
 // 1. Mở tính năng Controllers (Chuẩn bị cho các API Login, Task...)
 builder.Services.AddControllers();
@@ -10,6 +19,26 @@ builder.Services.AddSignalR();
 
 builder.Services.AddOpenApi();
 builder.Services.AddMemoryCache();
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("FixedWindow", httpContext =>
+    {
+        var userKey = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var partitionKey = !string.IsNullOrWhiteSpace(userKey)
+            ? $"user:{userKey}"
+            : $"ip:{httpContext.Connection.RemoteIpAddress}";
+
+        return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 5,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+            AutoReplenishment = true
+        });
+    });
+});
 
 // Đăng ký Custom Services từ Extension Methods
 builder.Services.AddAuthServices(builder.Configuration);
@@ -32,28 +61,31 @@ builder.Services.AddCors(options =>
 });
 
 // 3. CẤU HÌNH CODE-FIRST (ENTITY FRAMEWORK CORE)
+// Luôn dùng SQL Server để dữ liệu được lưu trữ vĩnh viễn (comment, notification, v.v.)
 var defaultConnection = builder.Configuration.GetConnectionString("DefaultConnection");
-bool useInMemory = false;
+var useInMemoryFallback = false;
 
-// In Development, we can pre-check if we want to force InMemory if SQL Server is known to be problematic
-if (builder.Environment.IsDevelopment())
+if (!string.IsNullOrWhiteSpace(defaultConnection) && builder.Environment.IsDevelopment())
 {
-    // Forcing true to resolve immediate 500 errors caused by local SQL Server permission issues.
-    useInMemory = true; 
+    useInMemoryFallback = !CanConnectToSqlServer(defaultConnection);
+    if (useInMemoryFallback)
+    {
+        Console.WriteLine("SQL Server is unavailable. Falling back to InMemory database for Development.");
+    }
 }
 
-if (!string.IsNullOrWhiteSpace(defaultConnection) && !useInMemory)
+if (!string.IsNullOrWhiteSpace(defaultConnection) && !useInMemoryFallback)
 {
     builder.Services.AddDbContext<ApplicationDbContext>(options =>
        options.UseSqlServer(defaultConnection,
            sqlOptions => sqlOptions.EnableRetryOnFailure(
-               maxRetryCount: 3, // Reduced for faster dev fallback
-               maxRetryDelay: TimeSpan.FromSeconds(5),
+               maxRetryCount: 5,
+               maxRetryDelay: TimeSpan.FromSeconds(30),
                errorNumbersToAdd: null)));
 }
 else
 {
-    // Fallback to InMemory
+    // Fallback to InMemory chỉ khi không có connection string
     builder.Services.AddDbContext<ApplicationDbContext>(options =>
         options.UseInMemoryDatabase("DevInMemoryDb"));
 }
@@ -73,11 +105,6 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
     ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
 });
 
-app.UseRouting();
-
-// 4. KÍCH HOẠT CORS (Vị trí cực kỳ quan trọng, phải đứng trước Authorization và các Middleware query DB)
-app.UseCors(myAllowSpecificOrigins);
-
 app.UseMiddleware<TaskManagement.API.Middlewares.PerformanceMiddleware>();
 app.UseMiddleware<TaskManagement.API.Middlewares.IpWhitelistMiddleware>();
 
@@ -91,7 +118,12 @@ app.Use(async (context, next) =>
     await next();
 });
 
+
+// 4. KÍCH HOẠT CORS (Vị trí cực kỳ quan trọng, phải đứng trước Authorization)
+app.UseCors(myAllowSpecificOrigins);
+
 app.UseAuthentication();
+app.UseRateLimiter();
 app.UseAuthorization();
 app.UseDefaultFiles(); // Phải gọi dòng này trước
 app.UseStaticFiles();
@@ -117,32 +149,39 @@ using (var scope = app.Services.CreateScope())
     var context = services.GetRequiredService<ApplicationDbContext>();
     try 
     {
-        // Attempt to apply existing migrations
-        await context.Database.MigrateAsync();
+        // QUAN TRỌNG: Không xóa DB mỗi lần khởi động
+        // await context.Database.EnsureDeletedAsync();
+        // await context.Database.EnsureCreatedAsync();
+        if (context.Database.IsRelational())
+        {
+            await context.Database.MigrateAsync();
+        }
         await TaskManagement.Infrastructure.Data.DataSeeder.SeedMockDataAsync(context);
     }
     catch (Exception ex)
     {
-        Console.WriteLine("======= DATABASE MIGRATION ERROR - ATTEMPTING FALLBACK =======");
-        Console.WriteLine("Message: " + ex.Message);
-        
-        try
-        {
-            // Fallback: If migrations fail (e.g. database exists but history table is missing)
-            // try EnsureCreated to at least get the tables ready for dev.
-            await context.Database.EnsureCreatedAsync();
-            await TaskManagement.Infrastructure.Data.DataSeeder.SeedMockDataAsync(context);
-            Console.WriteLine("Fallback successful: Database created/verified via EnsureCreated.");
-        }
-        catch (Exception fallbackEx)
-        {
-            Console.WriteLine("CRITICAL: Fallback failed as well.");
-            Console.WriteLine("Fallback Message: " + fallbackEx.Message);
-            if (fallbackEx.InnerException != null) Console.WriteLine("Inner: " + fallbackEx.InnerException.Message);
-        }
-        Console.WriteLine("==============================================================");
+        Console.WriteLine("Lỗi khi Migrate/Seed: " + ex.Message);
     }
 }
 
 app.MapFallbackToFile("index.html");
 app.Run();
+
+static bool CanConnectToSqlServer(string connectionString)
+{
+    try
+    {
+        var builder = new SqlConnectionStringBuilder(connectionString)
+        {
+            ConnectTimeout = 3
+        };
+
+        using var connection = new SqlConnection(builder.ConnectionString);
+        connection.Open();
+        return true;
+    }
+    catch
+    {
+        return false;
+    }
+}

@@ -4,13 +4,14 @@ import { useWorkTaskStore } from '@/store/useWorkTaskStore'
 import axiosClient from '@/api/axiosClient'
 
 const props = defineProps({
-  projectId: { type: String, required: true }
+  projectId: { type: String, required: true },
+  tasks: { type: Array, default: null }
 })
 
 const emit = defineEmits(['open-task'])
 
 const taskStore = useWorkTaskStore()
-const tasks = computed(() => taskStore.tasks)
+const tasks = computed(() => props.tasks || taskStore.tasks)
 const loading = computed(() => taskStore.loading)
 const viewMode = ref('Week') // Week, Month, Quarter
 const scrollContainer = ref(null)
@@ -251,12 +252,12 @@ onUnmounted(() => {
 
 watch(() => props.projectId, (newVal) => {
   if (newVal) {
-    fetchTasks()
+    if (!props.tasks) fetchTasks()
   }
 })
 
 onMounted(() => {
-  if (taskStore.tasks.length === 0) {
+  if (!props.tasks && taskStore.tasks.length === 0) {
     fetchTasks()
   }
   setTimeout(goToToday, 300)

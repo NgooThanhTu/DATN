@@ -19,22 +19,18 @@
         
         <div class="cm-toolbar-row">
            <!-- STATUS -->
-           <el-dropdown  trigger="click" @command="(cmd) => selectedTask.statusName = cmd">
-             <div class="t-btn"><i :class="getStatusIcon(selectedTask?.statusName)"></i> {{ selectedTask?.statusName || 'Todo' }}</div>
+           <el-dropdown trigger="click" @command="(cmd) => selectedTask.statusName = cmd">
+             <div class="t-btn"><i :class="getStatusIcon(selectedTask?.statusName)"></i> <span>State</span> {{ selectedTask?.statusName || 'Todo' }}</div>
              <template #dropdown>
                <el-dropdown-menu class="dark-dropdown">
-                 <el-dropdown-item command="Backlog"><i class="fa-solid fa-circle-dashed text-gray-500 mr-2"></i> Backlog</el-dropdown-item>
-                 <el-dropdown-item command="Todo"><i class="fa-regular fa-circle text-gray-400 mr-2"></i> Todo</el-dropdown-item>
-                 <el-dropdown-item command="In Progress"><i class="fa-solid fa-circle-half-stroke text-yellow-500 mr-2"></i> In Progress</el-dropdown-item>
-                 <el-dropdown-item command="In Review"><i class="fa-regular fa-circle-play text-blue-500 mr-2"></i> In Review</el-dropdown-item>
-                 <el-dropdown-item command="Done"><i class="fa-regular fa-circle-check text-green-500 mr-2"></i> Done</el-dropdown-item>
+                 <el-dropdown-item v-for="status in projectStatuses" :key="status.id" :command="status.name"><i :class="getStatusIcon(status.name)" class="mr-2"></i> {{ status.displayName || status.name }}</el-dropdown-item>
                </el-dropdown-menu>
              </template>
            </el-dropdown>
 
            <!-- PRIORITY -->
            <el-dropdown  trigger="click" @command="(cmd) => selectedTask.priority = cmd">
-             <div class="t-btn"><i :class="getPrioIcon(selectedTask?.priority)"></i> {{ getPrioLabel(selectedTask?.priority) }}</div>
+             <div class="t-btn"><i :class="getPrioIcon(selectedTask?.priority)"></i> <span>Priority</span> {{ getPrioLabel(selectedTask?.priority) }}</div>
              <template #dropdown>
                <el-dropdown-menu class="dark-dropdown">
                  <el-dropdown-item :command="1"><i class="fa-solid fa-angles-up mr-2" style="color: #ef4444"></i> Urgent</el-dropdown-item>
@@ -49,19 +45,36 @@
            <!-- ASSIGNEES -->
            <el-popover  placement="bottom-start" trigger="click" popper-class="plane-popover" :width="220" @show="assigneeSearch = ''">
              <template #reference>
-               <div class="t-btn"><i class="fa-regular fa-user"></i> {{ getAssigneeLabel(selectedTask?.assigneeId) }}</div>
+               <div class="t-btn"><i class="fa-regular fa-user"></i> <span>Assignees</span> {{ getAssigneeSummary() }}</div>
              </template>
              <div class="popover-content">
                <input type="text" v-model="assigneeSearch" class="popover-search" placeholder="Type to search..." />
-               <div class="popover-list">
-                 <div class="popover-item" v-for="user in filteredMembers" :key="user.id" @click="selectedTask.assigneeId = user.id">
-                   <div class="avatar-xxs bg-gray-600 rounded-full w-5 h-5 flex-center text-white text-xs mr-2">{{ user.name?.charAt(0).toUpperCase() }}</div>
-                   <span>{{ user.name }}</span>
-                 </div>
-                 <div v-if="!filteredMembers.length" class="text-xs text-center text-gray-500 py-2">No assignees found.</div>
-               </div>
-             </div>
-           </el-popover>
+                <div class="popover-list">
+                  <div class="popover-item" v-for="user in filteredMembers" :key="user.userId" @click="toggleAssignee(user.userId)">
+                    <div class="avatar-xxs bg-gray-600 rounded-full w-5 h-5 flex-center text-white text-xs mr-2">{{ (user.fullName || user.email || 'U').charAt(0).toUpperCase() }}</div>
+                    <span>{{ user.fullName || user.email }}</span>
+                    <i v-if="getAssigneeIds().includes(user.userId)" class="fa-solid fa-check ms-auto"></i>
+                  </div>
+                  <div v-if="!filteredMembers.length" class="text-xs text-center text-gray-500 py-2">No assignees found.</div>
+                </div>
+                <div class="assignee-progress-list" v-if="selectedAssigneeRows.length">
+                  <div class="assignee-progress-title">Progress by assignee</div>
+                  <div class="assignee-progress-row" v-for="assignee in selectedAssigneeRows" :key="assignee.userId">
+                    <span class="assignee-progress-name">{{ assignee.fullName || assignee.email || 'Member' }}</span>
+                    <input
+                      class="assignee-progress-input"
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      :value="assignee.progressPercent || 0"
+                      @change="event => updateAssigneeProgress(assignee.userId, event.target.value)"
+                    />
+                    <span class="assignee-progress-suffix">%</span>
+                  </div>
+                </div>
+              </div>
+            </el-popover>
 
            <!-- LABELS -->
            <el-popover  placement="bottom-start" trigger="click" popper-class="plane-popover" :width="220" @show="labelSearch = ''">
@@ -172,26 +185,19 @@
                <i class="fa-brands fa-markdown icon-btn"></i>
             </div>
             <div class="sph-right">
-                <button class="unsub-btn" :class="{ 'subscribed': props.selectedTask?.isSubscribed }" @click="toggleSubscription">
-                   <i :class="props.selectedTask?.isSubscribed ? 'fa-solid fa-bell' : 'fa-regular fa-bell-slash'"></i>
-                   {{ props.selectedTask?.isSubscribed ? 'Subscribed' : 'Subscribe' }}
-                </button>
-                <i class="fa-solid fa-link icon-btn"></i>
-                <i class="fa-solid fa-link icon-btn"></i>
-                <el-dropdown trigger="click" @command="handleHeaderCommand">
-                  <i class="fa-solid fa-ellipsis icon-btn"></i>
-                  <template #dropdown>
-                    <el-dropdown-menu class="dark-dropdown">
-                      <el-dropdown-item command="archive">
-                        <i class="fa-regular fa-box-archive"></i> Archive
-                      </el-dropdown-item>
-                      <el-dropdown-item command="archive_soon">
-                        <i class="fa-solid fa-hourglass-start"></i> Archive soon
-                      </el-dropdown-item>
-                    </el-dropdown-menu>
-                  </template>
-                </el-dropdown>
-             </div>
+               <button class="unsub-btn" @click="toggleSubscription"><i class="fa-regular fa-bell-slash"></i> {{ isSubscribed ? 'Unsubscribe' : 'Subscribe' }}</button>
+               <button class="icon-btn icon-action-btn" @click="copyTaskLink" title="Copy link"><i class="fa-solid fa-link"></i></button>
+               <el-dropdown trigger="click" @command="handleTaskMenuCommand">
+                 <button class="icon-btn icon-action-btn" title="More actions"><i class="fa-solid fa-ellipsis"></i></button>
+                 <template #dropdown>
+                   <el-dropdown-menu class="dark-dropdown">
+                     <el-dropdown-item command="copy"><i class="fa-solid fa-link mr-2"></i> Copy link</el-dropdown-item>
+                     <el-dropdown-item command="duplicate"><i class="fa-regular fa-clone mr-2"></i> Duplicate</el-dropdown-item>
+                     <el-dropdown-item command="archive"><i class="fa-solid fa-box-archive mr-2"></i> Archive soon</el-dropdown-item>
+                   </el-dropdown-menu>
+                 </template>
+               </el-dropdown>
+            </div>
          </div>
          
          <div class="sp-body">
@@ -201,7 +207,53 @@
             </div>
             
             <h1 class="sp-title" contenteditable @blur="(e) => updateTaskField(selectedTask, 'title', e.target.innerText)">{{ selectedTask?.title }}</h1>
-            <p class="sp-desc" contenteditable @blur="(e) => updateTaskField(selectedTask, 'description', e.target.innerText)">{{ selectedTask?.description || 'Click to add description' }}</p>
+            <div class="description-editor-shell">
+              <div v-if="showFormatToolbar" class="description-toolbar floating-toolbar" :style="{ left: toolbarPosition.x + 'px', top: toolbarPosition.y + 'px' }">
+                <select class="format-select" @change="applyBlockFormat($event.target.value)">
+                  <option value="div">Text</option>
+                  <option value="h1">Heading 1</option>
+                  <option value="h2">Heading 2</option>
+                  <option value="h3">Heading 3</option>
+                  <option value="blockquote">Quote</option>
+                </select>
+                <div class="color-menu">
+                  <button class="color-trigger">Color</button>
+                  <div class="color-palette">
+                    <button v-for="color in textColors" :key="'fg-' + color" :style="{ background: color }" @click="applyTextColor(color)"></button>
+                    <button v-for="color in backgroundColors" :key="'bg-' + color" :style="{ background: color }" @click="applyBackgroundColor(color)"></button>
+                  </div>
+                </div>
+                <i class="fa-solid fa-align-left icon-hover" @click="focusEditor('description'); execEditorCommand('justifyLeft')"></i>
+                <i class="fa-solid fa-align-center icon-hover" @click="focusEditor('description'); execEditorCommand('justifyCenter')"></i>
+                <i class="fa-solid fa-align-right icon-hover" @click="focusEditor('description'); execEditorCommand('justifyRight')"></i>
+                <div class="w-[1px] h-4 bg-gray-700 mx-1"></div>
+                <i class="fa-solid fa-bold icon-hover" @click="focusEditor('description'); execEditorCommand('bold')"></i>
+                <i class="fa-solid fa-italic icon-hover" @click="focusEditor('description'); execEditorCommand('italic')"></i>
+                <i class="fa-solid fa-underline icon-hover" @click="focusEditor('description'); execEditorCommand('underline')"></i>
+                <i class="fa-solid fa-strikethrough icon-hover" @click="focusEditor('description'); execEditorCommand('strikeThrough')"></i>
+                <i class="fa-solid fa-list-ul icon-hover" @click="focusEditor('description'); execEditorCommand('insertUnorderedList')"></i>
+                <i class="fa-solid fa-list-ol icon-hover" @click="focusEditor('description'); execEditorCommand('insertOrderedList')"></i>
+                <i class="fa-solid fa-file-code icon-hover" @click="focusEditor('description'); wrapSelectionWithBlock('pre')"></i>
+                <div class="w-[1px] h-4 bg-gray-700 mx-1"></div>
+                <i class="fa-regular fa-image icon-hover" @click="triggerDescriptionImageUpload"></i>
+                <i class="fa-solid fa-paperclip icon-hover" @click="triggerDescriptionFileUpload"></i>
+              </div>
+              <div
+                ref="descriptionEditor"
+                class="sp-desc rich-editor"
+                contenteditable
+                :data-placeholder="selectedTask?.description ? '' : 'Click to add description'"
+                @focus="activeEditor = 'description'"
+                @mouseup="showSelectionToolbar"
+                @keyup="showSelectionToolbar"
+                @contextmenu.prevent="showSelectionToolbar"
+                @paste="handleDescriptionPaste"
+                @input="handleDescriptionInput"
+                @blur="handleDescriptionBlur"
+              ></div>
+              <input ref="descriptionImageInput" type="file" accept=".png,.jpg,.jpeg,.webp,.gif,.svg,image/*" style="display:none" @change="handleDescriptionUpload($event, 'image')" />
+              <input ref="descriptionFileInput" type="file" style="display:none" @change="handleDescriptionUpload($event, 'file')" />
+            </div>
             
             <div class="sp-sub-actions">
                <i class="fa-regular fa-face-smile icon-btn" style="font-size: 16px;"></i>
@@ -212,22 +264,11 @@
 
             <!-- Action Chips -->
             <div class="sp-toolbar">
-               <el-popover placement="bottom-start" trigger="click" popper-class="plane-popover dark" :width="300">
-                 <template #reference>
-                   <button class="s-btn"><i class="fa-solid fa-layer-group"></i> Add sub-work item</button>
-                 </template>
-                 <div class="popover-content h-[200px] flex flex-col bg-[#1E2025]">
-                   <div class="p-2 border-b border-gray-700">
-                     <div class="relative flex items-center">
-                       <i class="fa-solid fa-magnifying-glass absolute left-2 text-gray-400"></i>
-                       <input type="text" class="w-full bg-transparent border-none text-white pl-8 focus:outline-none" placeholder="Search tasks..." />
-                     </div>
-                   </div>
-                   <div class="flex-1 flex-center justify-center py-4 text-gray-500 text-xs">
-                     Coming soon
-                   </div>
-                 </div>
-               </el-popover>
+               <button class="s-btn" @click="startCreateSubtask"><i class="fa-solid fa-layer-group"></i> Add sub-work item</button>
+               <button class="s-btn" :disabled="isAiBreakingDown" @click="createSubtasksWithAI">
+                 <i class="fa-solid fa-wand-magic-sparkles"></i>
+                 {{ isAiBreakingDown ? 'AI is creating...' : 'AI split into subtasks' }}
+               </button>
                
                <el-popover placement="bottom-start" trigger="click" popper-class="plane-popover dark" :width="300">
                  <template #reference>
@@ -246,57 +287,90 @@
                  </div>
                </el-popover>
                
-               <button class="s-btn"><i class="fa-solid fa-link"></i> Add link</button>
-               <button class="s-btn" @click="triggerFileUpload"><i class="fa-solid fa-paperclip"></i> Attach</button>
-               <input type="file" ref="commentFileInput" style="display: none" multiple @change="handleFileChange" />
+               <button class="s-btn" @click="triggerDescriptionFileUpload"><i class="fa-solid fa-paperclip"></i> Attach</button>
+            </div>
+            <div v-if="isCreatingSubtask" class="quick-subtask-box">
+              <input
+                ref="subtaskInputRef"
+                v-model="newSubtaskTitle"
+                type="text"
+                class="quick-subtask-input"
+                placeholder="Create a linked sub-work item"
+                @keyup.enter="submitSubtask"
+                @keyup.esc="isCreatingSubtask = false"
+              />
+              <div class="quick-subtask-actions">
+                <button class="quick-subtask-cancel" @click="isCreatingSubtask = false">Cancel</button>
+                <button class="quick-subtask-save" @click="submitSubtask">Create</button>
+              </div>
+            </div>
+            <div v-if="subtasksList.length" class="subtask-list">
+              <button
+                v-for="subtask in subtasksList"
+                :key="subtask.id"
+                class="subtask-item"
+                @click="openTaskDetail(subtask)"
+              >
+                <span class="subtask-seq">{{ subtask.sequenceId || subtask.id?.substring(0, 8) }}</span>
+                <span class="subtask-title">{{ subtask.title }}</span>
+              </button>
             </div>
 
             <h3 class="sp-section-title">Properties</h3>
             <div class="props-grid">
-               <div class="p-row">
-                 <div class="p-label"><i class="fa-regular fa-circle-dot"></i> State</div>
-                 <div class="p-val">
-                   <el-dropdown  trigger="click" @command="(val) => updateTaskField(selectedTask, 'statusName', val)">
-                     <div class="cursor-pointer hover:text-white transition-colors flex items-center gap-2"><i :class="getStatusIcon(selectedTask?.statusName)"></i> {{ selectedTask?.statusName || 'Todo' }}</div>
-                     <template #dropdown>
-                       <el-dropdown-menu class="dark-dropdown">
-                         <el-dropdown-item command="Backlog"><i class="fa-solid fa-circle-dashed text-gray-500 mr-2"></i> Backlog</el-dropdown-item>
-                         <el-dropdown-item command="Todo"><i class="fa-regular fa-circle text-gray-400 mr-2"></i> Todo</el-dropdown-item>
-                         <el-dropdown-item command="In Progress"><i class="fa-solid fa-circle-half-stroke text-yellow-500 mr-2"></i> In Progress</el-dropdown-item>
-                         <el-dropdown-item command="In Review"><i class="fa-regular fa-circle-play text-blue-500 mr-2"></i> In Review</el-dropdown-item>
-                         <el-dropdown-item command="Done"><i class="fa-regular fa-circle-check text-green-500 mr-2"></i> Done</el-dropdown-item>
-                       </el-dropdown-menu>
-                     </template>
-                   </el-dropdown>
-                 </div>
-               </div>
-               <div class="p-row">
-                 <div class="p-label"><i class="fa-regular fa-user"></i> Assignees</div>
-                 <div class="p-val">
-                   <el-popover  placement="bottom-start" trigger="click" popper-class="plane-popover" :width="220" @show="assigneeSearch = ''">
-                     <template #reference>
-                       <div class="cursor-pointer hover:text-white transition-colors" :class="{ 'muted-val': !selectedTask?.assigneeId }">
-                         {{ getAssigneeLabel(selectedTask?.assigneeId) }}
-                       </div>
-                     </template>
-                     <div class="popover-content">
-                       <input type="text" v-model="assigneeSearch" class="popover-search" placeholder="Search assignees..." />
-                       <div class="popover-list">
-                         <div class="popover-item" v-for="user in filteredMembers" :key="user.id" @click="updateTaskField(selectedTask, 'assigneeId', user.id)">
-                           <div class="avatar-xxs bg-gray-600 rounded-full w-5 h-5 flex-center text-white text-xs mr-2">{{ user.name?.charAt(0).toUpperCase() }}</div>
-                           <span>{{ user.name }}</span>
-                         </div>
-                         <div v-if="!filteredMembers.length" class="text-xs text-center text-gray-500 py-2">No assignees found.</div>
-                       </div>
-                     </div>
-                   </el-popover>
-                 </div>
-               </div>
+                <div class="p-row">
+                  <div class="p-label"><i class="fa-regular fa-circle-dot"></i> State</div>
+                  <div class="p-val">
+                    <el-popover placement="bottom-start" trigger="click" popper-class="plane-popover" :width="260" @show="statusSearch = ''">
+                      <template #reference>
+                        <button class="property-trigger">
+                          <i :class="getStatusIcon(selectedTask?.statusName)"></i>
+                          <span>State</span>
+                          <span class="property-value">{{ getStatusLabel(selectedTask?.statusName) }}</span>
+                        </button>
+                      </template>
+                      <div class="popover-content">
+                        <input v-model="statusSearch" type="text" class="popover-search" placeholder="Search states..." />
+                        <div class="popover-list">
+                          <div class="popover-item" v-for="status in filteredStatuses" :key="status.id" @click="selectStatus(status)">
+                            <i :class="getStatusIcon(status.name)" class="mr-2"></i>
+                            <span>{{ status.displayName || status.name }}</span>
+                            <i v-if="selectedTask?.statusName === status.name" class="fa-solid fa-check ms-auto"></i>
+                          </div>
+                        </div>
+                      </div>
+                    </el-popover>
+                  </div>
+                </div>
+                <div class="p-row">
+                  <div class="p-label"><i class="fa-regular fa-user"></i> Assignees</div>
+                  <div class="p-val">
+                    <el-popover placement="bottom-start" trigger="click" popper-class="plane-popover" :width="260" @show="assigneeSearch = ''">
+                      <template #reference>
+                        <button class="property-trigger" :class="{ 'muted-val': !getAssigneeIds().length }">
+                          <i class="fa-regular fa-user"></i>
+                          <span>Assignees</span>
+                          <span class="property-value">{{ getAssigneeSummary() }}</span>
+                        </button>
+                      </template>
+                      <div class="popover-content">
+                        <input v-model="assigneeSearch" type="text" class="popover-search" placeholder="Search members..." />
+                        <div class="popover-list">
+                          <div class="popover-item" v-for="member in filteredMembers" :key="member.userId" @click="toggleAssignee(member.userId)">
+                            <div class="avatar-xxs bg-gray-600 rounded-full w-5 h-5 flex-center text-white text-xs mr-2">{{ (member.fullName || member.email || 'U').charAt(0).toUpperCase() }}</div>
+                            <span>{{ member.fullName || member.email }}</span>
+                            <i v-if="getAssigneeIds().includes(member.userId)" class="fa-solid fa-check ms-auto"></i>
+                          </div>
+                        </div>
+                      </div>
+                    </el-popover>
+                  </div>
+                </div>
                <div class="p-row">
                  <div class="p-label"><i class="fa-solid fa-chart-simple"></i> Priority</div>
                  <div class="p-val">
-                   <el-dropdown  trigger="click" @command="(cmd) => updateTaskField(selectedTask, 'priority', cmd)">
-                     <div class="cursor-pointer hover:text-white transition-colors flex items-center gap-2" :class="{ 'muted-val': !selectedTask?.priority }"><i :class="getPrioIcon(selectedTask?.priority)"></i> {{ getPrioLabel(selectedTask?.priority) }}</div>
+                   <el-dropdown  trigger="click" @command="(cmd) => selectPriority(cmd)">
+                     <div class="property-trigger" :class="{ 'muted-val': !selectedTask?.priority }"><i :class="getPrioIcon(selectedTask?.priority)"></i><span>Priority</span><span class="property-value">{{ getPrioLabel(selectedTask?.priority) }}</span></div>
                      <template #dropdown>
                        <el-dropdown-menu class="dark-dropdown">
                          <el-dropdown-item :command="1"><i class="fa-solid fa-angles-up mr-2" style="color: #ef4444"></i> Urgent</el-dropdown-item>
@@ -312,38 +386,75 @@
                <div class="p-row">
                  <div class="p-label"><i class="fa-regular fa-circle-user"></i> Created by</div>
                  <div class="p-val flex items-center gap-2">
-                   <div class="avatar-xxs bg-green-700 rounded-full w-5 h-5 flex-center text-white text-[10px]">{{ (props.currentUser?.fullName || 'A')[0].toUpperCase() }}</div>
-                   <span class="text-[13px] font-medium">{{ props.currentUser?.fullName || 'Creator' }}</span>
+                    <div class="avatar-xxs bg-green-700 rounded-full w-5 h-5 flex-center text-white text-[10px]">{{ getCreatorName(selectedTask)[0]?.toUpperCase() || 'U' }}</div>
+                    <span class="text-[13px] font-medium">{{ getCreatorName(selectedTask) }}</span>
                  </div>
                </div>
                <div class="p-row">
                  <div class="p-label"><i class="fa-regular fa-calendar"></i> Start date</div>
-                 <div class="p-val border border-transparent hover:border-gray-700 rounded px-1 -ml-1 transition-colors">
-                   <el-date-picker v-model="selectedTask.plannedStartDate" type="date" placeholder="Add start date" class="t-btn-date border-none h-6 p-0! bg-transparent! outline-none" format="MMM DD YYYY" value-format="YYYY-MM-DD" style="width:130px;" @change="val => updateTaskField(selectedTask, 'plannedStartDate', val)" />
+                 <div class="p-val">
+                   <div style="position: relative; display: inline-flex;">
+                     <button class="property-trigger" :class="{ 'muted-val': !selectedTask?.plannedStartDate }" @click="openPicker('detail_start')">
+                       <i class="fa-regular fa-calendar"></i>
+                       <span>Start date</span>
+                       <span class="property-value">{{ selectedTask?.plannedStartDate || 'Add start date' }}</span>
+                     </button>
+                     <el-date-picker
+                       :ref="el => setPickerRef('detail_start', el)"
+                       v-model="selectedTask.plannedStartDate"
+                       type="date"
+                       format="YYYY-MM-DD"
+                       value-format="YYYY-MM-DD"
+                       style="position:absolute; bottom:0; left:0; width:0; height:0; opacity:0; padding:0; border:0; visibility:hidden;"
+                       @change="val => updateTaskField(selectedTask, 'plannedStartDate', val)"
+                     />
+                   </div>
                  </div>
                </div>
                <div class="p-row">
                  <div class="p-label"><i class="fa-regular fa-calendar-check"></i> Due date</div>
-                 <div class="p-val border border-transparent hover:border-gray-700 rounded px-1 -ml-1 transition-colors">
-                   <el-date-picker v-model="selectedTask.dueDate" type="date" placeholder="Add due date" class="t-btn-date border-none h-6 p-0! bg-transparent! outline-none" format="MMM DD YYYY" value-format="YYYY-MM-DD" style="width:130px;" @change="val => updateTaskField(selectedTask, 'dueDate', val)" />
+                 <div class="p-val">
+                   <div style="position: relative; display: inline-flex;">
+                     <button class="property-trigger" :class="{ 'muted-val': !selectedTask?.dueDate }" @click="openPicker('detail_due')">
+                       <i class="fa-regular fa-calendar-check"></i>
+                       <span>Due date</span>
+                       <span class="property-value">{{ selectedTask?.dueDate || 'Add due date' }}</span>
+                     </button>
+                     <el-date-picker
+                       :ref="el => setPickerRef('detail_due', el)"
+                       v-model="selectedTask.dueDate"
+                       type="date"
+                       format="YYYY-MM-DD"
+                       value-format="YYYY-MM-DD"
+                       style="position:absolute; bottom:0; left:0; width:0; height:0; opacity:0; padding:0; border:0; visibility:hidden;"
+                       @change="val => updateTaskField(selectedTask, 'dueDate', val)"
+                     />
+                   </div>
                  </div>
                </div>
                <div class="p-row">
                  <div class="p-label"><i class="fa-solid fa-cube"></i> Modules</div>
                  <div class="p-val">
-                   <el-popover  placement="bottom-start" trigger="click" popper-class="plane-popover" :width="280" @show="moduleSearch = ''">
+                   <el-popover placement="bottom-start" trigger="click" popper-class="plane-popover" :width="280" @show="moduleSearch = ''">
                      <template #reference>
-                       <div class="cursor-pointer hover:text-white transition-colors flex items-center gap-2" :class="{ 'muted-val': !selectedTask?.moduleId }">{{ getModuleLabel(selectedTask?.moduleId) }}</div>
+                       <button class="property-trigger" :class="{ 'muted-val': !selectedTask?.moduleId }">
+                         <i class="fa-solid fa-cube"></i>
+                         <span>Module</span>
+                         <span class="property-value">{{ getModuleLabel(selectedTask?.moduleId) }}</span>
+                       </button>
                      </template>
                      <div class="popover-content">
-                       <input type="text" v-model="moduleSearch" class="popover-search" placeholder="Search modules..." />
+                       <input v-model="moduleSearch" type="text" class="popover-search" placeholder="Search modules..." />
                        <div class="popover-list">
-                         <div class="popover-item" @click="updateTaskField(selectedTask, 'moduleId', null)">
-                           <i class="fa-solid fa-cube mr-2"></i> No module
+                         <div class="popover-item" @click="updateTaskField(selectedTask, 'moduleId', null); selectedTask.moduleId = null">
+                           <i class="fa-solid fa-cube mr-2"></i>
+                           <span>No module</span>
+                           <i v-if="!selectedTask?.moduleId" class="fa-solid fa-check ms-auto"></i>
                          </div>
-                         <div class="popover-item" v-for="m in filteredModules" :key="m.id" @click="updateTaskField(selectedTask, 'moduleId', m.id)">
+                         <div class="popover-item" v-for="module in filteredModules" :key="module.id" @click="updateTaskField(selectedTask, 'moduleId', module.id); selectedTask.moduleId = module.id">
                            <i class="fa-solid fa-box mr-2 text-orange-500"></i>
-                           <span class="truncate flex-1">{{ m.name }}</span>
+                           <span>{{ module.name }}</span>
+                           <i v-if="selectedTask?.moduleId === module.id" class="fa-solid fa-check ms-auto"></i>
                          </div>
                        </div>
                      </div>
@@ -351,93 +462,98 @@
                  </div>
                </div>
                <div class="p-row">
-                 <div class="p-label"><i class="fa-solid fa-circle-half-stroke"></i> Cycle</div>
-                 <div class="p-val">
-                   <el-popover  placement="bottom-start" trigger="click" popper-class="plane-popover" :width="280" @show="cycleSearch = ''">
-                     <template #reference>
-                       <div class="cursor-pointer hover:text-white transition-colors flex items-center gap-2" :class="{ 'muted-val': !selectedTask?.sprintId }">{{ getCycleLabel(selectedTask?.sprintId) }}</div>
-                     </template>
-                     <div class="popover-content">
-                       <input type="text" v-model="cycleSearch" class="popover-search" placeholder="Search cycle..." />
-                       <div class="popover-list">
-                         <div class="popover-item" @click="updateTaskField(selectedTask, 'sprintId', null)">
-                           <i class="fa-solid fa-circle-half-stroke mr-2 w-4 text-center"></i> No cycle
-                           <i v-if="!selectedTask?.sprintId" class="fa-solid fa-check ms-auto"></i>
-                         </div>
-                         <div class="popover-item" v-for="c in filteredCycles" :key="c.id" @click="updateTaskField(selectedTask, 'sprintId', c.id)">
-                           <i class="fa-solid fa-certificate mr-2 w-4 text-center text-blue-500"></i>
-                           <span class="truncate flex-1">{{ c.name }}</span>
-                           <i v-if="selectedTask?.sprintId === c.id" class="fa-solid fa-check ms-auto"></i>
-                         </div>
-                         <div v-if="!filteredCycles.length" class="text-xs text-center text-gray-500 py-2">No cycles setup.</div>
-                       </div>
-                     </div>
-                   </el-popover>
-                 </div>
-               </div>
-               <div class="p-row">
-                 <div class="p-label"><i class="fa-solid fa-arrow-turn-up fa-rotate-90"></i> Parent</div>
-                 <div class="p-val">
-                   <el-popover  placement="bottom-start" trigger="click" popper-class="plane-popover dark" :width="350" @show="parentSearch = ''">
-                     <template #reference>
-                       <div class="cursor-pointer hover:text-white transition-colors flex items-center gap-2" :class="{ 'muted-val': !selectedTask?.parentId }">{{ selectedTask?.parentId ? 'Parent picked' : 'Add parent work item' }}</div>
-                     </template>
-                     <div class="popover-content h-[250px] flex flex-col bg-[#1E2025]">
-                       <div class="p-2 border-b border-gray-700">
-                         <div class="relative flex items-center">
-                           <i class="fa-solid fa-magnifying-glass absolute left-2 text-gray-400"></i>
-                           <input type="text" v-model="parentSearch" class="w-full bg-transparent border-none text-white pl-8 focus:outline-none" placeholder="Search work items..." />
-                         </div>
-                       </div>
-                       <div class="flex-1 overflow-y-auto no-scrollbar p-2">
-                         <div class="popover-item text-xs text-gray-400 hover:text-white cursor-pointer p-2 rounded hover:bg-gray-700 flex items-center" @click="updateTaskField(selectedTask, 'parentId', null)">
-                           <i class="fa-solid fa-ban mr-2"></i> Remove parent
-                         </div>
-                         <div class="popover-item text-xs text-gray-300 hover:text-white cursor-pointer p-2 rounded hover:bg-gray-700 flex items-center" v-for="pt in filteredParents" :key="pt.id" @click="updateTaskField(selectedTask, 'parentId', pt.id)">
-                           <span class="text-gray-500 mr-3 w-16 truncate font-mono">{{ pt.sequenceId || pt.id.substring(0,8) }}</span>
-                           <span class="truncate flex-1">{{ pt.title }}</span>
-                           <i v-if="selectedTask?.parentId === pt.id" class="fa-solid fa-check ml-2 text-blue-500"></i>
-                         </div>
-                       </div>
-                     </div>
-                   </el-popover>
-                 </div>
-               </div>
-               <div class="p-row">
-                 <div class="p-label"><i class="fa-solid fa-tags"></i> Labels</div>
-                 <div class="p-val flex flex-wrap gap-2 items-center">
-                    <div v-for="lid in (selectedTask?.labelIds || [])" :key="lid" class="flex items-center gap-1.5 bg-[#16181D] border border-gray-700 rounded px-2 py-0.5 text-xs text-gray-300">
-                       <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: projectLabels.find(l=>l.id===lid)?.color || '#3b82f6' }"></span>
-                       {{ projectLabels.find(l=>l.id===lid)?.name || lid }}
-                       <i class="fa-solid fa-xmark ml-1 cursor-pointer hover:text-red-400" @click="toggleSelectedLabelDetail(lid)"></i>
-                    </div>
-                    <el-popover  placement="bottom-start" trigger="click" popper-class="plane-popover" :width="220" @show="labelSearch = ''">
+                  <div class="p-label"><i class="fa-solid fa-circle-half-stroke"></i> Cycle</div>
+                  <div class="p-val">
+                    <el-popover placement="bottom-start" trigger="click" popper-class="plane-popover" :width="280" @show="cycleSearch = ''">
                       <template #reference>
-                        <button class="btn-add-label"><i class="fa-solid fa-plus"></i> Add labels</button>
+                        <button class="property-trigger" :class="{ 'muted-val': !selectedTask?.sprintId }">
+                          <i class="fa-solid fa-circle-half-stroke"></i>
+                          <span>Cycle</span>
+                          <span class="property-value">{{ getCycleLabel(selectedTask?.sprintId) }}</span>
+                        </button>
                       </template>
                       <div class="popover-content">
-                        <input type="text" v-model="labelSearch" class="popover-search" placeholder="Search" />
+                        <input v-model="cycleSearch" type="text" class="popover-search" placeholder="Search cycles..." />
                         <div class="popover-list">
-                          <div class="popover-item" v-for="l in filteredLabels" :key="l.id" @click="toggleSelectedLabelDetail(l.id)">
-                            <div class="popover-c-circle mr-2 w-3 h-3 rounded-full" :style="{ backgroundColor: l.color || '#3b82f6' }"></div>
-                            <span>{{ l.name }}</span>
-                            <i v-if="selectedTask?.labelIds?.includes(l.id)" class="fa-solid fa-check ms-auto"></i>
+                          <div class="popover-item" @click="updateTaskField(selectedTask, 'sprintId', null); selectedTask.sprintId = null">
+                            <i class="fa-solid fa-circle-half-stroke mr-2"></i>
+                            <span>No cycle</span>
+                            <i v-if="!selectedTask?.sprintId" class="fa-solid fa-check ms-auto"></i>
                           </div>
-                          <div class="popover-item pointer hover-bg-dark-1" v-if="filteredLabels.length === 0 && labelSearch" @click="createLabelDetail(labelSearch)">
-                            <span>Add "{{ labelSearch }}"</span>
+                          <div class="popover-item" v-for="cycle in filteredCycles" :key="cycle.id" @click="updateTaskField(selectedTask, 'sprintId', cycle.id); selectedTask.sprintId = cycle.id">
+                            <i class="fa-solid fa-certificate mr-2 text-blue-500"></i>
+                            <span>{{ cycle.name }}</span>
+                            <i v-if="selectedTask?.sprintId === cycle.id" class="fa-solid fa-check ms-auto"></i>
                           </div>
                         </div>
                       </div>
                     </el-popover>
-                 </div>
+                  </div>
+               </div>
+               <div class="p-row">
+                  <div class="p-label"><i class="fa-solid fa-arrow-turn-up fa-rotate-90"></i> Parent</div>
+                  <div class="p-val">
+                    <el-popover placement="bottom-start" trigger="click" popper-class="plane-popover dark" :width="340" @show="parentSearch = ''">
+                      <template #reference>
+                        <button class="property-trigger" :class="{ 'muted-val': !selectedTask?.parentId }">
+                          <i class="fa-solid fa-arrow-turn-up fa-rotate-90"></i>
+                          <span>Parent</span>
+                          <span class="property-value">{{ getParentLabel(selectedTask?.parentId) }}</span>
+                        </button>
+                      </template>
+                      <div class="popover-content">
+                        <input v-model="parentSearch" type="text" class="popover-search" placeholder="Search parent task..." />
+                        <div class="popover-list">
+                          <div class="popover-item" @click="updateTaskField(selectedTask, 'parentId', null); selectedTask.parentId = null">
+                            <i class="fa-solid fa-ban mr-2"></i>
+                            <span>No parent</span>
+                            <i v-if="!selectedTask?.parentId" class="fa-solid fa-check ms-auto"></i>
+                          </div>
+                          <div class="popover-item" v-for="parent in filteredParents" :key="parent.id" @click="updateTaskField(selectedTask, 'parentId', parent.id); selectedTask.parentId = parent.id">
+                            <span class="text-gray-500 mr-2">{{ parent.sequenceId || parent.id?.substring(0, 8) }}</span>
+                            <span class="truncate flex-1">{{ parent.title }}</span>
+                            <i v-if="selectedTask?.parentId === parent.id" class="fa-solid fa-check ms-auto"></i>
+                          </div>
+                        </div>
+                      </div>
+                    </el-popover>
+                  </div>
+               </div>
+               <div class="p-row">
+                  <div class="p-label"><i class="fa-solid fa-tags"></i> Labels</div>
+                  <div class="p-val flex flex-wrap gap-2 items-center">
+                     <el-popover placement="bottom-start" trigger="click" popper-class="plane-popover" :width="280" @show="labelSearch = ''">
+                       <template #reference>
+                         <button class="property-trigger" :class="{ 'muted-val': !(selectedTask?.labelIds || []).length }">
+                           <i class="fa-solid fa-tags"></i>
+                           <span>Labels</span>
+                           <span class="property-value">{{ getLabelsSummary(selectedTask?.labelIds || []) }}</span>
+                         </button>
+                       </template>
+                       <div class="popover-content">
+                         <input v-model="labelSearch" type="text" class="popover-search" placeholder="Search labels..." />
+                         <div class="popover-list">
+                           <div class="popover-item" v-for="label in filteredLabels" :key="label.id" @click="toggleLabelDetail(label.id)">
+                             <span class="w-3 h-3 rounded-full mr-2" :style="{ backgroundColor: label.colorCode || label.color || '#3b82f6' }"></span>
+                             <span>{{ label.name }}</span>
+                             <i v-if="(selectedTask?.labelIds || []).includes(label.id)" class="fa-solid fa-check ms-auto"></i>
+                           </div>
+                           <div class="popover-item" v-if="filteredLabels.length === 0 && labelSearch" @click="createLabelDetail(labelSearch)">
+                             <i class="fa-solid fa-plus mr-2"></i>
+                             <span>Add "{{ labelSearch }}"</span>
+                           </div>
+                         </div>
+                       </div>
+                     </el-popover>
+                  </div>
                </div>
             </div>
 
             <div class="flex-between mb-6" style="margin-top: 56px;">
                <h3 class="sp-section-title mb-0">Activity</h3>
                <div class="flex-center gap-2">
-                  <button class="icon-filter-btn"><i class="fa-solid fa-arrow-down-short-wide"></i></button>
-                  <button class="icon-filter-btn"><i class="fa-solid fa-bars-staggered"></i></button>
+                  <button class="icon-filter-btn" @click="toggleActivitySort" :title="activitySortNewestFirst ? 'Newest first' : 'Oldest first'"><i class="fa-solid fa-arrow-down-short-wide"></i></button>
+                  <button class="icon-filter-btn" @click="showActivityFilterInfo"><i class="fa-solid fa-bars-staggered"></i></button>
                </div>
             </div>
 
@@ -498,7 +614,22 @@
                        </div>
                     </div>
                     <div v-else>
-                       <p class="mt-1 text-[14px] text-gray-300 whitespace-pre-wrap">{{ c.content }}</p>
+                       <div class="mt-1 text-[14px] text-gray-300 format-comment-content" v-html="formatCommentDisplay(c.content)"></div>
+                        <div v-if="c.attachments?.length" class="comment-attachments">
+                           <button
+                             v-for="attachment in c.attachments"
+                             :key="attachment.id"
+                             type="button"
+                             class="comment-attachment-chip"
+                             @click="handleAttachmentOpen(attachment)"
+                           >
+                             <img v-if="isImageAttachment(attachment)" :src="resolveFileUrl(attachment.fileUrl)" :alt="attachment.fileName" class="comment-image-thumb" />
+                             <i v-else class="fa-solid fa-paperclip"></i>
+                             <span>{{ attachment.fileName }}</span>
+                             <i v-if="isImageAttachment(attachment)" class="fa-regular fa-eye"></i>
+                             <i v-else class="fa-solid fa-download"></i>
+                           </button>
+                        </div>
                        
                        <!-- Reactions -->
                        <div class="flex flex-wrap gap-2 mt-2" v-if="c.reactions && Object.keys(c.reactions).length > 0">
@@ -513,17 +644,44 @@
 
             <div class="comment-box">
                <p class="text-[13px] font-semibold mb-2 text-gray-400">Add comment</p>
-               <div class="editor-wrap">
-                  <textarea class="c-input" rows="2" v-model="newComment" placeholder="Click to add comment..."></textarea>
+               <div class="editor-wrap !pt-2">
+                  <div v-if="pendingAttachments.length > 0" class="px-3 pb-2 flex flex-wrap gap-2">
+                     <div v-for="(file, idx) in pendingAttachments" :key="idx" class="flex items-center gap-1.5 bg-[#1E2025] border border-gray-700 rounded px-2 py-1 text-xs text-gray-300">
+                        <i class="fa-regular fa-file-lines text-gray-400"></i>
+                        <span class="max-w-[150px] truncate">{{ file.name }}</span>
+                        <i class="fa-solid fa-xmark ml-1 cursor-pointer hover:text-red-400" @click="pendingAttachments.splice(idx, 1)"></i>
+                     </div>
+                  </div>
+                  <div
+                    ref="commentEditor"
+                    class="c-input rich-editor comment-editor !pt-0"
+                    contenteditable
+                    data-placeholder="Click to add comment..."
+                    @focus="activeEditor = 'comment'"
+                    @input="handleCommentEditorInput"
+                  ></div>
+                  <input ref="commentImageInput" type="file" accept=".png,.jpg,.jpeg,.webp,.gif,.svg,image/*" style="display:none" multiple @change="handleCommentFileChange($event, true)" />
+                  <input ref="commentFileInput" type="file" style="display:none" multiple @change="handleCommentFileChange($event, false)" />
                   <div class="c-toolbar">
                      <div class="ct-left">
-                       <i class="fa-solid fa-bold icon-hover"></i> <i class="fa-solid fa-italic icon-hover"></i> <i class="fa-solid fa-underline icon-hover"></i> <i class="fa-solid fa-strikethrough icon-hover"></i>
+                       <i class="fa-solid fa-align-left icon-hover" @click="focusEditor('comment'); execEditorCommand('justifyLeft')"></i>
+                       <i class="fa-solid fa-align-center icon-hover" @click="focusEditor('comment'); execEditorCommand('justifyCenter')"></i>
+                       <i class="fa-solid fa-align-right icon-hover" @click="focusEditor('comment'); execEditorCommand('justifyRight')"></i>
                        <div class="w-[1px] h-4 bg-gray-700 mx-1"></div>
-                       <i class="fa-solid fa-list-ul icon-hover"></i> <i class="fa-solid fa-list-ol icon-hover"></i> <i class="fa-solid fa-check-double icon-hover"></i>
+                       <i class="fa-solid fa-bold icon-hover" @click="focusEditor('comment'); execEditorCommand('bold')"></i> 
+                       <i class="fa-solid fa-italic icon-hover" @click="focusEditor('comment'); execEditorCommand('italic')"></i> 
+                       <i class="fa-solid fa-underline icon-hover" @click="focusEditor('comment'); execEditorCommand('underline')"></i> 
+                       <i class="fa-solid fa-strikethrough icon-hover" @click="focusEditor('comment'); execEditorCommand('strikeThrough')"></i>
+                       <i class="fa-solid fa-code icon-hover ml-1" @click="focusEditor('comment'); wrapSelectionWithInlineCode()"></i>
+                       <i class="fa-solid fa-file-code icon-hover" @click="focusEditor('comment'); wrapSelectionWithBlock('pre')"></i>
                        <div class="w-[1px] h-4 bg-gray-700 mx-1"></div>
-                       <i class="fa-regular fa-image icon-hover" @click="triggerFileUpload"></i> <i class="fa-solid fa-paperclip icon-hover" @click="triggerFileUpload"></i>
+                       <i class="fa-solid fa-list-ul icon-hover" @click="focusEditor('comment'); execEditorCommand('insertUnorderedList')"></i> 
+                       <i class="fa-solid fa-list-ol icon-hover" @click="focusEditor('comment'); execEditorCommand('insertOrderedList')"></i> 
+                       <div class="w-[1px] h-4 bg-gray-700 mx-1"></div>
+                       <i class="fa-regular fa-image icon-hover" @click="triggerCommentImageUpload"></i> 
+                       <i class="fa-solid fa-paperclip icon-hover" @click="triggerCommentFileUpload"></i>
                      </div>
-                     <button class="c-submit" :class="{'bg-[#3b82f6] text-white cursor-pointer border-transparent': newComment.trim().length > 0}" :disabled="!newComment.trim() && pendingAttachments.length === 0" @click="submitComment">Comment</button>
+                     <button class="c-submit" :style="commentHasContent ? { background: 'oklch(0.6311 0.126281 238.01)', color: '#fff', cursor: 'pointer' } : {}" :disabled="!commentHasContent" @click="submitComment">Comment</button>
                   </div>
                </div>
             </div>
@@ -532,16 +690,26 @@
       
     </div>
   </transition>
+
+  <div v-if="previewImage" class="image-lightbox" @click.self="previewImage = null">
+    <div class="image-lightbox-panel">
+      <button class="lightbox-close" @click="previewImage = null"><i class="fa-solid fa-xmark"></i></button>
+      <img :src="previewImage.url" :alt="previewImage.fileName" />
+      <div class="lightbox-footer">
+        <span>{{ previewImage.fileName }}</span>
+        <a :href="previewImage.url" :download="previewImage.fileName" class="download-btn">
+          <i class="fa-solid fa-download"></i> Download
+        </a>
+      </div>
+    </div>
+  </div>
 </template>
 
 
 <script setup>
-import { ref, watch, computed } from 'vue';
-import { ElMessage, ElNotification, ElMessageBox } from 'element-plus';
+import { ref, watch, computed, nextTick } from 'vue';
+import { ElMessage, ElNotification } from 'element-plus';
 import axiosClient from '@/api/axiosClient';
-import { useActivityStore } from '@/store/useActivityStore';
-
-const actStore = useActivityStore();
 
 const props = defineProps({
   selectedTask: { type: Object, default: null },
@@ -553,6 +721,8 @@ const props = defineProps({
 const emit = defineEmits(['updateTask', 'close', 'open-task', 'create-subtask', 'refresh-tasks']);
 
 const showTaskModal = ref(true);
+const isSubscribed = ref(true);
+const activitySortNewestFirst = ref(true);
 
 const discardNewTask = () => {
     if (props.selectedTask) {
@@ -577,15 +747,17 @@ const labelSearch = ref('');
 const cycleSearch = ref('');
 const moduleSearch = ref('');
 const parentSearch = ref('');
+const statusSearch = ref('');
 
 const projectCycles = ref([]);
 const projectModules = ref([]);
+const projectMemberOptions = ref([]);
+const projectStatuses = ref([]);
 
 const filteredMembers = computed(() => {
-    if (!assigneeSearch.value) return props.projectMembers;
-    return props.projectMembers.filter(m => 
-        (m.fullName || m.userName || '').toLowerCase().includes(assigneeSearch.value.toLowerCase())
-    );
+    const members = projectMemberOptions.value;
+    if (!assigneeSearch.value) return members;
+    return members.filter(m => (m.fullName || m.name || m.email || '').toLowerCase().includes(assigneeSearch.value.toLowerCase()));
 });
 
 const filteredLabels = computed(() => {
@@ -609,6 +781,11 @@ const filteredParents = computed(() => {
     return tasks.filter(t => t.title?.toLowerCase().includes(parentSearch.value.toLowerCase()) || t.sequenceId?.toLowerCase().includes(parentSearch.value.toLowerCase()));
 });
 
+const filteredStatuses = computed(() => {
+    if (!statusSearch.value) return projectStatuses.value;
+    return projectStatuses.value.filter(status => status.displayName?.toLowerCase().includes(statusSearch.value.toLowerCase()));
+});
+
 const getPrioLabel = (p) => {
     if (p===1) return 'Urgent';
     if (p===2) return 'High';
@@ -627,6 +804,7 @@ const getPrioIcon = (p) => {
 
 const getStatusIcon = (s) => {
     const st = (s||'').toUpperCase();
+    if(st.includes('CANCEL')) return 'fa-regular fa-circle-xmark text-red-500';
     if(st.includes('DONE')) return 'fa-regular fa-circle-check text-green-500';
     if(st.includes('PROGRESS')) return 'fa-solid fa-circle-half-stroke text-yellow-500';
     if(st.includes('REVIEW')) return 'fa-regular fa-circle-play text-blue-500';
@@ -634,10 +812,56 @@ const getStatusIcon = (s) => {
     return 'fa-solid fa-circle-dashed text-gray-500';
 };
 
+const getStatusLabel = (statusName) => statusName || 'State';
+const normalizeStatusName = (statusName) => {
+    const upper = (statusName || '').toUpperCase().replace(/\s+/g, '');
+    if (upper.includes('CANCEL')) return 'CANCELLED';
+    if (upper.includes('DONE') || upper.includes('COMPLETE')) return 'DONE';
+    if (upper.includes('PROGRESS') || upper.includes('ACTIVE')) return 'IN PROGRESS';
+    if (upper.includes('TODO')) return 'TO DO';
+    return 'BACKLOG';
+};
+
 const getAssigneeLabel = (id) => {
    if (!id) return 'Assignees';
-   const user = props.projectMembers.find(m => m.id === id);
-   return user ? user.name : 'Assignees';
+   const user = projectMemberOptions.value.find(m => m.userId === id);
+   return user ? (user.fullName || user.name || user.email || 'Assignees') : 'Assignees';
+};
+
+const getAssigneeIds = (task = props.selectedTask) => {
+   if (!task) return [];
+   if (Array.isArray(task.assigneeIds) && task.assigneeIds.length) return task.assigneeIds;
+   if (Array.isArray(task.assignees) && task.assignees.length) return task.assignees.map(item => item.userId);
+   if (task.assignedUserId) return [task.assignedUserId];
+   if (task.assigneeId) return [task.assigneeId];
+   return [];
+};
+
+const selectedAssigneeMembers = computed(() => {
+   const selectedIds = getAssigneeIds();
+   return projectMemberOptions.value.filter(member => selectedIds.includes(member.userId));
+});
+
+const selectedAssigneeRows = computed(() => {
+   const selectedIds = getAssigneeIds();
+   return selectedIds.map(id => {
+      const existing = props.selectedTask?.assignees?.find(item => item.userId === id) || {};
+      const member = projectMemberOptions.value.find(item => item.userId === id) || {};
+      return {
+         userId: id,
+         fullName: existing.fullName || member.fullName || member.name,
+         email: existing.email || member.email,
+         progressPercent: existing.progressPercent ?? 0,
+         contributionWeight: existing.contributionWeight ?? 1
+      };
+   });
+});
+
+const getAssigneeSummary = () => {
+   const members = selectedAssigneeMembers.value;
+   if (!members.length) return 'Assignees';
+   if (members.length === 1) return members[0].fullName || members[0].name || members[0].email;
+   return `${members.length} assignees`;
 };
 
 const getCycleLabel = (id) => {
@@ -650,6 +874,20 @@ const getModuleLabel = (id) => {
    if (!id) return 'Modules';
    const m = projectModules.value.find(m => m.id === id);
    return m ? m.name : 'Modules';
+};
+
+const getParentLabel = (id) => {
+   if (!id) return 'Add parent work item';
+   const parent = cachedProjectTasks.value.find(task => task.id === id);
+   return parent ? `${parent.sequenceId || parent.id?.substring(0, 8)} ${parent.title}` : 'Parent selected';
+};
+
+const getLabelsSummary = (labelIds) => {
+   if (!labelIds?.length) return 'Labels';
+   if (labelIds.length === 1) {
+      return projectLabels.value.find(label => label.id === labelIds[0])?.name || '1 label';
+   }
+   return `${labelIds.length} labels`;
 };
 
 const toggleSelectedLabel = (lId) => {
@@ -691,13 +929,188 @@ const createLabelDetail = async (name) => {
         const newL = res.data?.data || res.data;
         if(newL) {
             projectLabels.value.push(newL);
-            toggleSelectedLabelDetail(newL.id);
+            if (props.selectedTask?.id && !props.selectedTask?.isNew) {
+                await toggleLabelDetail(newL.id);
+            } else {
+                toggleSelectedLabelDetail(newL.id);
+            }
             labelSearch.value = '';
         }
     } catch(e) {}
 };
 
-// ====================== COMMENTS EXTENSION REFS ======================
+// ====================== RICH EDITOR REFS ======================
+const pickerRefs = ref({});
+const commentEditor = ref(null);
+const descriptionEditor = ref(null);
+const commentImageInput = ref(null);
+const commentFileInput = ref(null);
+const descriptionImageInput = ref(null);
+const descriptionFileInput = ref(null);
+const activeEditor = ref('comment');
+const previewImage = ref(null);
+const apiRoot = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5136/api').replace(/\/api\/?$/, '');
+const showFormatToolbar = ref(false);
+const toolbarPosition = ref({ x: 260, y: 120 });
+const textColors = ['#F8FAFC', '#EF4444', '#F97316', '#22C55E', '#06B6D4', '#3B82F6', '#8B5CF6', '#F472B6'];
+const backgroundColors = ['#27272A', '#7F1D1D', '#78350F', '#064E3B', '#164E63', '#1E3A8A', '#4C1D95', '#831843'];
+
+const setPickerRef = (key, el) => {
+  if (el) pickerRefs.value[key] = el;
+};
+
+const openPicker = (key) => {
+  const picker = pickerRefs.value[key];
+  if (picker?.handleOpen) picker.handleOpen();
+  else if (picker?.focus) picker.focus();
+};
+
+const focusEditor = (editorName) => {
+  activeEditor.value = editorName;
+  const target = editorName === 'description' ? descriptionEditor.value : commentEditor.value;
+  target?.focus();
+};
+
+const getActiveEditorElement = () => activeEditor.value === 'description' ? descriptionEditor.value : commentEditor.value;
+
+const execEditorCommand = (command, value = null) => {
+  const editor = getActiveEditorElement();
+  if (!editor) return;
+  editor.focus();
+  document.execCommand(command, false, value);
+  syncEditorModel(activeEditor.value);
+};
+
+const showSelectionToolbar = () => {
+  activeEditor.value = 'description';
+  const selection = window.getSelection();
+  if (!selection || !selection.rangeCount || selection.toString().trim().length === 0) {
+    return;
+  }
+
+  const range = selection.getRangeAt(0);
+  const rect = range.getBoundingClientRect();
+  toolbarPosition.value = {
+    x: Math.max(12, rect.left + window.scrollX),
+    y: Math.max(12, rect.top + window.scrollY - 54)
+  };
+  showFormatToolbar.value = true;
+};
+
+const applyBlockFormat = (tagName) => {
+  execEditorCommand('formatBlock', tagName);
+};
+
+const applyTextColor = (color) => {
+  execEditorCommand('foreColor', color);
+};
+
+const applyBackgroundColor = (color) => {
+  execEditorCommand('hiliteColor', color);
+};
+
+const insertNodeAtSelection = (node) => {
+  const editor = getActiveEditorElement();
+  const selection = window.getSelection();
+  if (!editor || !selection || !selection.rangeCount) return;
+  const range = selection.getRangeAt(0);
+  range.deleteContents();
+  range.insertNode(node);
+  range.setStartAfter(node);
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  syncEditorModel(activeEditor.value);
+};
+
+const wrapSelectionWithInlineCode = () => {
+  const code = document.createElement('code');
+  code.className = 'comment-inline-code';
+  code.textContent = window.getSelection()?.toString() || 'code';
+  insertNodeAtSelection(code);
+};
+
+const wrapSelectionWithBlock = (tagName) => {
+  const block = document.createElement(tagName);
+  if (tagName === 'pre') {
+    const code = document.createElement('code');
+    code.textContent = window.getSelection()?.toString() || 'const example = true;';
+    block.className = 'comment-code-block';
+    block.appendChild(code);
+  } else {
+    block.textContent = window.getSelection()?.toString() || '';
+  }
+  insertNodeAtSelection(block);
+};
+
+const syncEditorModel = (editorName) => {
+  if (editorName === 'description') {
+    if (props.selectedTask) {
+      props.selectedTask.description = descriptionEditor.value?.innerHTML || '';
+    }
+    return;
+  }
+
+  newComment.value = commentEditor.value?.innerHTML || '';
+};
+
+const formatCommentDisplay = (text) => {
+  if(!text) return '';
+  if (/<[a-z][\s\S]*>/i.test(text)) {
+    return `<div class="comment-rendered">${text}</div>`;
+  }
+  let res = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  res = res.replace(/```([\s\S]*?)```/g, '<pre class="comment-code-block"><code>$1</code></pre>');
+  res = res.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  res = res.replace(/\*(.*?)\*/g, '<em>$1</em>');
+  res = res.replace(/~~(.*?)~~/g, '<s>$1</s>');
+  res = res.replace(/&lt;u&gt;(.*?)&lt;\/u&gt;/g, '<u>$1</u>');
+  res = res.replace(/`([^`]+)`/g, '<code class="comment-inline-code">$1</code>');
+  res = res.replace(/&lt;div style="text-align:(left|center|right)"&gt;([\s\S]*?)&lt;\/div&gt;/g, '<div style="text-align:$1">$2</div>');
+
+  const lines = res.split('\n');
+  let html = '';
+  let listType = null;
+
+  const closeList = () => {
+    if (listType) {
+      html += `</${listType}>`;
+      listType = null;
+    }
+  };
+
+  lines.forEach((line) => {
+    const unordered = line.match(/^\s*-\s+(.*)$/);
+    const ordered = line.match(/^\s*\d+\.\s+(.*)$/);
+
+    if (unordered) {
+      if (listType !== 'ul') {
+        closeList();
+        html += '<ul class="comment-list">';
+        listType = 'ul';
+      }
+      html += `<li>${unordered[1]}</li>`;
+      return;
+    }
+
+    if (ordered) {
+      if (listType !== 'ol') {
+        closeList();
+        html += '<ol class="comment-list ordered">';
+        listType = 'ol';
+      }
+      html += `<li>${ordered[1]}</li>`;
+      return;
+    }
+
+    closeList();
+    html += line ? `<p>${line}</p>` : '<br />';
+  });
+
+  closeList();
+  return `<div class="comment-rendered">${html}</div>`;
+};
+
 const editingCommentId = ref(null);
 const editingContent = ref('');
 const emojiSearch = ref('');
@@ -739,6 +1152,60 @@ const copyCommentLink = (cId) => {
     navigator.clipboard.writeText(url);
     ElMessage.success("Đã copy link bình luận");
 };
+const copyTaskLink = async () => {
+    const url = `${window.location.origin}/space/${props.projectId}?task=${props.selectedTask.id}`;
+    await navigator.clipboard.writeText(url);
+    ElMessage.success("Đã copy link công việc");
+};
+
+const toggleSubscription = () => {
+    isSubscribed.value = !isSubscribed.value;
+    ElMessage.success(isSubscribed.value ? "Đã theo dõi công việc" : "Đã hủy theo dõi công việc");
+};
+
+const handleTaskMenuCommand = (command) => {
+    if (command === 'copy') {
+      copyTaskLink();
+      return;
+    }
+    if (command === 'duplicate') duplicateTask();
+    if (command === 'archive') {
+      ElMessage.info('Archive đang được chuẩn bị.');
+    }
+};
+
+const toggleActivitySort = () => {
+    activitySortNewestFirst.value = !activitySortNewestFirst.value;
+    comments.value = [...comments.value].reverse();
+    ElMessage.success(activitySortNewestFirst.value ? 'Activity mới nhất trước' : 'Activity cũ nhất trước');
+};
+
+const duplicateTask = async () => {
+    try {
+      await axiosClient.post(`/projects/${props.projectId}/WorkTasks`, {
+        title: `${props.selectedTask.title || 'Work item'} copy`,
+        description: props.selectedTask.description,
+        statusName: props.selectedTask.statusName || 'TO DO',
+        priority: props.selectedTask.priority ?? 0,
+        assignedUserId: getAssigneeIds()[0] || null,
+        assigneeIds: getAssigneeIds(),
+        plannedStartDate: props.selectedTask.plannedStartDate,
+        dueDate: props.selectedTask.dueDate,
+        sprintId: props.selectedTask.sprintId,
+        moduleId: props.selectedTask.moduleId,
+        parentTaskId: props.selectedTask.parentId || props.selectedTask.parentTaskId || null,
+        labelIds: props.selectedTask.labelIds || []
+      });
+      emit('refresh-tasks');
+      ElMessage.success('Đã duplicate công việc');
+    } catch (error) {
+      ElMessage.error(error.response?.data?.message || 'Không duplicate được công việc');
+    }
+};
+
+const showActivityFilterInfo = () => {
+    ElMessage.info('Activity đang hiển thị bình luận và cập nhật hiện có.');
+};
 const addReaction = (c, emoji) => {
     if(!c.reactions) c.reactions = {};
     if(!c.reactions[emoji]) c.reactions[emoji] = 0;
@@ -748,17 +1215,63 @@ const addReaction = (c, emoji) => {
 const fetchAdditionalProjectData = async () => {
     if (!props.projectId) return;
     try {
-        const [cyclesRes, modulesRes, labelsRes, tasksRes] = await Promise.all([
+        const [cyclesRes, modulesRes, labelsRes, tasksRes, membersRes, statusesRes] = await Promise.all([
              axiosClient.get(`/projects/${props.projectId}/sprints`).catch(()=>({data:{data:[]}})),
              axiosClient.get(`/projects/${props.projectId}/modules`).catch(()=>({data:{data:[]}})),
              axiosClient.get(`/projects/${props.projectId}/labels`).catch(()=>({data:{data:[]}})),
-             axiosClient.get(`/projects/${props.projectId}/WorkTasks`).catch(()=>({data:{data:[]}}))
+             axiosClient.get(`/projects/${props.projectId}/WorkTasks`).catch(()=>({data:{data:[]}})),
+             axiosClient.get(`/projects/${props.projectId}/members`).catch(()=>({data:{data:[]}})),
+             axiosClient.get(`/projects/${props.projectId}/task-statuses`).catch(()=>({data:{data:[]}}))
         ]);
         projectCycles.value = cyclesRes.data?.data || [];
         projectModules.value = modulesRes.data?.data || [];
         projectLabels.value = labelsRes.data?.data || [];
         cachedProjectTasks.value = tasksRes.data?.data || [];
+        projectMemberOptions.value = (membersRes.data?.data || []).map(member => ({
+            ...member,
+            userId: member.userId || member.id,
+            fullName: member.fullName || member.name || member.email
+        }));
+        const desiredOrder = ['BACKLOG', 'TO DO', 'IN PROGRESS', 'DONE', 'CANCELLED'];
+        const statusMap = new Map();
+        for (const status of (statusesRes.data?.data || [])) {
+            const normalized = normalizeStatusName(status.name);
+            if (!statusMap.has(normalized)) {
+                statusMap.set(normalized, {
+                    ...status,
+                    name: normalized,
+                    displayName: normalized
+                });
+            }
+        }
+        desiredOrder.forEach((name, index) => {
+            if (!statusMap.has(name)) {
+                statusMap.set(name, { id: `fallback-${index}`, name, displayName: name });
+            }
+        });
+        projectStatuses.value = desiredOrder.map(name => statusMap.get(name)).filter(Boolean);
     } catch(e) {}
+};
+
+const toggleLabelDetail = async (labelId) => {
+    if (!props.selectedTask?.id || props.selectedTask.isNew) {
+        toggleSelectedLabelDetail(labelId);
+        return;
+    }
+
+    const labelIds = props.selectedTask.labelIds || [];
+    const exists = labelIds.includes(labelId);
+    try {
+        if (exists) {
+            await axiosClient.delete(`/projects/${props.projectId}/tasks/${props.selectedTask.id}/labels/${labelId}`);
+            props.selectedTask.labelIds = labelIds.filter(id => id !== labelId);
+        } else {
+            await axiosClient.post(`/projects/${props.projectId}/tasks/${props.selectedTask.id}/labels`, { labelId });
+            props.selectedTask.labelIds = [...labelIds, labelId];
+        }
+    } catch (error) {
+        ElMessage.error(error.response?.data?.message || 'Khong the cap nhat label');
+    }
 };
 // ======================================================================
 
@@ -772,74 +1285,172 @@ const formatDate = (dateStr) => {
   return d.toLocaleDateString('vi-VN');
 };
 
-const handleHeaderCommand = (command) => {
-    if (command === 'archive') {
-        archiveTask();
-    } else if (command === 'archive_soon') {
-        archiveSoonTask();
-    }
+const resolveFileUrl = (url) => {
+  if (!url) return '';
+  if (/^https?:\/\//i.test(url)) return url;
+  return `${apiRoot}${url.startsWith('/') ? url : `/${url}`}`;
 };
 
-const toggleSubscription = async () => {
-    if (!props.selectedTask?.id) return;
-    try {
-        const res = await axiosClient.post(`/tasks/${props.selectedTask.id}/subscribe`);
-        
-        // Backend trả về: { statusCode: 200, data: { isSubscribed: true/false } }
-        const newState = (res.data?.data && typeof res.data.data.isSubscribed !== 'undefined')
-            ? res.data.data.isSubscribed
-            : !props.selectedTask.isSubscribed;
-
-        const msg = newState ? 'Đã đăng ký theo dõi' : 'Đã hủy đăng ký theo dõi';
-        ElMessage.success(msg);
-        
-        // Emit để cha cập nhật task, không mutate trực tiếp props
-        emit('updateTask', { ...props.selectedTask, isSubscribed: newState });
-        
-        actStore.logActivity(msg, `Task: ${props.selectedTask.title}`, 'fa-solid fa-bell');
-    } catch (e) {
-        console.error('Subscription error:', e.response?.data || e.message);
-        const errorMsg = e.response?.data?.message || 'Lỗi khi thay đổi trạng thái theo dõi';
-        ElMessage.error(errorMsg);
-    }
+const isImageAttachment = (attachment) => {
+  const type = attachment?.contentType || '';
+  const name = attachment?.fileName || '';
+  return /^image\//i.test(type) || /\.(png|jpe?g|webp|gif|svg)$/i.test(name);
 };
 
-const archiveSoonTask = async () => {
-    try {
-        await ElMessageBox.confirm('Tính năng Archive soon sẽ tự động lưu trữ công việc này sau 24 giờ nếu không có hoạt động mới. Bạn có muốn kích hoạt?', 'Xác nhận Archive Soon', {
-            confirmButtonText: 'Kích hoạt',
-            cancelButtonText: 'Hủy',
-            type: 'info'
-        });
-        ElMessage.info('Archive soon đang được chuẩn bị - Đã ghi nhận yêu cầu của bạn.');
-        actStore.logActivity('Requested Archive Soon', `Task: ${props.selectedTask.title}`, 'fa-solid fa-hourglass-start');
-    } catch(e) {}
+const handleAttachmentOpen = (attachment) => {
+  const url = resolveFileUrl(attachment.fileUrl);
+  if (isImageAttachment(attachment)) {
+    previewImage.value = { ...attachment, url };
+    return;
+  }
+
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = attachment.fileName || '';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
 };
 
-const archiveTask = async () => {
-    try {
-        await ElMessageBox.confirm('Bạn có chắc muốn lưu trữ công việc này? Nó sẽ bị ẩn khỏi danh sách hiện tại.', 'Xác nhận', {
-            confirmButtonText: 'Lưu trữ',
-            cancelButtonText: 'Hủy',
-            type: 'warning'
-        });
-        await axiosClient.put(`/projects/${props.projectId}/WorkTasks/${props.selectedTask.id}/archive`);
-        ElMessage.success('Đã lưu trữ công việc thành công');
-        actStore.logActivity('Archived work item', `Task: ${props.selectedTask.title}`, 'fa-regular fa-box-archive');
-        emit('refresh-tasks');
-        showTaskModal.value = false;
-    } catch (e) {
-        if (e !== 'cancel') ElMessage.error('Lỗi khi lưu trữ công việc');
-    }
+const getCreatorName = (task) => {
+  if (!task) return 'Creator';
+  return task.reporterName || task.createdByName || task.creatorName || task.createdBy?.fullName || task.reporter?.fullName || 'Creator';
 };
 
 const updateTaskField = (task, field, value) => {
   emit('updateTask', task, field, value);
 };
 
+const applySelectedAssignees = async (assigneeIds) => {
+  if (!props.selectedTask) return;
+  const existingAssignees = Array.isArray(props.selectedTask.assignees) ? props.selectedTask.assignees : [];
+  props.selectedTask.assigneeIds = assigneeIds;
+  props.selectedTask.assignedUserId = assigneeIds[0] || null;
+  props.selectedTask.assigneeId = assigneeIds[0] || null;
+  props.selectedTask.assignees = projectMemberOptions.value
+    .filter(member => assigneeIds.includes(member.userId))
+    .map(member => {
+      const existing = existingAssignees.find(item => item.userId === member.userId) || {};
+      return {
+        userId: member.userId,
+        fullName: member.fullName || member.name || member.email,
+        email: member.email,
+        progressPercent: existing.progressPercent ?? 0,
+        contributionWeight: existing.contributionWeight ?? 1
+      };
+    });
+
+  if (!props.selectedTask.isNew) {
+    updateTaskField(props.selectedTask, 'assigneeIds', assigneeIds);
+  }
+};
+
+const toggleAssignee = async (memberId) => {
+  const currentIds = getAssigneeIds();
+  const nextIds = currentIds.includes(memberId)
+    ? currentIds.filter(id => id !== memberId)
+    : [...currentIds, memberId];
+  await applySelectedAssignees(nextIds);
+};
+
+const updateAssigneeProgress = (memberId, rawValue) => {
+  if (!props.selectedTask) return;
+  const progressPercent = Math.min(100, Math.max(0, Number(rawValue) || 0));
+  props.selectedTask.assignees = (props.selectedTask.assignees || []).map(assignee =>
+    assignee.userId === memberId ? { ...assignee, progressPercent } : assignee
+  );
+
+  if (!props.selectedTask.isNew) {
+    updateTaskField(props.selectedTask, 'assigneeProgress', [{
+      userId: memberId,
+      progressPercent
+    }]);
+  }
+};
+
+const selectStatus = (status) => {
+  if (!props.selectedTask) return;
+  props.selectedTask.statusName = status.name;
+  if (!props.selectedTask.isNew) {
+    updateTaskField(props.selectedTask, 'statusName', status.name);
+  }
+};
+
+const selectPriority = (priority) => {
+  if (!props.selectedTask) return;
+  props.selectedTask.priority = priority;
+  if (!props.selectedTask.isNew) {
+    updateTaskField(props.selectedTask, 'priority', priority);
+  }
+};
+
 const handleDescriptionBlur = () => {
   if (!props.selectedTask?.isNew) {
+    props.selectedTask.description = descriptionEditor.value?.innerHTML || props.selectedTask.description || '';
     updateTaskField(props.selectedTask, 'description', props.selectedTask.description);
+  }
+};
+
+const handleDescriptionInput = () => {
+  syncEditorModel('description');
+};
+
+const handleCommentEditorInput = () => {
+  syncEditorModel('comment');
+};
+
+const insertHtmlAtCursor = (html, editorName) => {
+  focusEditor(editorName);
+  document.execCommand('insertHTML', false, html);
+  syncEditorModel(editorName);
+};
+
+const uploadAsset = async (file, folder = 'tasks') => {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('folder', folder);
+  const response = await axiosClient.post('/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  });
+  return response.data?.data;
+};
+
+const handleDescriptionUpload = async (event, kind) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    const uploaded = await uploadAsset(file, 'tasks');
+    if (!uploaded?.fileUrl) return;
+    if (kind === 'image') {
+      insertHtmlAtCursor(`<img src="${resolveFileUrl(uploaded.fileUrl)}" alt="${uploaded.fileName}" class="embedded-image" />`, 'description');
+    } else {
+      ElMessage.info('File se khong chen vao description. Hay dung khu vuc Attachments cua task.');
+    }
+    handleDescriptionBlur();
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || 'Khong the tai tep len mo ta');
+  } finally {
+    event.target.value = '';
+  }
+};
+
+const uploadImageIntoDescription = async (file) => {
+  const uploaded = await uploadAsset(file, 'tasks');
+  if (!uploaded?.fileUrl) return;
+  insertHtmlAtCursor(`<img src="${resolveFileUrl(uploaded.fileUrl)}" alt="${uploaded.fileName}" class="embedded-image" />`, 'description');
+  handleDescriptionBlur();
+};
+
+const handleDescriptionPaste = async (event) => {
+  const files = Array.from(event.clipboardData?.files || []);
+  const image = files.find(file => /^image\//.test(file.type));
+  if (!image) return;
+
+  event.preventDefault();
+  try {
+    await uploadImageIntoDescription(image);
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || 'Khong the paste anh vao description');
   }
 };
 
@@ -857,7 +1468,8 @@ const submitNewTask = async () => {
             description: props.selectedTask.description,
             statusName: props.selectedTask.statusName || 'Todo',
             priority: props.selectedTask.priority !== undefined ? props.selectedTask.priority : 0,
-            assignedUserId: props.selectedTask.assigneeId,
+            assignedUserId: getAssigneeIds()[0] || null,
+            assigneeIds: getAssigneeIds(),
             plannedStartDate: props.selectedTask.plannedStartDate,
             dueDate: props.selectedTask.dueDate,
             sprintId: props.selectedTask.sprintId,
@@ -882,7 +1494,6 @@ const submitNewTask = async () => {
 const subtasksList = ref([]);
 const isCreatingSubtask = ref(false);
 const newSubtaskTitle = ref('');
-import { nextTick } from 'vue';
 const subtaskInputRef = ref(null);
 
 async function fetchSubtasks() {
@@ -906,7 +1517,7 @@ const submitSubtask = async () => {
         return;
     }
     try {
-        await axiosClient.post(`/projects/${props.projectId}/WorkTasks/${props.selectedTask.id}/subtasks`, {
+        const response = await axiosClient.post(`/projects/${props.projectId}/WorkTasks/${props.selectedTask.id}/subtasks`, {
             title: newSubtaskTitle.value.trim(),
             statusName: 'To Do',
             taskTypeId: props.selectedTask.taskTypeId,
@@ -914,7 +1525,12 @@ const submitSubtask = async () => {
         });
         isCreatingSubtask.value = false;
         newSubtaskTitle.value = '';
-        fetchSubtasks();
+        const createdSubtask = response.data?.data;
+        if (createdSubtask) {
+            subtasksList.value = [createdSubtask, ...subtasksList.value];
+        } else {
+            fetchSubtasks();
+        }
         emit('refresh-tasks');
     } catch(e) {
         ElMessage.error(e.response?.data?.message || 'Lỗi khi tạo subtask');
@@ -924,6 +1540,7 @@ const submitSubtask = async () => {
 // === AI Brain Logic ===
 const aiPrompt = ref('');
 const isBrainTyping = ref(false);
+const isAiBreakingDown = ref(false);
 
 const askBrain = async () => {
     if (!aiPrompt.value.trim() || !props.selectedTask) return;
@@ -942,12 +1559,41 @@ const askBrain = async () => {
     }
 };
 
+const createSubtasksWithAI = async () => {
+    if (!props.selectedTask?.id || !props.projectId || isAiBreakingDown.value) return;
+    isAiBreakingDown.value = true;
+    try {
+        const res = await axiosClient.post('/ai/breakdown-task', {
+            projectId: props.projectId,
+            parentTaskId: props.selectedTask.id,
+            title: props.selectedTask.title,
+            description: props.selectedTask.description || '',
+            createSubtasks: true
+        });
+
+        const created = res.data?.data || [];
+        if (created.length) {
+            subtasksList.value = [...created, ...subtasksList.value];
+        } else {
+            await fetchSubtasks();
+        }
+
+        emit('refresh-tasks');
+        ElMessage.success(`AI da tao ${created.length || 'cac'} sub-work items.`);
+    } catch (e) {
+        ElMessage.error(e.response?.data?.message || 'AI khong tao duoc sub-work items. Kiem tra Gemini API key/quota.');
+    } finally {
+        isAiBreakingDown.value = false;
+    }
+};
+
 // Comments logic
 const comments = ref([]);
 const replyingToCommentId = ref(null);
 const newComment = ref('');
 const pendingAttachments = ref([]);
-const commentFileInput = ref(null);
+const stripHtml = (value) => (value || '').replace(/<[^>]+>/g, ' ');
+const commentHasContent = computed(() => stripHtml(newComment.value).replace(/\s+/g, '').length > 0 || pendingAttachments.value.length > 0);
 
 async function fetchComments() {
   if (!props.selectedTask || !props.selectedTask.id) return;
@@ -1080,21 +1726,28 @@ const topLevelComments = computed(() => {
   return roots;
 });
 
-const handleFileChange = (e) => {
-    if (e.target.files) {
-        pendingAttachments.value = [...pendingAttachments.value, ...Array.from(e.target.files)];
-    }
+const handleCommentFileChange = (event, imagesOnly = false) => {
+    const files = Array.from(event.target.files || []);
+    if (!files.length) return;
+    const acceptedFiles = imagesOnly
+        ? files.filter(file => /^image\//.test(file.type) || /\.(png|jpe?g|webp|gif|svg)$/i.test(file.name))
+        : files;
+    pendingAttachments.value = [...pendingAttachments.value, ...acceptedFiles];
+    event.target.value = '';
 };
 
-const triggerFileUpload = () => { if (commentFileInput.value) commentFileInput.value.click(); };
+const triggerCommentImageUpload = () => { if (commentImageInput.value) commentImageInput.value.click(); };
+const triggerCommentFileUpload = () => { if (commentFileInput.value) commentFileInput.value.click(); };
+const triggerDescriptionImageUpload = () => { if (descriptionImageInput.value) descriptionImageInput.value.click(); };
+const triggerDescriptionFileUpload = () => { if (descriptionFileInput.value) descriptionFileInput.value.click(); };
 const startReply = (c) => { replyingToCommentId.value = c.id; newComment.value = ''; pendingAttachments.value = []; };
 const cancelReply = () => { replyingToCommentId.value = null; newComment.value = ''; pendingAttachments.value = []; };
 
 const submitComment = async () => {
-    if (!newComment.value.trim() && pendingAttachments.value.length === 0) return;
+    if (!commentHasContent.value) return;
     try {
         const formData = new FormData();
-        formData.append('content', newComment.value.trim() || '');
+        formData.append('content', newComment.value || '');
         if (replyingToCommentId.value) {
             formData.append('parentCommentId', replyingToCommentId.value);
         }
@@ -1107,9 +1760,11 @@ const submitComment = async () => {
         });
         
         newComment.value = '';
+        if (commentEditor.value) commentEditor.value.innerHTML = '';
         pendingAttachments.value = [];
         replyingToCommentId.value = null;
         if (commentFileInput.value) commentFileInput.value.value = '';
+        if (commentImageInput.value) commentImageInput.value.value = '';
         fetchComments();
     } catch(e) {
         ElMessage.error(e.response?.data?.message || "Lỗi khi gửi bình luận");
@@ -1118,6 +1773,9 @@ const submitComment = async () => {
 
 watch(() => props.selectedTask, (newTask) => {
   if (newTask) {
+    newTask.assigneeIds = getAssigneeIds(newTask);
+    newTask.assigneeId = newTask.assigneeIds[0] || null;
+    newTask.assignedUserId = newTask.assigneeIds[0] || null;
     // Only fetch data for EXISTING tasks (have an id)
     // New tasks (isNew: true) have no id, so API calls would crash
     fetchAdditionalProjectData();
@@ -1138,6 +1796,14 @@ watch(() => props.selectedTask, (newTask) => {
     newComment.value = '';
     pendingAttachments.value = [];
     showTaskModal.value = true;
+    nextTick(() => {
+      if (descriptionEditor.value) {
+        descriptionEditor.value.innerHTML = newTask.description || '';
+      }
+      if (commentEditor.value) {
+        commentEditor.value.innerHTML = '';
+      }
+    });
   }
 }, { immediate: true });
 </script>
@@ -1357,6 +2023,18 @@ watch(() => props.selectedTask, (newTask) => {
   cursor: pointer;
 }
 .unsub-btn:hover { background: #27272A; }
+.icon-action-btn {
+  border: none;
+  background: transparent;
+  color: #A1A1AA;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+.icon-action-btn:hover {
+  background: #27272A;
+  color: #E4E4E7;
+}
 
 .sp-body {
   flex: 1;
@@ -1387,6 +2065,80 @@ watch(() => props.selectedTask, (newTask) => {
   color: #A1A1AA;
   margin: 0 0 40px 0;
   outline: none;
+}
+
+.description-editor-shell {
+  margin-bottom: 28px;
+  border: 1px solid #27272A;
+  border-radius: 10px;
+  background: #111111;
+}
+
+.description-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #27272A;
+  flex-wrap: wrap;
+}
+
+.floating-toolbar {
+  position: fixed;
+  z-index: 2600;
+  background: #111317;
+  border: 1px solid #27272A;
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(0,0,0,.35);
+  padding: 8px;
+}
+.format-select, .color-trigger {
+  background: #16181D;
+  border: 1px solid #3F3F46;
+  color: #E4E4E7;
+  border-radius: 6px;
+  padding: 5px 8px;
+}
+.color-menu { position: relative; }
+.color-palette {
+  display: none;
+  position: absolute;
+  top: 34px;
+  left: 0;
+  width: 184px;
+  grid-template-columns: repeat(8, 18px);
+  gap: 6px;
+  padding: 10px;
+  background: #111317;
+  border: 1px solid #27272A;
+  border-radius: 8px;
+}
+.color-menu:hover .color-palette { display: grid; }
+.color-palette button {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid #3F3F46;
+  cursor: pointer;
+}
+
+.rich-editor {
+  min-height: 120px;
+}
+
+.rich-editor:empty::before {
+  content: attr(data-placeholder);
+  color: #52525B;
+}
+
+.comment-editor {
+  min-height: 90px;
+}
+
+.embedded-image {
+  max-width: 100%;
+  border-radius: 8px;
+  margin: 8px 0;
 }
 
 .sp-sub-actions {
@@ -1425,6 +2177,87 @@ watch(() => props.selectedTask, (newTask) => {
 }
 .sp-toolbar .s-btn:hover { background: #1E1F21; border-color: #3F3F46; }
 
+.quick-subtask-box {
+  border: 1px solid #27272A;
+  border-radius: 8px;
+  background: #111111;
+  padding: 12px;
+  margin: -20px 0 28px;
+}
+
+.quick-subtask-input {
+  width: 100%;
+  background: transparent;
+  border: 1px solid #27272A;
+  border-radius: 6px;
+  color: #E4E4E7;
+  padding: 10px 12px;
+  outline: none;
+}
+
+.quick-subtask-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.quick-subtask-cancel,
+.quick-subtask-save {
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.quick-subtask-cancel {
+  border: 1px solid #3F3F46;
+  background: transparent;
+  color: #D4D4D8;
+}
+
+.quick-subtask-save {
+  border: none;
+  background: #0EA5E9;
+  color: #fff;
+}
+
+.subtask-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: -10px 0 28px;
+}
+
+.subtask-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid #27272A;
+  border-radius: 8px;
+  background: #111111;
+  color: #E4E4E7;
+  cursor: pointer;
+  text-align: left;
+}
+
+.subtask-item:hover {
+  border-color: #3F3F46;
+  background: #17181C;
+}
+
+.subtask-seq {
+  color: #71717A;
+  font-size: 12px;
+  min-width: 70px;
+}
+
+.subtask-title {
+  font-size: 13px;
+  color: #D4D4D8;
+}
+
 .sp-section-title {
   font-size: 16px;
   font-weight: 600;
@@ -1452,6 +2285,28 @@ watch(() => props.selectedTask, (newTask) => {
 .p-val {
   color: #E4E4E7;
   flex: 1;
+}
+
+.property-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #D4D4D8;
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.property-trigger:hover {
+  border-color: #27272A;
+  background: #1A1B1F;
+}
+
+.property-value {
+  color: #F4F4F5;
+  font-weight: 500;
 }
 .muted-val {
   color: #71717A;
@@ -1573,6 +2428,127 @@ watch(() => props.selectedTask, (newTask) => {
   cursor: not-allowed;
 }
 
+.comment-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.comment-attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #1E2025;
+  border: 1px solid #27272A;
+  color: #D4D4D8;
+  font-size: 12px;
+  cursor: pointer;
+  max-width: 260px;
+}
+.comment-attachment-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.comment-image-thumb {
+  width: 28px;
+  height: 28px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid #3F3F46;
+}
+.image-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  background: rgba(0, 0, 0, .76);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+}
+.image-lightbox-panel {
+  position: relative;
+  max-width: min(960px, 96vw);
+  max-height: 92vh;
+  background: #0D0F11;
+  border: 1px solid #27272A;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.image-lightbox-panel img {
+  display: block;
+  max-width: 100%;
+  max-height: calc(92vh - 54px);
+  object-fit: contain;
+  background: #050607;
+}
+.lightbox-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #3F3F46;
+  background: #16181D;
+  color: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.lightbox-footer {
+  height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 14px;
+  color: #D4D4D8;
+}
+.download-btn {
+  color: #fff;
+  background: #2563EB;
+  border-radius: 6px;
+  padding: 7px 10px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.comment-rendered :deep(p) {
+  margin: 0 0 8px;
+}
+
+.comment-inline-code {
+  background: #27272A;
+  color: #F472B6;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.comment-code-block {
+  background: #0F1115;
+  border: 1px solid #27272A;
+  border-radius: 8px;
+  padding: 12px;
+  overflow-x: auto;
+  font-family: Consolas, monospace;
+  margin: 8px 0;
+}
+
+.comment-list {
+  margin: 8px 0 8px 20px;
+  list-style: disc;
+}
+
+.comment-list.ordered {
+  list-style: decimal;
+}
+
 .dark-dropdown { background: #1E2025 !important; border: 1px solid #333 !important; }
 .dark-dropdown .el-dropdown-menu__item { color: #E4E4E7 !important; }
 .dark-dropdown .el-dropdown-menu__item:hover { background: #27272A !important; }
@@ -1633,6 +2609,51 @@ watch(() => props.selectedTask, (newTask) => {
   color: #FFFFFF;
 }
 
+.assignee-progress-list {
+  border-top: 1px solid #27272A;
+  padding: 8px 10px 10px;
+}
+
+.assignee-progress-title {
+  color: #71717A;
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.assignee-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.assignee-progress-name {
+  color: #D4D4D8;
+  flex: 1;
+  font-size: 12px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assignee-progress-input {
+  background: #0D0F11;
+  border: 1px solid #27272A;
+  border-radius: 4px;
+  color: #E4E4E7;
+  font-size: 12px;
+  padding: 4px 6px;
+  width: 58px;
+}
+
+.assignee-progress-suffix {
+  color: #71717A;
+  font-size: 12px;
+}
+
 .t-btn-date:deep(.el-input__wrapper) {
   background-color: transparent !important;
   box-shadow: none !important;
@@ -1644,5 +2665,20 @@ watch(() => props.selectedTask, (newTask) => {
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
+}
+
+.property-date-picker {
+  width: 190px;
+}
+
+.property-date-picker:deep(.el-input__wrapper) {
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 6px 10px !important;
+}
+
+.property-date-picker:deep(.el-input__wrapper:hover) {
+  border-color: #27272A;
+  background: #1A1B1F !important;
 }
 </style>

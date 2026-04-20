@@ -132,6 +132,13 @@ const isLoading = ref(false)
 const requires2FA = ref(false)
 const otpCode = ref('')
 
+const getSafeRedirect = () => {
+  const redirect = router.currentRoute.value.query.redirect
+  return typeof redirect === 'string' && redirect.startsWith('/') && !redirect.startsWith('//')
+    ? redirect
+    : '/dashboard'
+}
+
 const handleLogin = async () => {
   if (!form.email || !form.password) {
     ElMessage.warning('Vui lòng nhập đầy đủ email và mật khẩu')
@@ -160,8 +167,7 @@ const handleLogin = async () => {
     ElMessage.success('Đăng nhập thành công!')
     
     // Check if there's a redirect query param
-    const redirect = router.currentRoute.value.query.redirect
-    router.push(redirect || '/dashboard')
+    router.push(getSafeRedirect())
   } catch (error) {
     console.error('Login error:', error)
     let errorMsg = error.response?.data?.message || 'Email hoặc mật khẩu không chính xác'
@@ -192,8 +198,7 @@ const handleLogin2FA = async () => {
     
     ElMessage.success('Đăng nhập thành công!')
     
-    const redirect = router.currentRoute.value.query.redirect
-    router.push(redirect || '/dashboard')
+    router.push(getSafeRedirect())
   } catch (error) {
     ElMessage.error(error.response?.data?.message || 'OTP không hợp lệ')
   } finally {
@@ -222,8 +227,7 @@ const handleGoogleLogin = async (response) => {
     
     ElMessage.success('Đăng nhập bằng Google thành công!')
     
-    const redirect = router.currentRoute.value.query.redirect
-    router.push(redirect || '/dashboard')
+    router.push(getSafeRedirect())
   } catch (error) {
     console.error('Google login error:', error)
     const errorMsg = error.response?.data?.message || 'Không thể đăng nhập bằng Google'
@@ -251,7 +255,7 @@ const handleDevLogin = async () => {
     localStorage.setItem('user', JSON.stringify({ id, fullName, email, systemRoles }))
     
     ElMessage.success('Dev Login thành công!')
-    router.push('/dashboard')
+    router.push(getSafeRedirect())
   } catch (error) {
     console.error('Dev login error:', error)
     ElMessage.error(error.response?.data?.message || 'Dev login thất bại')

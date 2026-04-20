@@ -1,30 +1,89 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
 const props = defineProps({
   filters: {
     type: Array,
-    default: () => [
-      { id: 1, label: 'Assignees', condition: 'is', value: '--', icon: 'fa-solid fa-user-group' },
-      { id: 2, label: '@Mentions', condition: 'is', value: '--', icon: 'fa-solid fa-at' },
-      { id: 3, label: 'Start date', condition: 'is', value: '--', icon: 'fa-regular fa-calendar-plus' },
-      { id: 4, label: 'Start date', condition: 'is', value: '--', icon: 'fa-regular fa-calendar-plus' }
-    ]
+    default: () => []
   }
 })
 
-const emit = defineEmits(['remove', 'clear', 'add'])
+const emit = defineEmits(['remove', 'clear', 'add', 'add-filter', 'apply', 'update:filters'])
+
+const showBuilder = ref(false)
+const draft = ref({ field: 'status', operator: 'is', value: '' })
+
+const filterFields = [
+  { key: 'status', label: 'Status', icon: 'fa-regular fa-circle-dot', values: ['BACKLOG', 'TO DO', 'IN PROGRESS', 'IN REVIEW', 'DONE'] },
+  { key: 'assignee', label: 'Assignee', icon: 'fa-regular fa-user', values: ['Unassigned'] },
+  { key: 'creator', label: 'Creator', icon: 'fa-regular fa-user', values: ['Me'] },
+  { key: 'priority', label: 'Priority', icon: 'fa-solid fa-signal', values: ['Urgent', 'High', 'Normal', 'Low', 'None'] },
+  { key: 'label', label: 'Label', icon: 'fa-solid fa-tag', values: ['No label'] },
+  { key: 'startDate', label: 'Start date', icon: 'fa-regular fa-calendar-plus', values: ['Today', 'This week', 'Empty'] },
+  { key: 'dueDate', label: 'Due date', icon: 'fa-regular fa-calendar', values: ['Today', 'This week', 'Overdue', 'Empty'] },
+  { key: 'cycle', label: 'Cycle', icon: 'fa-solid fa-arrows-spin', values: ['No cycle'] },
+  { key: 'module', label: 'Module', icon: 'fa-solid fa-table-cells-large', values: ['No module'] },
+  { key: 'createdAt', label: 'Created at', icon: 'fa-regular fa-calendar', values: ['Today', 'This week'] },
+  { key: 'updatedAt', label: 'Updated at', icon: 'fa-regular fa-calendar', values: ['Today', 'This week'] }
+]
+
+const operatorsByField = {
+  status: ['is', 'is not', 'in', 'not in'],
+  assignee: ['is', 'is not', 'empty', 'not empty'],
+  creator: ['is', 'is not'],
+  priority: ['is', 'is not', 'in'],
+  label: ['includes', 'not includes', 'empty'],
+  startDate: ['before', 'after', 'between', 'empty'],
+  dueDate: ['before', 'after', 'between', 'empty', 'overdue'],
+  cycle: ['is', 'is not', 'empty'],
+  module: ['is', 'is not', 'empty'],
+  createdAt: ['before', 'after', 'between'],
+  updatedAt: ['before', 'after', 'between']
+}
+
+const selectedField = computed(() => filterFields.find(field => field.key === draft.value.field) || filterFields[0])
+const availableOperators = computed(() => operatorsByField[draft.value.field] || ['is'])
+const valueRequired = computed(() => !['empty', 'not empty', 'overdue'].includes(draft.value.operator))
 
 const removeFilter = (id) => {
+  const next = props.filters.filter(filter => filter.id !== id)
+  emit('update:filters', next)
   emit('remove', id)
+  emit('apply', next)
 }
 
 const clearAll = () => {
+  emit('update:filters', [])
   emit('clear')
+  emit('apply', [])
 }
 
 const addFilter = () => {
   emit('add')
+  showBuilder.value = !showBuilder.value
+}
+
+const applyFilter = () => {
+  if (valueRequired.value && !draft.value.value) return
+
+  const filter = {
+    id: `${draft.value.field}-${Date.now()}`,
+    field: draft.value.field,
+    operator: draft.value.operator,
+    value: valueRequired.value ? draft.value.value : '',
+    label: selectedField.value.label,
+    condition: draft.value.operator,
+    displayValue: valueRequired.value ? draft.value.value : draft.value.operator,
+    icon: selectedField.value.icon
+  }
+
+  const next = [...props.filters, filter]
+  emit('update:filters', next)
+  emit('add', filter)
+  emit('add-filter', filter)
+  emit('apply', next)
+  showBuilder.value = false
+  draft.value = { field: 'status', operator: 'is', value: '' }
 }
 </script>
 
@@ -40,21 +99,51 @@ const addFilter = () => {
           {{ filter.condition }}
         </div>
         <div class="chip-segment value-sec">
-          {{ filter.value }}
+          {{ filter.displayValue || filter.value || '--' }}
         </div>
-        <div class="chip-segment remove-sec" @click="removeFilter(filter.id)">
+        <button class="chip-segment remove-sec" type="button" @click="removeFilter(filter.id)" aria-label="Remove filter">
           <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <span v-if="filters.length === 0" class="empty-filter-copy">No filters applied</span>
+      
+      <div class="add-filter-wrapper">
+        <button class="add-filter-icon-btn" type="button" @click="addFilter" :class="{ active: showBuilder }" :aria-expanded="showBuilder">
+          <i class="fa-solid fa-filter-circle-plus"></i>
+        </button>
+
+        <div class="filter-builder" v-if="showBuilder" @click.stop>
+          <label>
+            <span>Field</span>
+            <select v-model="draft.field" @change="draft.operator = availableOperators[0]; draft.value = ''">
+              <option v-for="field in filterFields" :key="field.key" :value="field.key">{{ field.label }}</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Operator</span>
+            <select v-model="draft.operator" @change="draft.value = ''">
+              <option v-for="operator in availableOperators" :key="operator" :value="operator">{{ operator }}</option>
+            </select>
+          </label>
+
+          <label v-if="valueRequired">
+            <span>Value</span>
+            <select v-model="draft.value">
+              <option value="" disabled>Select value</option>
+              <option v-for="value in selectedField.values" :key="value" :value="value">{{ value }}</option>
+            </select>
+          </label>
+
+          <button class="apply-filter-btn" type="button" @click="applyFilter" :disabled="valueRequired && !draft.value">Apply filter</button>
         </div>
       </div>
-      
-      <button class="add-filter-icon-btn" @click="addFilter">
-        <i class="fa-solid fa-filter-circle-plus"></i>
-      </button>
     </div>
 
     <div class="filter-bar-actions" v-if="filters.length > 0">
         <div class="v-divider"></div>
-        <button class="clear-all-btn" @click="clearAll">Clear all</button>
+        <button class="clear-all-btn" type="button" @click="clearAll">Clear all</button>
     </div>
   </div>
 </template>
@@ -78,6 +167,11 @@ const addFilter = () => {
   align-items: center;
   gap: 10px;
   flex: 1;
+}
+
+.empty-filter-copy {
+  color: #71717A;
+  font-size: 13px;
 }
 
 .filter-chip {
@@ -123,9 +217,13 @@ const addFilter = () => {
 
 .remove-sec {
   border-right: none;
+  border-top: 0;
+  border-bottom: 0;
+  border-left: 0;
   cursor: pointer;
   color: #71717A;
   padding: 0 8px;
+  background: transparent;
 }
 
 .remove-sec:hover {
@@ -150,6 +248,64 @@ const addFilter = () => {
 .add-filter-icon-btn:hover {
   border-color: #3F3F46;
   color: #fff;
+}
+
+.add-filter-icon-btn.active {
+  border-color: #38BDF8;
+  color: #fff;
+}
+
+.add-filter-wrapper {
+  position: relative;
+}
+
+.filter-builder {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 20;
+  width: 260px;
+  background: #1B1C20;
+  border: 1px solid #2D2F36;
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+}
+
+.filter-builder label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #A1A1AA;
+  font-size: 12px;
+}
+
+.filter-builder select {
+  background: #111315;
+  border: 1px solid #2D2F36;
+  border-radius: 6px;
+  color: #E4E4E7;
+  padding: 8px;
+  outline: none;
+}
+
+.apply-filter-btn {
+  background: #0EA5E9;
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 10px;
+}
+
+.apply-filter-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .filter-bar-actions {

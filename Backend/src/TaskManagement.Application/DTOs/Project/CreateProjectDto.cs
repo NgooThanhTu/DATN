@@ -8,6 +8,8 @@ namespace TaskManagement.Application.DTOs.Project
         [StringLength(300, ErrorMessage = "Tên dự án không quá 300 ký tự.")]
         public string Name { get; set; } = string.Empty;
 
+        public string? Key { get; set; }
+
         public string? Description { get; set; }
 
         [Required(ErrorMessage = "Ngày bắt đầu là bắt buộc.")]
@@ -18,5 +20,13 @@ namespace TaskManagement.Application.DTOs.Project
         public Guid? DepartmentId { get; set; }
 
         public Guid? ProjectTemplateId { get; set; }
+
+        public string? NetworkType { get; set; }
+
+        public string? Cover { get; set; }
+
+        public string? Icon { get; set; }
+
+        public Guid? LeadUserId { get; set; }
     }
 }

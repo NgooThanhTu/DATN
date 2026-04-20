@@ -41,8 +41,10 @@ router.beforeEach((to, from, next) => {
       const hasPermission = to.meta.requiredRoles.some(role => userRoles.includes(role))
 
       if (!hasPermission) {
-        // Tạm thời tắt chặn để vào trang admin tự do
-        // return next({ path: '/dashboard' })
+        return next({
+          path: '/dashboard',
+          query: { denied: to.fullPath }
+        })
       }
     } catch (e) {
       return next({ path: '/dashboard' })

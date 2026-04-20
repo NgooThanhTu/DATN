@@ -17,7 +17,9 @@ namespace TaskManagement.Infrastructure.Services
 
         public async Task<List<SprintResponseDto>> GetByProjectAsync(Guid projectId)
         {
-            return await _context.Sprints
+            await SyncProjectSprintStatusesAsync(projectId);
+
+            var sprints = await _context.Sprints
                 .Where(s => s.ProjectId == projectId)
                 .Select(s => new SprintResponseDto
                 {
@@ -27,15 +29,35 @@ namespace TaskManagement.Infrastructure.Services
                     StartDate = s.StartDate,
                     EndDate = s.EndDate,
                     Status = s.Status,
-                    TaskCount = s.WorkTasks.Count(),
+                    TaskCount = s.WorkTasks.Count(wt => !wt.IsDeleted && wt.ParentTaskId == null),
+                    CompletedTaskCount = s.WorkTasks.Count(wt => !wt.IsDeleted && wt.ParentTaskId == null && (wt.TaskStatus.Name.Contains("Done") || wt.TaskStatus.Name.Contains("Complete"))),
+                    InProgressTaskCount = s.WorkTasks.Count(wt => !wt.IsDeleted && wt.ParentTaskId == null && (wt.TaskStatus.Name.Contains("Progress") || wt.TaskStatus.Name.Contains("Active"))),
+                    BacklogTaskCount = s.WorkTasks.Count(wt => !wt.IsDeleted && wt.ParentTaskId == null && (wt.TaskStatus.Name.Contains("Backlog") || wt.TaskStatus.Name.Contains("Todo") || wt.TaskStatus.Name.Contains("To Do"))),
                     CreatedAt = s.CreatedAt
                 })
                 .ToListAsync();
+
+            foreach (var sprint in sprints)
+            {
+                ApplySprintComputedFields(sprint);
+            }
+
+            return sprints;
         }
 
         public async Task<SprintResponseDto?> GetByIdAsync(Guid id)
         {
-            return await _context.Sprints
+            var sprintProjectId = await _context.Sprints
+                .Where(s => s.Id == id)
+                .Select(s => (Guid?)s.ProjectId)
+                .FirstOrDefaultAsync();
+
+            if (sprintProjectId.HasValue)
+            {
+                await SyncProjectSprintStatusesAsync(sprintProjectId.Value);
+            }
+
+            var sprint = await _context.Sprints
                 .Where(s => s.Id == id)
                 .Select(s => new SprintResponseDto
                 {
@@ -45,10 +67,21 @@ namespace TaskManagement.Infrastructure.Services
                     StartDate = s.StartDate,
                     EndDate = s.EndDate,
                     Status = s.Status,
-                    TaskCount = s.WorkTasks.Count(),
+                    TaskCount = s.WorkTasks.Count(wt => !wt.IsDeleted && wt.ParentTaskId == null),
+                    CompletedTaskCount = s.WorkTasks.Count(wt => !wt.IsDeleted && wt.ParentTaskId == null && (wt.TaskStatus.Name.Contains("Done") || wt.TaskStatus.Name.Contains("Complete"))),
+                    InProgressTaskCount = s.WorkTasks.Count(wt => !wt.IsDeleted && wt.ParentTaskId == null && (wt.TaskStatus.Name.Contains("Progress") || wt.TaskStatus.Name.Contains("Active"))),
+                    BacklogTaskCount = s.WorkTasks.Count(wt => !wt.IsDeleted && wt.ParentTaskId == null && (wt.TaskStatus.Name.Contains("Backlog") || wt.TaskStatus.Name.Contains("Todo") || wt.TaskStatus.Name.Contains("To Do"))),
                     CreatedAt = s.CreatedAt
                 })
                 .FirstOrDefaultAsync();
+
+            if (sprint == null)
+            {
+                return null;
+            }
+
+            ApplySprintComputedFields(sprint);
+            return sprint;
         }
 
         public async Task<SprintResponseDto> CreateAsync(Guid projectId, CreateSprintDto dto)
@@ -74,8 +107,11 @@ namespace TaskManagement.Infrastructure.Services
 
             _context.Sprints.Add(sprint);
             await _context.SaveChangesAsync();
+            await SyncProjectSprintStatusesAsync(projectId);
 
-            return (await GetByIdAsync(sprint.Id))!;
+            var created = (await GetByIdAsync(sprint.Id))!;
+            ApplySprintComputedFields(created);
+            return created;
         }
 
         public async Task<SprintResponseDto> UpdateAsync(Guid projectId, Guid sprintId, UpdateSprintDto dto)
@@ -94,8 +130,11 @@ namespace TaskManagement.Infrastructure.Services
             sprint.EndDate = dto.EndDate;
 
             await _context.SaveChangesAsync();
+            await SyncProjectSprintStatusesAsync(projectId);
 
-            return (await GetByIdAsync(sprint.Id))!;
+            var updated = (await GetByIdAsync(sprint.Id))!;
+            ApplySprintComputedFields(updated);
+            return updated;
         }
 
         /// <summary>
@@ -121,8 +160,11 @@ namespace TaskManagement.Infrastructure.Services
 
             sprint.Status = true;
             await _context.SaveChangesAsync();
+            await SyncProjectSprintStatusesAsync(projectId);
 
-            return (await GetByIdAsync(sprint.Id))!;
+            var started = (await GetByIdAsync(sprint.Id))!;
+            ApplySprintComputedFields(started);
+            return started;
         }
 
         /// <summary>
@@ -174,6 +216,7 @@ namespace TaskManagement.Infrastructure.Services
                 sprint.Status = false;
 
                 await _context.SaveChangesAsync();
+                await SyncProjectSprintStatusesAsync(sprint.ProjectId);
                 await transaction.CommitAsync();
             }
             catch
@@ -197,17 +240,27 @@ namespace TaskManagement.Infrastructure.Services
             // Lấy tất cả Tasks của Sprint
             var tasks = await _context.WorkTasks
                 .Include(t => t.TaskStatus)
-                .Where(t => t.SprintId == sprintId && !t.IsDeleted)
+                .Where(t => t.SprintId == sprintId && !t.IsDeleted && t.ParentTaskId == null)
                 .ToListAsync();
 
             int totalPoints = (int)tasks.Sum(t => t.StoryPoints); // Nếu bằng 0 thì cũng được, hoặc (int)Math.Max(1, t.StoryPoints)
+            var hasStoryPoints = totalPoints > 0;
+            if (!hasStoryPoints)
+            {
+                totalPoints = tasks.Count;
+            }
+
             int totalDays = (sprint.EndDate.Date - sprint.StartDate.Date).Days;
             if (totalDays <= 0) totalDays = 1;
             double idealBurnRate = (double)totalPoints / totalDays;
 
             // Xây danh sách Done Tasks để mapping Remaining
             // Coi như Task.UpdatedAt chính là thời điểm Done
-            var doneTasks = tasks.Where(t => t.TaskStatus.Name.Contains("DONE", StringComparison.OrdinalIgnoreCase)).ToList();
+            var doneTasks = tasks
+                .Where(t => t.TaskStatus != null &&
+                            (t.TaskStatus.Name.Contains("DONE", StringComparison.OrdinalIgnoreCase) ||
+                             t.TaskStatus.Name.Contains("COMPLETE", StringComparison.OrdinalIgnoreCase)))
+                .ToList();
 
             for (int i = 0; i <= totalDays; i++)
             {
@@ -220,9 +273,9 @@ namespace TaskManagement.Infrastructure.Services
                 // Remaining = Total - Các Task đã Done TRƯỚC HOẶC TRONG ngày currentDate
                 int pointsDoneBeforeCurrent = (int)doneTasks
                     .Where(t => t.UpdatedAt.Date <= currentDate)
-                    .Sum(t => t.StoryPoints);
+                    .Sum(t => hasStoryPoints ? Math.Max(t.StoryPoints, 0) : 1);
 
-                int remaining = totalPoints - pointsDoneBeforeCurrent;
+                int remaining = Math.Max(0, totalPoints - pointsDoneBeforeCurrent);
 
                 // Nếu ngày tương lai so với hiện tại, thì Remaining = Điểm ngày hôm qua (chưa Burn được thêm)
                 if (currentDate > DateTime.UtcNow.Date)
@@ -239,6 +292,52 @@ namespace TaskManagement.Infrastructure.Services
             }
 
             return result;
+        }
+
+        private static void ApplySprintComputedFields(SprintResponseDto sprint)
+        {
+            var today = DateTime.UtcNow.Date;
+            var start = sprint.StartDate.Date;
+            var end = sprint.EndDate.Date;
+
+            sprint.State = end < today
+                ? "Completed"
+                : sprint.Status && start <= today && end >= today
+                    ? "Active"
+                    : "Upcoming";
+
+            sprint.ProgressPercent = sprint.TaskCount == 0
+                ? 0
+                : (int)Math.Round((double)sprint.CompletedTaskCount * 100 / sprint.TaskCount, MidpointRounding.AwayFromZero);
+        }
+
+        private async Task SyncProjectSprintStatusesAsync(Guid projectId)
+        {
+            var today = DateTime.UtcNow.Date;
+            var sprints = await _context.Sprints
+                .Where(s => s.ProjectId == projectId)
+                .OrderByDescending(s => s.StartDate)
+                .ThenByDescending(s => s.CreatedAt)
+                .ToListAsync();
+
+            var activeSprint = sprints
+                .FirstOrDefault(s => s.StartDate.Date <= today && s.EndDate.Date >= today);
+
+            var hasChanges = false;
+            foreach (var sprint in sprints)
+            {
+                var shouldBeActive = activeSprint != null && sprint.Id == activeSprint.Id;
+                if (sprint.Status != shouldBeActive)
+                {
+                    sprint.Status = shouldBeActive;
+                    hasChanges = true;
+                }
+            }
+
+            if (hasChanges)
+            {
+                await _context.SaveChangesAsync();
+            }
         }
     }
 }

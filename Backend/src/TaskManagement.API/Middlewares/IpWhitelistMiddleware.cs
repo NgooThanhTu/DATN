@@ -39,34 +39,36 @@ namespace TaskManagement.API.Middlewares
                     var tenantConfig = await dbContext.TenantConfigs.FirstOrDefaultAsync();
                     if (tenantConfig != null && !string.IsNullOrEmpty(tenantConfig.IpWhitelist))
                     {
-                      try{
-                        var jsonDoc = JsonDocument.Parse(tenantConfig.IpWhitelist);
-                        foreach (var el in jsonDoc.RootElement.EnumerateArray())
+                        try
                         {
-                            if (el.ValueKind == JsonValueKind.String)
+                            var jsonDoc = JsonDocument.Parse(tenantConfig.IpWhitelist);
+                            foreach (var item in jsonDoc.RootElement.EnumerateArray())
                             {
-                                whitelistedIps.Add(el.GetString()!);
-                            }
-                            else if (el.ValueKind == JsonValueKind.Object && el.TryGetProperty("ip", out var ipProp) && ipProp.ValueKind == JsonValueKind.String)
-                            {
-                                var textIp = ipProp.GetString()!;
-                                if (!string.IsNullOrEmpty(textIp))
+                                if (item.ValueKind == JsonValueKind.String)
                                 {
-                                    whitelistedIps.Add(textIp);
+                                    var textIp = item.GetString();
+                                    if (!string.IsNullOrWhiteSpace(textIp)) whitelistedIps.Add(textIp);
+                                }
+                                else if (item.ValueKind == JsonValueKind.Object &&
+                                         item.TryGetProperty("ip", out var ipProp) &&
+                                         ipProp.ValueKind == JsonValueKind.String)
+                                {
+                                    var textIp = ipProp.GetString();
+                                    if (!string.IsNullOrWhiteSpace(textIp)) whitelistedIps.Add(textIp);
                                 }
                             }
                         }
-                    }
-                    catch (JsonException)
-                    {
-                        // JSON parsing error or empty, ignore
+                        catch
+                        {
+                            // Ignore malformed whitelist JSON in development/runtime fallback.
+                        }
                     }
                 }
-              }
-                catch (Exception)
+                catch
                 {
-                    // Fallback: If DB is not ready or table is missing, don't crash the whole app.
-                    // We allow the request to proceed (no whitelist active).
+                    // If DB is unavailable, fail open so local development can still boot and serve requests.
+                    await _next(context);
+                    return;
                 }
 
                 var cacheEntryOptions = new MemoryCacheEntryOptions()

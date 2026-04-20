@@ -1,427 +1,539 @@
 <script setup>
-import { ref, onMounted, computed, provide } from 'vue'
+import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useSprintStore } from '@/store/useSprintStore'
 import axiosClient from '@/api/axiosClient'
 
-import { use } from 'echarts/core';
-import { CanvasRenderer } from 'echarts/renderers';
-import { LineChart } from 'echarts/charts';
-import { TitleComponent, TooltipComponent, LegendComponent, GridComponent } from 'echarts/components';
-import VChart, { THEME_KEY } from 'vue-echarts';
+import { use } from 'echarts/core'
+import { CanvasRenderer } from 'echarts/renderers'
+import { LineChart } from 'echarts/charts'
+import { TitleComponent, TooltipComponent, LegendComponent, GridComponent } from 'echarts/components'
+import VChart, { THEME_KEY } from 'vue-echarts'
 
-use([CanvasRenderer, LineChart, TitleComponent, TooltipComponent, LegendComponent, GridComponent]);
+use([CanvasRenderer, LineChart, TitleComponent, TooltipComponent, LegendComponent, GridComponent])
 
 const props = defineProps({
   projectId: { type: String, required: true }
 })
 
+const router = useRouter()
+const sprintStore = useSprintStore()
+
 provide(THEME_KEY, 'dark')
 
-const sprintStore = useSprintStore()
 const showCreateModal = ref(false)
+const burndownCharts = ref({})
+const showCalendar = ref(false)
+const currentMonth = ref(new Date().getMonth())
+const currentYear = ref(new Date().getFullYear())
+const dateSelectionStep = ref(0)
+const tempStart = ref(null)
+const tempEnd = ref(null)
+const newCycle = ref({ name: '', description: '', startDate: null, endDate: null })
+const showCycleSearch = ref(false)
+const showCycleFilters = ref(false)
+const cycleSearchQuery = ref('')
+const cycleProgressFilter = ref('all')
 
 const expandedTabs = ref({
   active: true,
   upcoming: true,
   completed: true
-});
+})
+const cyclePanelTabs = ref({})
+const cycleWorkItems = ref({})
+const cycleWorkItemsLoading = ref({})
+
+const monthNames = ['Thang 1', 'Thang 2', 'Thang 3', 'Thang 4', 'Thang 5', 'Thang 6', 'Thang 7', 'Thang 8', 'Thang 9', 'Thang 10', 'Thang 11', 'Thang 12']
+const dayNames = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
+
+const allSprints = computed(() => sprintStore.sprints || [])
+const filteredSprints = computed(() => {
+  const keyword = cycleSearchQuery.value.trim().toLowerCase()
+  return allSprints.value.filter(cycle => {
+    const matchesSearch = !keyword ||
+      `${cycle.name || ''}`.toLowerCase().includes(keyword) ||
+      `${cycle.description || ''}`.toLowerCase().includes(keyword)
+
+    const progress = cycle.progressPercent || 0
+    const matchesProgress =
+      cycleProgressFilter.value === 'all' ||
+      (cycleProgressFilter.value === 'not-started' && progress === 0) ||
+      (cycleProgressFilter.value === 'in-progress' && progress > 0 && progress < 100) ||
+      (cycleProgressFilter.value === 'completed' && progress >= 100)
+
+    return matchesSearch && matchesProgress
+  })
+})
+const activeSprints = computed(() => filteredSprints.value.filter(s => (s.state || '').toLowerCase() === 'active'))
+const upcomingSprints = computed(() => filteredSprints.value.filter(s => (s.state || '').toLowerCase() === 'upcoming'))
+const completedSprints = computed(() => filteredSprints.value.filter(s => (s.state || '').toLowerCase() === 'completed'))
+const hasCycleFilters = computed(() => Boolean(cycleSearchQuery.value.trim()) || cycleProgressFilter.value !== 'all')
 
 const toggleTab = (tab) => {
   expandedTabs.value[tab] = !expandedTabs.value[tab]
 }
 
-// Data binding
-onMounted(async () => {
-  await sprintStore.fetchSprints(props.projectId)
-  fetchBurndowns()
-})
-
-const allSprints = computed(() => sprintStore.sprints || [])
-
-// ========== CYCLE CLASSIFICATION ==========
-// A newly created cycle is ALWAYS Active (startDate <= today <= endDate) or Upcoming (startDate > today).
-// We use pure date-range logic. The backend "Status" field (true/false) is only used for the
-// manual Start/Close sprint flow — we ignore it for display classification.
-const normalizeDate = (dateStrOrObj) => {
-   if (!dateStrOrObj) return 0;
-   const d = new Date(dateStrOrObj);
-   // Strip time component, compare dates only
-   return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+const clearCycleFilters = () => {
+  cycleSearchQuery.value = ''
+  cycleProgressFilter.value = 'all'
 }
 
-const todayMs = computed(() => normalizeDate(new Date()))
+const getCyclePanelTab = (cycleId) => cyclePanelTabs.value[cycleId] || 'state'
 
-const activeSprints = computed(() => {
-   return allSprints.value.filter(s => {
-      const start = normalizeDate(s.startDate);
-      const end = normalizeDate(s.endDate);
-      return start <= todayMs.value && todayMs.value <= end;
-   })
-})
+const setCyclePanelTab = async (cycle, tab) => {
+  cyclePanelTabs.value = { ...cyclePanelTabs.value, [cycle.id]: tab }
+  if (tab === 'items') {
+    await fetchCycleWorkItems(cycle.id)
+  }
+}
 
-const upcomingSprints = computed(() => {
-   return allSprints.value.filter(s => {
-      const start = normalizeDate(s.startDate);
-      return start > todayMs.value;
-   })
-})
+const fetchCycleWorkItems = async (cycleId) => {
+  if (cycleWorkItems.value[cycleId] || cycleWorkItemsLoading.value[cycleId]) return
 
-const completedSprints = computed(() => {
-   return allSprints.value.filter(s => {
-      const end = normalizeDate(s.endDate);
-      return end < todayMs.value;
-   })
-})
+  cycleWorkItemsLoading.value = { ...cycleWorkItemsLoading.value, [cycleId]: true }
+  try {
+    const res = await axiosClient.get(`/projects/${props.projectId}/WorkTasks`)
+    const tasks = res.data?.data || []
+    cycleWorkItems.value = {
+      ...cycleWorkItems.value,
+      [cycleId]: tasks.filter(task => task.sprintId === cycleId && !(task.parentTaskId || task.parentId))
+    }
+  } catch (error) {
+    console.error('Failed to load cycle work items', error)
+    cycleWorkItems.value = { ...cycleWorkItems.value, [cycleId]: [] }
+  } finally {
+    cycleWorkItemsLoading.value = { ...cycleWorkItemsLoading.value, [cycleId]: false }
+  }
+}
+
+const cycleItemsFor = (cycleId) => cycleWorkItems.value[cycleId] || []
+
+const priorityLabel = (priority) => {
+  if (priority === 1) return 'Urgent'
+  if (priority === 2) return 'High'
+  if (priority === 3) return 'Normal'
+  if (priority === 4) return 'Low'
+  return 'None'
+}
 
 const formatDateCompact = (d) => {
   if (!d) return ''
-  const date = new Date(d)
-  const month = date.toLocaleString('en-US', { month: 'short' })
-  const day = date.getDate()
-  const year = date.getFullYear()
-  return `${month} ${day}, ${year}`
+  const date = toLocalDate(d)
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  })
 }
 
-const burndownCharts = ref({})
+const toLocalDate = (value) => {
+  if (value instanceof Date) {
+    return new Date(value.getFullYear(), value.getMonth(), value.getDate())
+  }
+
+  if (typeof value === 'string') {
+    const raw = value.split('T')[0]
+    const [year, month, day] = raw.split('-').map(Number)
+    if (year && month && day) return new Date(year, month - 1, day)
+  }
+
+  const date = new Date(value)
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+}
+
+const toLocalIsoDate = (value) => {
+  const date = toLocalDate(value)
+  const year = date.getFullYear()
+  const month = `${date.getMonth() + 1}`.padStart(2, '0')
+  const day = `${date.getDate()}`.padStart(2, '0')
+  return `${year}-${month}-${day}T00:00:00`
+}
+
+const percentLabel = (cycle) => `${cycle.progressPercent || 0}%`
+
+const progressSegments = (cycle) => {
+  const total = Math.max(cycle.taskCount || 0, 1)
+  const completed = cycle.completedTaskCount || 0
+  const started = cycle.inProgressTaskCount || 0
+  const backlog = cycle.backlogTaskCount || 0
+  const remaining = Math.max((cycle.taskCount || 0) - completed - started - backlog, 0)
+
+  return [
+    { label: 'Completed', value: completed, width: `${(completed / total) * 100}%`, className: 'bg-green' },
+    { label: 'Started', value: started, width: `${(started / total) * 100}%`, className: 'bg-orange' },
+    { label: 'Backlog', value: backlog, width: `${(backlog / total) * 100}%`, className: 'bg-lightgray' },
+    { label: 'Other', value: remaining, width: `${(remaining / total) * 100}%`, className: 'bg-darkgray' }
+  ]
+}
+
+const activeItemCount = (cycle) => Math.max((cycle.taskCount || 0) - (cycle.completedTaskCount || 0), 0)
+
+const openCycleBoard = (cycle) => {
+  router.push({
+    name: 'CycleDetailView',
+    params: { id: props.projectId, cycleId: cycle.id },
+    query: {
+      tab: 'spreadsheet',
+      sprintId: cycle.id,
+      sprintName: cycle.name
+    }
+  })
+}
 
 const fetchBurndowns = async () => {
-   for (const sprint of activeSprints.value) {
-      try {
-         const res = await axiosClient.get(`/projects/${props.projectId}/sprints/${sprint.id}/burndown`)
-         const bData = res.data?.data || []
-         
-         const xData = bData.map(b => formatDateCompact(b.date))
-         const idealData = bData.map(b => b.idealRemaining ?? b.idealPoints ?? 0)
-         const currentData = bData.map(b => b.actualRemaining ?? b.remainingPoints ?? 0)
-
-         burndownCharts.value[sprint.id] = {
-            backgroundColor: 'transparent',
-            tooltip: { trigger: 'axis' },
-            legend: { 
-               data: ['Current work items', 'Ideal work items'],
-               bottom: 0,
-               textStyle: { color: '#A1A1AA', fontSize: 10 }
-            },
-            grid: { top: 10, left: 30, right: 10, bottom: 40 },
-            xAxis: {
-               type: 'category',
-               data: xData,
-               axisLine: { show: false },
-               axisTick: { show: false },
-               axisLabel: { color: '#71717A', fontSize: 9 }
-            },
-            yAxis: {
-               type: 'value',
-               splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } },
-               axisLabel: { color: '#71717A', fontSize: 10 }
-            },
-            series: [
-               {
-                  name: 'Current work items',
-                  type: 'line',
-                  data: currentData,
-                  itemStyle: { color: '#3B82F6' },
-                  areaStyle: { color: 'rgba(59,130,246,0.15)' }
-               },
-               {
-                  name: 'Ideal work items',
-                  type: 'line',
-                  data: idealData,
-                  itemStyle: { color: '#A1A1AA' },
-                  lineStyle: { type: 'dashed' }
-               }
-            ]
-         }
-      } catch(e) {}
-   }
-}
-
-// ========== COMPLETED CYCLE DETAIL ==========
-const expandedCompletedId = ref(null)
-const completedCycleTasks = ref({})
-const loadingCycleTasks = ref({})
-
-const toggleCompletedDetail = async (cycleId) => {
-   if (expandedCompletedId.value === cycleId) {
-      expandedCompletedId.value = null;
-      return;
-   }
-   expandedCompletedId.value = cycleId;
-   if (!completedCycleTasks.value[cycleId]) {
-      loadingCycleTasks.value[cycleId] = true;
-      try {
-         // Fetch tasks that belong to this sprint
-         const res = await axiosClient.get(`/projects/${props.projectId}/WorkTasks?sprintId=${cycleId}`);
-         const tasks = res.data?.data || res.data || [];
-         completedCycleTasks.value[cycleId] = Array.isArray(tasks) ? tasks : [];
-      } catch(e) {
-         completedCycleTasks.value[cycleId] = [];
-      } finally {
-         loadingCycleTasks.value[cycleId] = false;
+  const chartEntries = {}
+  await Promise.all(activeSprints.value.map(async (sprint) => {
+    try {
+      const res = await axiosClient.get(`/projects/${props.projectId}/sprints/${sprint.id}/burndown`)
+      const burndown = res.data?.data || []
+      chartEntries[sprint.id] = {
+        backgroundColor: 'transparent',
+        tooltip: { trigger: 'axis' },
+        legend: {
+          data: ['Current work items', 'Ideal work items'],
+          bottom: 0,
+          textStyle: { color: '#A1A1AA', fontSize: 10 }
+        },
+        grid: { top: 10, left: 30, right: 10, bottom: 40 },
+        xAxis: {
+          type: 'category',
+          data: burndown.map(item => item.date),
+          axisLine: { show: false },
+          axisTick: { show: false },
+          axisLabel: { color: '#71717A', fontSize: 9 }
+        },
+        yAxis: {
+          type: 'value',
+          splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } },
+          axisLabel: { color: '#71717A', fontSize: 10 }
+        },
+        series: [
+          {
+            name: 'Current work items',
+            type: 'line',
+            data: burndown.map(item => item.actualRemaining ?? item.remainingPoints ?? 0),
+            itemStyle: { color: '#3B82F6' },
+            lineStyle: { width: 2 },
+            areaStyle: { color: 'rgba(59,130,246,0.15)' },
+            symbol: 'circle',
+            symbolSize: 7,
+            step: 'end',
+            smooth: false
+          },
+          {
+            name: 'Ideal work items',
+            type: 'line',
+            data: burndown.map(item => item.idealRemaining ?? item.idealPoints ?? 0),
+            itemStyle: { color: '#A1A1AA' },
+            lineStyle: { type: 'dashed', width: 2 },
+            symbol: 'circle',
+            symbolSize: 7,
+            smooth: false
+          }
+        ]
       }
-   }
-}
-
-const getCycleTaskStats = (cycleId) => {
-   const tasks = completedCycleTasks.value[cycleId] || [];
-   const total = tasks.length;
-   const done = tasks.filter(t => {
-      const statusName = (t.statusName || t.taskStatus?.name || '').toUpperCase();
-      return statusName.includes('DONE') || statusName.includes('COMPLETE') || statusName.includes('CLOSED');
-   }).length;
-   return { total, done, percent: total > 0 ? Math.round((done / total) * 100) : 0 };
-}
-
-const getTaskStatusColor = (task) => {
-   const name = (task.statusName || task.taskStatus?.name || '').toUpperCase();
-   if (name.includes('DONE') || name.includes('COMPLETE') || name.includes('CLOSED')) return '#10B981';
-   if (name.includes('PROGRESS') || name.includes('STARTED')) return '#F59E0B';
-   if (name.includes('TODO') || name.includes('UNSTARTED')) return '#3F3F46';
-   return '#71717A';
-}
-
-const getPriorityLabel = (p) => {
-   const map = { 0: 'None', 1: 'Urgent', 2: 'High', 3: 'Medium', 4: 'Low' };
-   return map[p] || 'None';
-}
-
-// Create Cycle Modal Logic
-const newCycle = ref({ name: '', description: '', startDate: null, endDate: null })
-const showCalendar = ref(false)
-const currentMonth = ref(new Date().getMonth())
-const currentYear = ref(new Date().getFullYear())
-
-const dateSelectionStep = ref(0)
-const tempStart = ref(null)
-const tempEnd = ref(null)
-
-const toggleCalendar = () => {
-    showCalendar.value = !showCalendar.value
-    if (showCalendar.value) {
-       tempStart.value = newCycle.value.startDate
-       tempEnd.value = newCycle.value.endDate
-       dateSelectionStep.value = 0
+    } catch (error) {
+      console.error('Failed to load burndown', error)
     }
+  }))
+  burndownCharts.value = chartEntries
 }
 
-const monthNames = ["Tháng 1", "Tháng 2", "Tháng 3", "Tháng 4", "Tháng 5", "Tháng 6", "Tháng 7", "Tháng 8", "Tháng 9", "Tháng 10", "Tháng 11", "Tháng 12"]
-const dayNames = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"]
-
-const daysInMonth = computed(() => {
-   const days = []
-   const date = new Date(currentYear.value, currentMonth.value, 1)
-   const firstDay = date.getDay()
-   const lastDate = new Date(currentYear.value, currentMonth.value + 1, 0).getDate()
-   const prevLastDate = new Date(currentYear.value, currentMonth.value, 0).getDate()
-
-   for (let i = firstDay - 1; i >= 0; i--) {
-      days.push({ day: prevLastDate - i, isCurrent: false, date: null })
-   }
-   for (let i = 1; i <= lastDate; i++) {
-      days.push({ day: i, isCurrent: true, date: new Date(currentYear.value, currentMonth.value, i) })
-   }
-   const rem = days.length % 7
-   if (rem !== 0) {
-      for (let i = 1; i <= 7 - rem; i++) {
-         days.push({ day: i, isCurrent: false, date: null })
-      }
-   }
-   return days
-})
-
-const moveMonth = (dir) => {
-   currentMonth.value += dir
-   if (currentMonth.value > 11) { currentMonth.value = 0; currentYear.value++ }
-   if (currentMonth.value < 0) { currentMonth.value = 11; currentYear.value-- }
+const loadCycles = async () => {
+  await sprintStore.fetchSprints(props.projectId)
+  await fetchBurndowns()
 }
 
-const isSameDate = (d1, d2) => d1 && d2 && d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate()
-
-const selectDate = (dObj) => {
-   if (!dObj.isCurrent) return
-   const picked = dObj.date
-   if (dateSelectionStep.value === 0) {
-      tempStart.value = picked
-      tempEnd.value = null
-      dateSelectionStep.value = 1
-      newCycle.value.startDate = picked
-      newCycle.value.endDate = null
-   } else {
-      if (picked < tempStart.value) {
-         tempStart.value = picked
-         tempEnd.value = null
-         newCycle.value.startDate = picked
-         newCycle.value.endDate = null
-      } else {
-         tempEnd.value = picked
-         dateSelectionStep.value = 0
-         newCycle.value.endDate = picked
-         showCalendar.value = false
-      }
-   }
+const fixDateOffset = (dt) => {
+  if (!dt) return null
+  return toLocalIsoDate(dt)
 }
-
-const isSelectedStart = (d) => isSameDate(d, tempStart.value)
-const isSelectedEnd = (d) => isSameDate(d, tempEnd.value)
-const isInRange = (dObj) => {
-   const d = dObj.date
-   if(!d || !tempStart.value || !tempEnd.value || !dObj.isCurrent) return false
-   const tStart = new Date(tempStart.value.getFullYear(), tempStart.value.getMonth(), tempStart.value.getDate()).getTime()
-   const tEnd = new Date(tempEnd.value.getFullYear(), tempEnd.value.getMonth(), tempEnd.value.getDate()).getTime()
-   const tD = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
-   return tD > tStart && tD < tEnd
-}
-
-const formatBtnDate = (d) => d ? `${d.getDate()} Thg ${d.getMonth() + 1}, ${d.getFullYear()}` : ''
-
-const btnDateText = computed(() => {
-   if (!newCycle.value.startDate) return "Chọn khoảng thời gian"
-   const start = formatBtnDate(newCycle.value.startDate)
-   const end = newCycle.value.endDate ? formatBtnDate(newCycle.value.endDate) : '...'
-   return `${start} -> ${end}`
-})
 
 const createNewCycle = async () => {
-    if(!newCycle.value.name) {
-        alert("Vui lòng nhập tên Cycle hợp lệ!");
-        return;
-    }
-    if(!newCycle.value.startDate) {
-        alert("Vui lòng chọn ngày bắt đầu (và nhấp thêm lần nữa vào ngày kết thúc)!");
-        return;
-    }
-    
-    let finalEndDate = newCycle.value.endDate;
-    if (!finalEndDate) {
-        finalEndDate = new Date(newCycle.value.startDate);
-        finalEndDate.setDate(finalEndDate.getDate() + 14);
-    }
+  if (!newCycle.value.name?.trim() || !newCycle.value.startDate) return
 
-    try {
-        const createRes = await axiosClient.post(`/projects/${props.projectId}/sprints`, {
-            name: newCycle.value.name,
-            description: newCycle.value.description,
-            startDate: newCycle.value.startDate,
-            endDate: finalEndDate
-        });
-        showCreateModal.value = false;
-        newCycle.value = { name: '', description: '', startDate: null, endDate: null };
-        await sprintStore.fetchSprints(props.projectId);
-        fetchBurndowns();
-    } catch(e) {
-        const msg = e.response?.data?.message || e.response?.data?.title || 'Không thể tạo Cycle!';
-        alert(msg);
-    }
+  let finalEndDate = newCycle.value.endDate ? fixDateOffset(newCycle.value.endDate) : null
+  if (!finalEndDate) {
+    const fallback = new Date(newCycle.value.startDate)
+    fallback.setDate(fallback.getDate() + 14)
+    finalEndDate = fixDateOffset(fallback)
+  }
+
+  try {
+    await axiosClient.post(`/projects/${props.projectId}/sprints`, {
+      name: newCycle.value.name.trim(),
+      description: newCycle.value.description,
+      startDate: fixDateOffset(newCycle.value.startDate),
+      endDate: finalEndDate
+    })
+
+    showCreateModal.value = false
+    showCalendar.value = false
+    newCycle.value = { name: '', description: '', startDate: null, endDate: null }
+    await loadCycles()
+  } catch (error) {
+    alert(error.response?.data?.message || 'Khong the tao cycle')
+  }
 }
+
+const toggleCalendar = () => {
+  showCalendar.value = !showCalendar.value
+  if (showCalendar.value) {
+    tempStart.value = newCycle.value.startDate
+    tempEnd.value = newCycle.value.endDate
+    dateSelectionStep.value = 0
+  }
+}
+
+const daysInMonth = computed(() => {
+  const days = []
+  const date = new Date(currentYear.value, currentMonth.value, 1)
+  const firstDay = date.getDay()
+  const lastDate = new Date(currentYear.value, currentMonth.value + 1, 0).getDate()
+  const prevLastDate = new Date(currentYear.value, currentMonth.value, 0).getDate()
+
+  for (let i = firstDay - 1; i >= 0; i -= 1) {
+    days.push({ day: prevLastDate - i, isCurrent: false, date: null })
+  }
+
+  for (let i = 1; i <= lastDate; i += 1) {
+    days.push({ day: i, isCurrent: true, date: new Date(currentYear.value, currentMonth.value, i) })
+  }
+
+  const remainder = days.length % 7
+  if (remainder !== 0) {
+    for (let i = 1; i <= 7 - remainder; i += 1) {
+      days.push({ day: i, isCurrent: false, date: null })
+    }
+  }
+
+  return days
+})
+
+const moveMonth = (direction) => {
+  currentMonth.value += direction
+  if (currentMonth.value > 11) {
+    currentMonth.value = 0
+    currentYear.value += 1
+  }
+  if (currentMonth.value < 0) {
+    currentMonth.value = 11
+    currentYear.value -= 1
+  }
+}
+
+const isSameDate = (left, right) => left && right && left.getFullYear() === right.getFullYear() && left.getMonth() === right.getMonth() && left.getDate() === right.getDate()
+
+const todayStart = () => {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return today
+}
+
+const isPastDate = (date) => {
+  if (!date) return false
+  return toLocalDate(date).getTime() < todayStart().getTime()
+}
+
+const selectDate = (day) => {
+  if (!day.isCurrent || isPastDate(day.date)) return
+  const picked = day.date
+  if (dateSelectionStep.value === 0) {
+    tempStart.value = picked
+    tempEnd.value = null
+    newCycle.value.startDate = picked
+    newCycle.value.endDate = null
+    dateSelectionStep.value = 1
+    return
+  }
+
+  if (picked < tempStart.value) {
+    tempStart.value = picked
+    tempEnd.value = null
+    newCycle.value.startDate = picked
+    newCycle.value.endDate = null
+    return
+  }
+
+  tempEnd.value = picked
+  newCycle.value.endDate = picked
+  dateSelectionStep.value = 0
+  showCalendar.value = false
+}
+
+const isSelectedStart = (date) => isSameDate(date, tempStart.value)
+const isSelectedEnd = (date) => isSameDate(date, tempEnd.value)
+const isInRange = (day) => {
+  if (!day.date || !tempStart.value || !tempEnd.value || !day.isCurrent) return false
+  const time = day.date.getTime()
+  return time > tempStart.value.getTime() && time < tempEnd.value.getTime()
+}
+
+const btnDateText = computed(() => {
+  if (!newCycle.value.startDate) return 'Chon khoang thoi gian'
+  const start = formatDateCompact(newCycle.value.startDate)
+  const end = newCycle.value.endDate ? formatDateCompact(newCycle.value.endDate) : '...'
+  return `${start} -> ${end}`
+})
+
+watch(() => props.projectId, loadCycles, { immediate: true })
+
+let cycleRefreshTimer = null
+onMounted(() => {
+  cycleRefreshTimer = window.setInterval(() => {
+    if (props.projectId) {
+      loadCycles()
+    }
+  }, 60000)
+})
+
+onUnmounted(() => {
+  if (cycleRefreshTimer) {
+    window.clearInterval(cycleRefreshTimer)
+  }
+})
 </script>
 
 <template>
   <div class="plane-cycles-wrapper">
-    <!-- Header Controls -->
-    <!-- The user specifies top-right search/filters in Space header, 
-         but we will put it in cycles view to match the image precisely -->
     <div class="cycles-view-header">
-       <div class="vh-left">
-          <!-- Handled by SpaceSummary header usually, keeping empty to stay true to image inside wrapper -->
-       </div>
-       <div class="vh-right">
-          <button class="icon-action"><i class="fa-solid fa-magnifying-glass"></i></button>
-          <button class="filter-action"><i class="fa-solid fa-filter"></i> Filters</button>
-          <button class="primary-action" @click="showCreateModal = true">Add cycle</button>
-       </div>
+      <div class="vh-left">
+        <div class="flex items-center gap-2 text-[13px] font-medium text-gray-400">
+          <i class="fa-solid fa-certificate" style="color: #F59E0B"></i> CYBWF
+          <i class="fa-solid fa-chevron-right text-[9px] mx-1"></i>
+          <i class="fa-solid fa-arrows-spin text-gray-500"></i>
+          <span class="text-gray-200">Cycles</span>
+        </div>
+      </div>
+      <div class="vh-right">
+        <div class="cycle-search-wrapper" v-if="showCycleSearch">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input v-model="cycleSearchQuery" type="text" placeholder="Search cycles..." />
+        </div>
+        <button class="icon-action" type="button" @click="showCycleSearch = !showCycleSearch" :class="{ active: showCycleSearch }"><i class="fa-solid fa-magnifying-glass"></i></button>
+        <div class="cycle-filter-wrapper">
+          <button class="filter-action" type="button" @click="showCycleFilters = !showCycleFilters" :class="{ active: showCycleFilters || hasCycleFilters }">
+            <i class="fa-solid fa-filter"></i> Filters
+          </button>
+          <div class="cycle-filter-menu" v-if="showCycleFilters" @click.stop>
+            <div class="filter-title">Progress</div>
+            <label class="filter-option"><input type="radio" value="all" v-model="cycleProgressFilter" /> All cycles</label>
+            <label class="filter-option"><input type="radio" value="not-started" v-model="cycleProgressFilter" /> Not started</label>
+            <label class="filter-option"><input type="radio" value="in-progress" v-model="cycleProgressFilter" /> In progress</label>
+            <label class="filter-option"><input type="radio" value="completed" v-model="cycleProgressFilter" /> Completed</label>
+            <button class="clear-filter-btn" type="button" @click="clearCycleFilters">Clear filters</button>
+          </div>
+        </div>
+        <button class="primary-action" type="button" @click="showCreateModal = true">Add cycle</button>
+      </div>
     </div>
 
     <div class="cycles-body">
-      
-      <!-- Active Cycle -->
       <div class="cycle-section">
         <div class="cs-header" @click="toggleTab('active')">
           <i class="chevron fa-solid" :class="expandedTabs.active ? 'fa-chevron-down' : 'fa-chevron-right'"></i>
           <i class="fa-solid fa-circle-half-stroke text-orange"></i>
           <span class="cs-title">Active cycle</span>
         </div>
-        
+
         <div class="cs-content" v-show="expandedTabs.active">
-           <div class="empty-state text-muted" v-if="activeSprints.length === 0">No active cycles.</div>
-           <div class="cycle-card expanded" v-for="activeSprint in activeSprints" :key="activeSprint.id" style="margin-bottom: 24px;">
-             <!-- Card Header -->
-             <div class="cc-top">
-                <div class="cct-left">
-                   <div class="progress-ring text-green">25%</div>
-                   <span class="cycle-name">{{ activeSprint?.name || 'Cycle' }}</span>
-                </div>
-                <div class="cct-right">
-                   <span class="detail-link"><i class="fa-solid fa-info-circle"></i> More details</span>
-                   <span class="date-range">
-                     <i class="fa-regular fa-calendar"></i>
-                     {{ formatDateCompact(activeSprint.startDate) }} - 
-                     {{ formatDateCompact(activeSprint.endDate) }}
-                   </span>
-                   <div class="avatar-xxs bg-green">P</div>
-                   <button class="icon-btn" @click="sprintStore.toggleFavorite(props.projectId, activeSprint.id)">
-                      <i class="fa-solid fa-star text-orange-400" v-if="activeSprint.isFavorite"></i>
-                      <i class="fa-regular fa-star" v-else></i>
-                   </button>
-                   <button class="icon-btn"><i class="fa-solid fa-ellipsis"></i></button>
-                </div>
-             </div>
-             
-             <!-- Card Body Split in 3 -->
-             <div class="cc-grid">
-                <!-- Progress -->
-                <div class="grid-panel panel-progress">
-                   <div class="gp-header">
-                      <span>Progress</span>
-                      <span class="sub">Work items</span>
-                   </div>
-                   <div class="progress-bar-container">
-                      <div class="pb-segment bg-green" style="width: 25%"></div>
-                      <div class="pb-segment bg-orange" style="width: 25%"></div>
-                      <div class="pb-segment bg-darkgray" style="width: 25%"></div>
-                      <div class="pb-segment bg-lightgray" style="width: 25%"></div>
-                   </div>
-                   <div class="legend-list">
-                      <div class="legend-item"><span class="dot bg-green"></span> Completed <span class="val">--</span></div>
-                      <div class="legend-item"><span class="dot bg-orange"></span> Started <span class="val">--</span></div>
-                      <div class="legend-item"><span class="dot bg-darkgray"></span> Unstarted <span class="val">--</span></div>
-                      <div class="legend-item"><span class="dot bg-lightgray"></span> Backlog <span class="val">--</span></div>
-                   </div>
-                </div>
+          <div class="empty-state text-muted" v-if="activeSprints.length === 0">No active cycles.</div>
+          <div class="cycle-card expanded" v-for="cycle in activeSprints" :key="cycle.id">
+            <div class="cc-top">
+              <div class="cct-left">
+                <div class="progress-ring text-orange">{{ percentLabel(cycle) }}</div>
+                <span class="cycle-name">{{ cycle.name }}</span>
+              </div>
+              <div class="cct-right">
+                <span class="detail-link cursor-pointer hover:text-white" @click.stop="openCycleBoard(cycle)">
+                  <i class="fa-solid fa-info-circle"></i> Open board
+                </span>
+                <span class="date-range">
+                  <i class="fa-regular fa-calendar"></i>
+                  {{ formatDateCompact(cycle.startDate) }} - {{ formatDateCompact(cycle.endDate) }}
+                </span>
+                <button class="icon-btn" @click.stop="sprintStore.toggleFavorite(props.projectId, cycle.id)">
+                  <i class="fa-solid fa-star text-orange-400" v-if="cycle.isFavorite"></i>
+                  <i class="fa-regular fa-star" v-else></i>
+                </button>
+              </div>
+            </div>
 
-                <!-- Burndown Chart -->
-                <div class="grid-panel panel-chart">
-                   <div class="gp-header">
-                      <span>Work item burndown</span>
-                      <span class="sub text-right">Progress</span>
-                   </div>
-                   <div class="chart-mockup" style="height: 140px;">
-                      <v-chart v-if="burndownCharts[activeSprint.id]" :option="burndownCharts[activeSprint.id]" autoresize />
-                      <div v-else class="text-muted text-xs text-center pt-8">No burndown data yet.</div>
-                   </div>
+            <div class="cc-grid">
+              <div class="grid-panel panel-progress">
+                <div class="gp-header">
+                  <span>Progress</span>
+                  <span class="sub">Work items</span>
                 </div>
+                <div class="progress-bar-container">
+                  <div
+                    v-for="segment in progressSegments(cycle)"
+                    :key="segment.label"
+                    class="pb-segment"
+                    :class="segment.className"
+                    :style="{ width: segment.width }"
+                  ></div>
+                </div>
+                <div class="legend-list">
+                  <div v-for="segment in progressSegments(cycle)" :key="segment.label" class="legend-item">
+                    <span class="dot" :class="segment.className"></span>
+                    {{ segment.label }}
+                    <span class="val">{{ segment.value }}</span>
+                  </div>
+                </div>
+              </div>
 
-                <!-- Tabs panel -->
-                <div class="grid-panel panel-tabs">
-                   <div class="tabs-header">
-                      <div class="tab-h active">Priority work items</div>
-                      <div class="tab-h">Assignees</div>
-                      <div class="tab-h">Labels</div>
-                   </div>
-                   <div class="tabs-body">
-                      <div class="tab-row">
-                         <div class="tr-user">
-                            <i class="fa-regular fa-user avatar-icon"></i> No assignee
-                         </div>
-                         <div class="tr-stat text-muted">0% of 0</div>
-                      </div>
-                   </div>
+              <div class="grid-panel panel-chart">
+                <div class="gp-header">
+                  <span>Work item burndown</span>
+                  <span class="sub text-right">{{ percentLabel(cycle) }}</span>
                 </div>
-             </div>
-           </div>
+                <div class="chart-mockup" style="height: 140px;">
+                  <v-chart v-if="burndownCharts[cycle.id]" :option="burndownCharts[cycle.id]" autoresize />
+                  <div v-else class="text-muted text-xs text-center pt-8">No burndown data yet.</div>
+                </div>
+              </div>
+
+              <div class="grid-panel panel-tabs">
+                <div class="tabs-header">
+                  <button class="tab-h" :class="{ active: getCyclePanelTab(cycle.id) === 'state' }" @click="setCyclePanelTab(cycle, 'state')">Cycle state</button>
+                  <button class="tab-h" :class="{ active: getCyclePanelTab(cycle.id) === 'items' }" @click="setCyclePanelTab(cycle, 'items')">Work items</button>
+                </div>
+                <div class="tabs-body" v-if="getCyclePanelTab(cycle.id) === 'state'">
+                  <div class="tab-row">
+                    <div class="tr-user">
+                      <i class="fa-solid fa-arrows-spin avatar-icon"></i> {{ cycle.state }}
+                    </div>
+                    <div class="tr-stat text-muted">{{ activeItemCount(cycle) }} items</div>
+                  </div>
+                  <div class="tab-row">
+                    <div class="tr-user">
+                      <i class="fa-solid fa-circle-check avatar-icon"></i> Completed
+                    </div>
+                    <div class="tr-stat text-muted">{{ cycle.completedTaskCount || 0 }}</div>
+                  </div>
+                </div>
+                <div class="tabs-body work-items-body" v-else>
+                  <div v-if="cycleWorkItemsLoading[cycle.id]" class="tab-empty text-muted">Loading work items...</div>
+                  <div v-else-if="cycleItemsFor(cycle.id).length === 0" class="tab-empty text-muted">No work items in this cycle.</div>
+                  <div v-else class="cycle-work-item" v-for="item in cycleItemsFor(cycle.id)" :key="item.id">
+                    <div class="work-item-main">
+                      <span class="work-item-id">{{ item.sequenceId || item.id?.substring(0, 8).toUpperCase() }}</span>
+                      <span class="work-item-title">{{ item.title }}</span>
+                    </div>
+                    <div class="work-item-meta">
+                      <span>{{ item.statusName || 'Backlog' }}</span>
+                      <span>{{ priorityLabel(item.priority) }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- Upcoming Cycle -->
       <div class="cycle-section">
         <div class="cs-header" @click="toggleTab('upcoming')">
           <i class="chevron fa-solid" :class="expandedTabs.upcoming ? 'fa-chevron-down' : 'fa-chevron-right'"></i>
@@ -429,31 +541,31 @@ const createNewCycle = async () => {
           <span class="cs-title">Upcoming cycle</span>
           <span class="cs-count">{{ upcomingSprints.length }}</span>
         </div>
-        
+
         <div class="cs-content" v-show="expandedTabs.upcoming">
-           <div class="empty-state text-muted" v-if="upcomingSprints.length === 0">No upcoming cycles.</div>
-           <div class="cycle-card collapsed cursor-pointer" v-for="sc in upcomingSprints" :key="sc.id" style="margin-bottom:8px">
-             <div class="cct-left">
-                <div class="progress-ring text-muted">0%</div>
-                <span class="cycle-name">{{ sc.name }}</span>
-             </div>
-             <div class="cct-right">
-                <span class="date-range mr-4">
-                  <i class="fa-regular fa-calendar"></i>
-                  {{ formatDateCompact(sc.startDate) }} - 
-                  {{ formatDateCompact(sc.endDate) }}
-                </span>
-                <button class="icon-btn" @click.stop="sprintStore.toggleFavorite(props.projectId, sc.id)">
-                   <i class="fa-solid fa-star text-orange-400" v-if="sc.isFavorite"></i>
-                   <i class="fa-regular fa-star" v-else></i>
-                </button>
-                <button class="icon-btn"><i class="fa-solid fa-ellipsis"></i></button>
-             </div>
-           </div>
+          <div class="empty-state text-muted" v-if="upcomingSprints.length === 0">No upcoming cycles.</div>
+          <div class="cycle-card collapsed hover-card" v-for="cycle in upcomingSprints" :key="cycle.id">
+            <div class="cct-left">
+              <div class="progress-ring text-muted">{{ percentLabel(cycle) }}</div>
+              <span class="cycle-name">{{ cycle.name }}</span>
+            </div>
+            <div class="cct-right">
+              <span class="date-range mr-4">
+                <i class="fa-regular fa-calendar"></i>
+                {{ formatDateCompact(cycle.startDate) }} - {{ formatDateCompact(cycle.endDate) }}
+              </span>
+              <span class="detail-link cursor-pointer hover:text-white" @click.stop="openCycleBoard(cycle)">
+                <i class="fa-solid fa-info-circle"></i> Open board
+              </span>
+              <button class="icon-btn" @click.stop="sprintStore.toggleFavorite(props.projectId, cycle.id)">
+                <i class="fa-solid fa-star text-orange-400" v-if="cycle.isFavorite"></i>
+                <i class="fa-regular fa-star" v-else></i>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- Completed Cycle -->
       <div class="cycle-section">
         <div class="cs-header" @click="toggleTab('completed')">
           <i class="chevron fa-solid" :class="expandedTabs.completed ? 'fa-chevron-down' : 'fa-chevron-right'"></i>
@@ -461,138 +573,89 @@ const createNewCycle = async () => {
           <span class="cs-title">Completed cycle</span>
           <span class="cs-count">{{ completedSprints.length }}</span>
         </div>
+
         <div class="cs-content" v-show="expandedTabs.completed">
-           <div class="empty-state text-muted" v-if="completedSprints.length === 0">No completed cycles yet.</div>
-           
-           <div v-for="cc in completedSprints" :key="cc.id" class="completed-cycle-wrapper" style="margin-bottom: 8px;">
-             <!-- Collapsed completed card -->
-             <div class="cycle-card collapsed cursor-pointer" @click="toggleCompletedDetail(cc.id)">
-               <div class="cct-left">
-                  <div class="progress-ring text-green">100%</div>
-                  <span class="cycle-name">{{ cc.name }}</span>
-               </div>
-               <div class="cct-right">
-                  <span class="completed-badge">Completed</span>
-                  <span class="date-range">
-                    <i class="fa-regular fa-calendar"></i>
-                    {{ formatDateCompact(cc.startDate) }} - {{ formatDateCompact(cc.endDate) }}
-                  </span>
-                  <span class="task-count-badge" v-if="cc.taskCount">
-                     <i class="fa-solid fa-layer-group"></i> {{ cc.taskCount }}
-                  </span>
-                  <button class="icon-btn" @click.stop="sprintStore.toggleFavorite(props.projectId, cc.id)">
-                     <i class="fa-solid fa-star text-orange-400" v-if="cc.isFavorite"></i>
-                     <i class="fa-regular fa-star" v-else></i>
-                  </button>
-                  <i class="fa-solid fa-chevron-down expand-chevron" :class="{ rotated: expandedCompletedId === cc.id }"></i>
-               </div>
-             </div>
-             
-             <!-- Expanded Detail Report -->
-             <div class="completed-detail" v-if="expandedCompletedId === cc.id">
-                <div class="cd-loading" v-if="loadingCycleTasks[cc.id]">Loading tasks...</div>
-                <div v-else-if="!completedCycleTasks[cc.id] || completedCycleTasks[cc.id].length === 0" class="cd-empty">
-                   No work items were in this cycle.
-                </div>
-                <div v-else class="cd-report">
-                   <!-- Summary bar -->
-                   <div class="cd-summary">
-                      <div class="cd-stat">
-                         <span class="cd-stat-num text-green">{{ getCycleTaskStats(cc.id).done }}</span>
-                         <span class="cd-stat-label">Done</span>
-                      </div>
-                      <div class="cd-stat">
-                         <span class="cd-stat-num text-orange">{{ getCycleTaskStats(cc.id).total - getCycleTaskStats(cc.id).done }}</span>
-                         <span class="cd-stat-label">Not Done</span>
-                      </div>
-                      <div class="cd-stat">
-                         <span class="cd-stat-num" style="color:#E4E4E7;">{{ getCycleTaskStats(cc.id).total }}</span>
-                         <span class="cd-stat-label">Total</span>
-                      </div>
-                      <div class="cd-progress-bar-wrap">
-                         <div class="cd-progress-bar">
-                            <div class="cd-progress-fill" :style="{ width: getCycleTaskStats(cc.id).percent + '%' }"></div>
-                         </div>
-                         <span class="cd-percent">{{ getCycleTaskStats(cc.id).percent }}%</span>
-                      </div>
-                   </div>
-                   <!-- Task list -->
-                   <div class="cd-task-list">
-                      <div class="cd-task-row" v-for="task in completedCycleTasks[cc.id]" :key="task.id">
-                         <div class="cd-task-status">
-                            <span class="cd-status-dot" :style="{ backgroundColor: getTaskStatusColor(task) }"></span>
-                         </div>
-                         <span class="cd-task-id">{{ task.sequenceId || '--' }}</span>
-                         <span class="cd-task-title">{{ task.title }}</span>
-                         <span class="cd-task-priority" :class="'priority-' + (task.priority || 0)">{{ getPriorityLabel(task.priority) }}</span>
-                         <span class="cd-task-status-name">{{ task.statusName || task.taskStatus?.name || '—' }}</span>
-                      </div>
-                   </div>
-                </div>
-             </div>
-           </div>
+          <div class="empty-state text-muted" v-if="completedSprints.length === 0">No completed cycles yet.</div>
+          <div v-for="cycle in completedSprints" :key="cycle.id" class="completed-cycle-wrapper">
+            <div class="cycle-card collapsed hover-card">
+              <div class="cct-left">
+                <div class="progress-ring text-green">{{ percentLabel(cycle) }}</div>
+                <span class="cycle-name">{{ cycle.name }}</span>
+              </div>
+              <div class="cct-right">
+                <span class="completed-badge">Completed</span>
+                <span class="detail-link cursor-pointer hover:text-white" @click.stop="openCycleBoard(cycle)">
+                  <i class="fa-solid fa-info-circle"></i> Open board
+                </span>
+                <span class="date-range">
+                  <i class="fa-regular fa-calendar"></i>
+                  {{ formatDateCompact(cycle.startDate) }} - {{ formatDateCompact(cycle.endDate) }}
+                </span>
+                <span class="task-count-badge" v-if="cycle.taskCount">
+                  <i class="fa-solid fa-layer-group"></i> {{ cycle.taskCount }}
+                </span>
+                <button class="icon-btn" @click.stop="sprintStore.toggleFavorite(props.projectId, cycle.id)">
+                  <i class="fa-solid fa-star text-orange-400" v-if="cycle.isFavorite"></i>
+                  <i class="fa-regular fa-star" v-else></i>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-
     </div>
-    
-    <!-- Create Cycle Modal (Matching Image) -->
+
     <div class="modal-overlay" v-if="showCreateModal" @click.self="showCreateModal = false; showCalendar = false">
-       <div class="create-cycle-modal">
-          <div class="cm-header">
-             <div class="cm-badge"><i class="fa-solid fa-certificate text-orange"></i> CYBWF</div>
-             <h2 class="cm-title">Create cycle</h2>
-          </div>
-          
-          <div class="cm-body">
-             <input type="text" class="cm-input" placeholder="Title" v-model="newCycle.name" />
-             <textarea class="cm-textarea" placeholder="Description" rows="4" v-model="newCycle.description"></textarea>
-             
-             <!-- Date Picker Section -->
-             <div class="dp-wrapper">
-                <button class="dp-btn" @click="toggleCalendar">
-                   <i class="fa-regular fa-calendar"></i> {{ btnDateText }}
-                </button>
-                
-                <div class="dp-popover" v-if="showCalendar">
-                   <div class="dp-header">
-                      <div class="dp-month-year">
-                         <span>{{ monthNames[currentMonth] }} <i class="fa-solid fa-chevron-down text-xs"></i></span>
-                         <span>{{ currentYear }} <i class="fa-solid fa-chevron-down text-xs"></i></span>
-                      </div>
-                      <div class="dp-nav">
-                         <button @click="moveMonth(-1)"><i class="fa-solid fa-chevron-left"></i></button>
-                         <button @click="moveMonth(1)"><i class="fa-solid fa-chevron-right"></i></button>
-                      </div>
-                   </div>
-                   
-                   <div class="dp-grid">
-                      <div class="dp-day-num headday" v-for="dn in dayNames" :key="dn">{{ dn }}</div>
-                      
-                      <div class="dp-day-wrapper" v-for="(dObj, idx) in daysInMonth" :key="idx">
-                         <div 
-                           class="dp-bg-range" 
-                           v-if="isInRange(dObj) || (isSelectedStart(dObj.date) && tempEnd) || (isSelectedEnd(dObj.date))"
-                           :class="{ 'range-start': isSelectedStart(dObj.date) && tempEnd, 'range-end': isSelectedEnd(dObj.date), 'range-mid': isInRange(dObj) }"
-                         ></div>
-                         <div 
-                           class="dp-day-num" 
-                           :class="{ 'current-month': dObj.isCurrent, 'selected': isSelectedStart(dObj.date) || isSelectedEnd(dObj.date) }"
-                           @click="selectDate(dObj)"
-                         >
-                           {{ dObj.day }}
-                         </div>
-                      </div>
-                   </div>
+      <div class="create-cycle-modal">
+        <div class="cm-header">
+          <div class="cm-badge"><i class="fa-solid fa-certificate text-orange"></i> CYBWF</div>
+          <h2 class="cm-title">Create cycle</h2>
+        </div>
+
+        <div class="cm-body">
+          <input v-model="newCycle.name" type="text" class="cm-input" placeholder="Title" autofocus />
+          <textarea v-model="newCycle.description" class="cm-textarea" placeholder="Description" rows="4"></textarea>
+
+          <div class="dp-wrapper mt-4">
+            <button class="dp-btn" @click="toggleCalendar">
+              <i class="fa-regular fa-calendar"></i> {{ btnDateText }}
+            </button>
+
+            <div class="dp-popover" v-if="showCalendar">
+              <div class="dp-header">
+                <div class="dp-month-year">
+                  <span>{{ monthNames[currentMonth] }}</span>
+                  <span>{{ currentYear }}</span>
                 </div>
-             </div>
+                <div class="dp-nav">
+                  <button @click="moveMonth(-1)"><i class="fa-solid fa-chevron-left"></i></button>
+                  <button @click="moveMonth(1)"><i class="fa-solid fa-chevron-right"></i></button>
+                </div>
+              </div>
+
+              <div class="dp-grid">
+                <div class="dp-day-num headday" v-for="dayName in dayNames" :key="dayName">{{ dayName }}</div>
+
+                <div class="dp-day-wrapper" v-for="(day, index) in daysInMonth" :key="index">
+                  <div
+                    class="dp-bg-range"
+                    v-if="isInRange(day) || (isSelectedStart(day.date) && tempEnd) || isSelectedEnd(day.date)"
+                    :class="{ 'range-start': isSelectedStart(day.date) && tempEnd, 'range-end': isSelectedEnd(day.date), 'range-mid': isInRange(day) }"
+                  ></div>
+                  <div class="dp-day-num" :class="{ 'current-month': day.isCurrent, selected: isSelectedStart(day.date) || isSelectedEnd(day.date), disabled: !day.isCurrent || isPastDate(day.date) }" @click="selectDate(day)">
+                    {{ day.day }}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-          
-          <div class="cm-footer">
-             <button class="cm-btn-cancel" @click="showCreateModal = false">Cancel</button>
-             <button class="cm-btn-create" @click="createNewCycle">Create cycle</button>
-          </div>
-       </div>
+        </div>
+
+        <div class="cm-footer">
+          <button class="cm-btn-cancel" @click="showCreateModal = false">Cancel</button>
+          <button class="cm-btn-create" @click="createNewCycle">Create Cycle</button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -603,595 +666,194 @@ const createNewCycle = async () => {
   flex-direction: column;
   height: 100%;
   color: #E4E4E7;
-  font-family: 'Inter', sans-serif;
+  font-family: inherit;
+  background: #0D0F11;
+  min-height: calc(100vh - 100px);
 }
 
-/* Header */
+.text-muted { color: #71717A; }
+.text-orange { color: #F59E0B; }
+.text-green { color: #10B981; }
+.text-blue { color: #3B82F6; }
+.bg-green { background-color: #10B981; }
+.bg-orange { background-color: #F59E0B; }
+.bg-darkgray { background-color: #3F3F46; }
+.bg-lightgray { background-color: #71717A; }
+
 .cycles-view-header {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   padding: 16px 24px;
-  background-color: #0D0F11;
+  border-bottom: 1px solid #1E2025;
 }
-.vh-right {
-  display: flex;
-  gap: 12px;
-  margin-left: auto;
-}
-.icon-action {
-  background: transparent;
-  border: none;
-  color: #A1A1AA;
-  cursor: pointer;
-  font-size: 14px;
-}
+
+.vh-right { display: flex; align-items: center; gap: 12px; }
+.icon-action { background: transparent; border: none; color: #A1A1AA; cursor: pointer; font-size: 14px; border-radius: 6px; padding: 6px 8px; }
 .icon-action:hover { color: #E4E4E7; }
-.filter-action {
-  background: transparent;
+.icon-action.active { color: #E4E4E7; background: #1E2025; }
+.filter-action { background: transparent; border: 1px solid #27272A; color: #E4E4E7; padding: 6px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+.filter-action:hover { background: #1E2025; }
+.filter-action.active { background: #1E2025; border-color: #3F3F46; }
+.cycle-search-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 220px;
   border: 1px solid #27272A;
+  border-radius: 6px;
+  padding: 5px 10px;
+  background: #111315;
+}
+.cycle-search-wrapper i { color: #71717A; font-size: 12px; }
+.cycle-search-wrapper input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 0;
   color: #E4E4E7;
-  padding: 6px 12px;
-  border-radius: 6px;
+  outline: none;
   font-size: 13px;
+}
+.cycle-filter-wrapper { position: relative; }
+.cycle-filter-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 220px;
+  background: #1B1C20;
+  border: 1px solid #2D2F36;
+  border-radius: 8px;
+  padding: 12px;
+  z-index: 20;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+}
+.filter-title { color: #A1A1AA; font-size: 12px; font-weight: 600; margin-bottom: 8px; }
+.filter-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #D4D4D8;
+  font-size: 13px;
+  padding: 6px 0;
   cursor: pointer;
 }
-.filter-action:hover { background: #16181D; }
-.primary-action {
-  background: #0EA5E9;
-  color: white;
-  border: none;
+.clear-filter-btn {
+  width: 100%;
+  margin-top: 8px;
+  border: 1px solid #27272A;
   border-radius: 6px;
-  padding: 6px 12px;
-  font-size: 13px;
+  background: #111315;
+  color: #D4D4D8;
+  padding: 7px;
   cursor: pointer;
-  font-weight: 500;
 }
+.clear-filter-btn:hover { background: #27272A; }
+.primary-action { background: #0EA5E9; color: white; border: none; border-radius: 6px; padding: 6px 16px; font-size: 13px; cursor: pointer; font-weight: 500; }
 .primary-action:hover { background: #0284C7; }
 
-/* Body Area */
-.cycles-body {
-  padding: 0 24px 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.cycle-section {
-  display: flex;
-  flex-direction: column;
-}
-
-.cs-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 0;
-  cursor: pointer;
-  border-bottom: 1px solid #16181D;
-  margin-bottom: 8px;
-}
-.chevron { font-size: 10px; color: #71717A; width: 14px; text-align: center; }
+.cycles-body { padding: 24px; flex: 1; }
+.cycle-section { margin-bottom: 24px; }
+.cs-header { display: flex; align-items: center; gap: 12px; padding: 8px 0; cursor: pointer; user-select: none; }
+.chevron { font-size: 12px; color: #A1A1AA; width: 16px; text-align: center; }
 .cs-title { font-size: 14px; font-weight: 600; color: #E4E4E7; }
-.cs-count { font-size: 12px; color: #71717A; }
+.cs-count { font-size: 12px; color: #A1A1AA; background: #27272A; padding: 2px 8px; border-radius: 12px; }
+.cs-content { padding-left: 28px; margin-top: 12px; display: flex; flex-direction: column; gap: 12px; }
 
-.text-orange { color: #F59E0B; }
-.text-blue { color: #3B82F6; }
-.text-green { color: #10B981; }
-.text-muted { color: #A1A1AA; }
-.bg-orange { background-color: #F59E0B; }
-.bg-green { background-color: #10B981; }
-.bg-darkgray { background-color: #3F3F46; }
-.bg-lightgray { background-color: #71717A; }
-.bg-blue { background-color: #3B82F6; }
-.bg-gray { background-color: #A1A1AA; }
-
-/* Cards */
 .cycle-card {
-  background: #111315;
-  border: 1px solid #1E2025;
-  border-radius: 8px;
-  padding: 0;
-  overflow: hidden;
-}
-.cycle-card.collapsed {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 14px;
-}
-
-.cc-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
-  border-bottom: 1px solid #1E2025;
-}
-
-.cct-left { display: flex; align-items: center; gap: 12px; }
-.progress-ring {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  border: 2px solid currentColor; /* Simplified ring */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-  font-weight: 600;
-}
-.cycle-name { font-size: 14px; font-weight: 500; }
-
-.cct-right { display: flex; align-items: center; gap: 16px; }
-.detail-link { font-size: 12px; color: #38BDF8; cursor: pointer; display: flex; align-items: center; gap: 6px; }
-.date-range { font-size: 12px; color: #A1A1AA; display: flex; align-items: center; gap: 6px; }
-
-.avatar-xxs {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 9px;
-  font-weight: 600;
-  color: white;
-}
-
-.icon-btn { background: transparent; border: none; color: #71717A; cursor: pointer; font-size: 13px; padding: 4px; }
-.icon-btn:hover { color: #E4E4E7; }
-
-/* 3 Pane Grid */
-.cc-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  min-height: 250px;
-}
-.grid-panel {
-  padding: 20px;
-  border-right: 1px solid #1E2025;
-}
-.grid-panel:last-child { border-right: none; }
-
-.gp-header {
-  display: flex;
-  justify-content: space-between;
-  font-size: 13px;
-  font-weight: 500;
-  color: #E4E4E7;
-  margin-bottom: 24px;
-}
-.gp-header .sub { font-size: 12px; color: #71717A; font-weight: 400; }
-
-/* Progress Panel */
-.progress-bar-container {
-  display: flex;
-  height: 8px;
-  border-radius: 4px;
-  overflow: hidden;
-  gap: 2px;
-  margin-bottom: 16px;
-}
-.pb-segment { height: 100%; border-radius: 2px; }
-.legend-list { display: flex; flex-direction: column; gap: 12px; }
-.legend-item { display: flex; align-items: center; font-size: 12px; color: #A1A1AA; position: relative; }
-.legend-item .val { margin-left: auto; color: #E4E4E7; }
-.legend-item .dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
-
-/* Chart Panel */
-.panel-chart { position: relative; display: flex; flex-direction: column; }
-.chart-mockup {
-  position: relative;
-  flex: 1;
-  margin-bottom: 16px;
-  overflow: hidden;
-}
-.grid-line {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: rgba(255,255,255,0.05);
-}
-.grid-line span {
-  position: absolute;
-  left: 0;
-  top: -6px;
-  font-size: 10px;
-  color: #71717A;
-}
-.x-axis {
-  position: absolute;
-  bottom: 24px;
-  left: 20px;
-  right: 0;
-  display: flex;
-  justify-content: space-between;
-  font-size: 9px;
-  color: #71717A;
-  text-transform: uppercase;
-}
-.chart-legend {
-  position: absolute;
-  bottom: 0px;
-  left: 20px;
-  right: 0;
-  display: flex;
-  justify-content: center;
-  gap: 16px;
-  font-size: 10px;
-  color: #A1A1AA;
-}
-.leg-item { display: flex; align-items: center; gap: 4px; }
-.leg-item .box { width: 6px; height: 6px; }
-
-/* Tabs Panel */
-.panel-tabs { display: flex; flex-direction: column; padding: 0; }
-.tabs-header {
-  display: flex;
-  background: #1E2025;
-}
-.tab-h {
-  flex: 1;
-  text-align: center;
-  padding: 8px 0;
-  font-size: 12px;
-  color: #71717A;
-  background: #111315;
-  border-bottom: 1px solid #1E2025;
-  border-right: 1px solid #1E2025;
-  cursor: pointer;
-}
-.tab-h.active {
-  background: #1E2025;
-  color: #E4E4E7;
-  border-bottom: none;
-}
-.tabs-body { padding: 16px 20px; }
-.tab-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
-.tr-user { display: flex; align-items: center; gap: 8px; color: #A1A1AA; }
-.avatar-icon { background: #27272A; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 10px; color: #71717A;}
-
-.empty-state {
-  padding: 16px 30px;
-  font-size: 13px;
-}
-
-/* Modal Overlay */
-.modal-overlay {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-}
-.create-cycle-modal {
-  width: 700px;
-  background: #111111;
-  border: 1px solid #27272A;
-  border-radius: 8px;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.8);
-  font-family: inherit;
-}
-.cm-header {
-  padding: 24px 24px 16px 24px;
-}
-.cm-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
   background: #16181D;
   border: 1px solid #27272A;
-  padding: 4px 10px;
-  border-radius: 4px;
-  font-size: 12px;
-  color: #E4E4E7;
-  font-weight: 500;
-  margin-bottom: 12px;
-}
-.cm-title {
-  font-size: 20px;
-  font-weight: 600;
-  color: #E4E4E7;
-  margin: 0;
-}
-.cm-body {
-  padding: 0 24px 24px 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-.cm-input, .cm-textarea {
-  width: 100%;
-  background: #18191B;
-  border: 1px solid #27272A;
-  border-radius: 6px;
-  padding: 12px 16px;
-  color: #E4E4E7;
-  font-size: 14px;
-  outline: none;
-  font-family: inherit;
-}
-.cm-textarea { resize: none; }
-
-/* Date Picker */
-.dp-wrapper { position: relative; }
-.dp-btn {
-  background: transparent;
-  border: 1px solid #27272A;
-  color: #E4E4E7;
-  border-radius: 6px;
-  padding: 6px 12px;
-  font-size: 13px;
-  font-weight: 500;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-}
-.dp-popover {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  margin-top: 8px;
-  background: #111111;
-  border: 1px solid #27272A;
   border-radius: 8px;
-  width: 280px;
-  padding: 16px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.8);
-  z-index: 100;
+  overflow: hidden;
+  transition: border-color 0.2s, background 0.2s;
 }
-.dp-header {
+
+.cycle-card.hover-card:hover { border-color: #3F3F46; background: #1B1D22; }
+.cycle-card.collapsed { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; }
+.cc-top { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid #27272A; }
+.cct-left, .cct-right { display: flex; align-items: center; gap: 12px; }
+.progress-ring { width: 34px; height: 34px; border-radius: 50%; border: 3px solid currentColor; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; }
+.cycle-name { font-size: 15px; font-weight: 500; color: #E4E4E7; }
+.detail-link { font-size: 13px; color: #3B82F6; display: flex; align-items: center; gap: 6px; }
+.date-range { font-size: 12px; color: #A1A1AA; display: flex; align-items: center; gap: 6px; background: #27272A; padding: 4px 10px; border-radius: 6px; }
+.icon-btn { background: transparent; border: none; color: #A1A1AA; cursor: pointer; font-size: 14px; transition: color 0.2s; }
+.icon-btn:hover { color: #E4E4E7; }
+.completed-badge { font-size: 12px; color: #10B981; font-weight: 500; }
+.task-count-badge { font-size: 12px; color: #A1A1AA; display: flex; align-items: center; gap: 6px; }
+
+.cc-grid { display: grid; grid-template-columns: 1fr 2fr 1.5fr; }
+.grid-panel { padding: 20px; border-right: 1px solid #27272A; }
+.grid-panel:last-child { border-right: none; }
+.gp-header { display: flex; justify-content: space-between; font-size: 13px; font-weight: 500; margin-bottom: 24px; }
+.gp-header .sub { color: #71717A; font-weight: 400; }
+
+.progress-bar-container { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: #27272A; margin-bottom: 20px; }
+.pb-segment { height: 100%; }
+.legend-list { display: flex; flex-direction: column; gap: 12px; }
+.legend-item { display: flex; align-items: center; font-size: 12px; color: #A1A1AA; }
+.legend-item .dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 10px; }
+.legend-item .val { margin-left: auto; color: #E4E4E7; }
+
+.tabs-header { display: flex; border-bottom: 1px solid #27272A; margin-bottom: 16px; }
+.tab-h { padding: 0 12px 8px 12px; font-size: 12px; color: #71717A; border: none; border-bottom: 2px solid transparent; background: transparent; cursor: pointer; }
+.tab-h.active { color: #E4E4E7; border-bottom-color: #38BDF8; font-weight: 500; }
+.tab-row { display: flex; justify-content: space-between; font-size: 12px; padding: 8px 12px; border-radius: 4px; }
+.tr-user { display: flex; align-items: center; gap: 8px; color: #E4E4E7; }
+.avatar-icon { background: #27272A; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; }
+.work-items-body { display: flex; flex-direction: column; gap: 8px; max-height: 150px; overflow-y: auto; padding-right: 4px; }
+.tab-empty { font-size: 12px; padding: 8px 12px; }
+.cycle-work-item { display: flex; justify-content: space-between; gap: 12px; padding: 8px 10px; border: 1px solid #27272A; border-radius: 6px; background: #111315; }
+.work-item-main { min-width: 0; display: flex; align-items: center; gap: 8px; }
+.work-item-id { color: #71717A; font-size: 11px; flex-shrink: 0; }
+.work-item-title { color: #E4E4E7; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.work-item-meta { display: flex; align-items: center; gap: 6px; flex-shrink: 0; color: #A1A1AA; font-size: 11px; }
+.work-item-meta span { background: #27272A; border-radius: 4px; padding: 2px 6px; }
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  justify-content: center;
+  z-index: 1000;
 }
-.dp-month-year {
-  display: flex;
-  gap: 12px;
-  font-size: 15px;
-  font-weight: 600;
-  color: #E4E4E7;
+
+.create-cycle-modal {
+  width: 600px;
+  background: #1B1C20;
+  border: 1px solid #2D2F36;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
 }
-.dp-month-year span { cursor: pointer; }
+
+.cm-header { padding: 24px 24px 16px; }
+.cm-badge { display: inline-flex; align-items: center; gap: 8px; border: 1px solid #3F3F46; padding: 4px 10px; border-radius: 6px; font-size: 12px; color: #E4E4E7; font-weight: 500; margin-bottom: 16px; }
+.cm-title { font-size: 20px; font-weight: 600; color: #E4E4E7; margin: 0; }
+.cm-body { padding: 0 24px 24px; display: flex; flex-direction: column; }
+.cm-input, .cm-textarea { width: 100%; background: #141518; border: 1px solid #2D2F36; border-radius: 6px; padding: 12px 16px; color: #E4E4E7; outline: none; }
+.cm-input { margin-bottom: 16px; font-size: 15px; }
+.cm-textarea { font-size: 14px; resize: none; }
+.cm-footer { padding: 16px 24px; border-top: 1px solid #2D2F36; display: flex; justify-content: flex-end; gap: 12px; background: #141518; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }
+.cm-btn-cancel { background: transparent; border: 1px solid #3F3F46; border-radius: 6px; padding: 8px 16px; color: #E4E4E7; font-size: 13px; font-weight: 500; cursor: pointer; }
+.cm-btn-create { background: #38BDF8; border: none; border-radius: 6px; padding: 8px 16px; color: white; font-size: 13px; font-weight: 500; cursor: pointer; }
+
+.dp-wrapper { position: relative; }
+.dp-btn { background: transparent; border: 1px solid #2D2F36; color: #E4E4E7; padding: 6px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+.dp-popover { position: absolute; top: 100%; left: 0; margin-top: 8px; background: #141518; border: 1px solid #2D2F36; border-radius: 8px; width: 280px; padding: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); z-index: 1001; }
+.dp-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.dp-month-year { display: flex; gap: 12px; font-size: 14px; font-weight: 600; }
 .dp-nav { display: flex; gap: 8px; }
-.dp-nav button {
-  background: transparent;
-  border: none;
-  color: #71717A;
-  cursor: pointer;
-  padding: 4px;
-}
-.dp-nav button:hover { color: #E4E4E7; }
-
-.dp-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 0px 0px; 
-  /* No horizontal gap so background can connect seamlessly */
-  row-gap: 8px;
-}
-.headday {
-  font-size: 10px;
-  font-weight: 700;
-  color: #E4E4E7;
-  margin-bottom: 8px;
-  pointer-events: none;
-}
-.dp-day-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 32px;
-}
-.dp-bg-range {
-  position: absolute;
-  top: 0; bottom: 0; left: 0; right: 0;
-  background: #1D435E; /* Dark blue/teal for range */
-  z-index: 1;
-}
-.range-start { border-top-left-radius: 16px; border-bottom-left-radius: 16px; width: 100%; left: 0;}
-.range-end { border-top-right-radius: 16px; border-bottom-right-radius: 16px; width: 100%; right: 0;}
-
-.dp-day-num {
-  position: relative;
-  z-index: 2;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  font-size: 12px;
-  color: #71717A;
-  cursor: pointer;
-  transition: 0.2s;
-}
+.dp-nav button { background: transparent; border: none; color: #71717A; cursor: pointer; }
+.dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); row-gap: 6px; }
+.headday { font-size: 10px; font-weight: 600; color: #A1A1AA; text-align: center; }
+.dp-day-wrapper { position: relative; display: flex; align-items: center; justify-content: center; height: 32px; }
+.dp-bg-range { position: absolute; inset: 0; background: #1D435E; z-index: 1; }
+.range-start { border-top-left-radius: 16px; border-bottom-left-radius: 16px; }
+.range-end { border-top-right-radius: 16px; border-bottom-right-radius: 16px; }
+.dp-day-num { position: relative; z-index: 2; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 12px; color: #52525B; cursor: pointer; }
 .dp-day-num.current-month { color: #A1A1AA; }
-.dp-day-num:hover:not(.headday) { background: #27272A; color: white; }
-.dp-day-num.selected {
-  background: #0EA5E9;
-  color: white;
-  border: 1px solid #38BDF8;
-}
-
-.cm-footer {
-  padding: 16px 24px;
-  border-top: 1px solid #27272A;
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-}
-.cm-btn-cancel {
-  background: transparent;
-  border: 1px solid #3F3F46;
-  border-radius: 6px;
-  padding: 8px 16px;
-  color: #E4E4E7;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-}
-.cm-btn-cancel:hover { background: #1E2025; }
-.cm-btn-create {
-  background: #0EA5E9;
-  border: none;
-  border-radius: 6px;
-  padding: 8px 16px;
-  color: white;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-}
-.cm-btn-create:hover { background: #0284C7; }
-
-/* Completed Cycle Cards */
-.completed-badge {
-  background: rgba(16,185,129,0.15);
-  color: #10B981;
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-weight: 500;
-}
-.task-count-badge {
-  font-size: 12px;
-  color: #A1A1AA;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.expand-chevron {
-  font-size: 10px;
-  color: #71717A;
-  transition: transform 0.2s;
-}
-.expand-chevron.rotated {
-  transform: rotate(180deg);
-}
-.cursor-pointer { cursor: pointer; }
-
-/* Completed Detail Panel */
-.completed-detail {
-  background: #111315;
-  border: 1px solid #1E2025;
-  border-top: none;
-  border-radius: 0 0 8px 8px;
-  padding: 20px;
-}
-.cd-loading, .cd-empty {
-  color: #71717A;
-  font-size: 13px;
-  text-align: center;
-  padding: 16px;
-}
-.cd-summary {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid #1E2025;
-  margin-bottom: 16px;
-}
-.cd-stat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-}
-.cd-stat-num {
-  font-size: 20px;
-  font-weight: 700;
-}
-.cd-stat-label {
-  font-size: 11px;
-  color: #71717A;
-  text-transform: uppercase;
-}
-.cd-progress-bar-wrap {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-left: auto;
-}
-.cd-progress-bar {
-  flex: 1;
-  height: 8px;
-  background: #27272A;
-  border-radius: 4px;
-  overflow: hidden;
-}
-.cd-progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #10B981, #34D399);
-  border-radius: 4px;
-  transition: width 0.4s ease;
-}
-.cd-percent {
-  font-size: 13px;
-  color: #10B981;
-  font-weight: 600;
-  min-width: 40px;
-}
-
-/* Task List */
-.cd-task-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-.cd-task-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 8px;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
-  font-size: 13px;
-  transition: background 0.15s;
-}
-.cd-task-row:hover {
-  background: rgba(255,255,255,0.03);
-}
-.cd-task-row:last-child { border-bottom: none; }
-.cd-status-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  display: inline-block;
-}
-.cd-task-id {
-  color: #71717A;
-  font-size: 12px;
-  min-width: 60px;
-}
-.cd-task-title {
-  flex: 1;
-  color: #E4E4E7;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.cd-task-priority {
-  font-size: 11px;
-  padding: 2px 6px;
-  border-radius: 3px;
-  background: #27272A;
-  color: #A1A1AA;
-}
-.cd-task-priority.priority-1 { background: rgba(239,68,68,0.15); color: #EF4444; }
-.cd-task-priority.priority-2 { background: rgba(249,115,22,0.15); color: #F97316; }
-.cd-task-priority.priority-3 { background: rgba(234,179,8,0.15); color: #EAB308; }
-.cd-task-priority.priority-4 { background: rgba(59,130,246,0.15); color: #3B82F6; }
-.cd-task-status-name {
-  font-size: 12px;
-  color: #A1A1AA;
-  min-width: 80px;
-  text-align: right;
-}
+.dp-day-num:hover:not(.headday):not(.disabled) { background: #27272A; color: white; }
+.dp-day-num.selected { background: #0EA5E9; color: white; }
+.dp-day-num.disabled { color: #3F3F46; cursor: not-allowed; opacity: 0.55; }
 </style>
