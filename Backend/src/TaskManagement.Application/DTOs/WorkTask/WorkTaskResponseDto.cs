@@ -1,7 +1,22 @@
 using System;
+using System.Collections.Generic;
 
 namespace TaskManagement.Application.DTOs.WorkTask
 {
+    public class TaskAssigneeDto
+    {
+        public Guid UserId { get; set; }
+        public string? FullName { get; set; }
+        public string? Email { get; set; }
+        public double ProgressPercent { get; set; }
+        public double ContributionWeight { get; set; }
+        public double EstimatedHours { get; set; }
+        public double TotalActualHours { get; set; }
+        public bool IsBlocked { get; set; }
+        public Guid? BlockedByUserId { get; set; }
+        public string? BlockReason { get; set; }
+    }
+
     public class WorkTaskResponseDto
     {
         public Guid Id { get; set; }
@@ -18,6 +33,9 @@ namespace TaskManagement.Application.DTOs.WorkTask
         public Guid TaskTypeId { get; set; }
         public string? AssigneeName { get; set; }
         public Guid? AssignedUserId { get; set; }
+        public List<TaskAssigneeDto> Assignees { get; set; } = new();
+        public Guid? ModuleId { get; set; }
+        public List<Guid> LabelIds { get; set; } = new();
         public string ReporterName { get; set; } = string.Empty;
         public Guid ReporterId { get; set; }
         public DateTime? PlannedStartDate { get; set; }

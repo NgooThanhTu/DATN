@@ -15,6 +15,11 @@ export default [
     component: () => import('../views/CyclesView.vue')
   },
   {
+    path: '/space/:id/cycles/:cycleId',
+    name: 'CycleDetailView',
+    component: () => import('../views/SpaceSummary.vue')
+  },
+  {
     path: '/space/:id/intakes',
     name: 'IntakesView',
     component: () => import('../views/IntakesView.vue')

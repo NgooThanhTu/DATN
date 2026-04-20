@@ -22,7 +22,7 @@
             </div>
             <div class="lr-right" @dblclick.stop>
                <div class="dm-toolbar">
-                 <!-- Status Dropdown -->
+                 <!-- Status -->
                  <el-dropdown trigger="click" @command="(val) => updateDraftProperty(draft, 'statusName', val)">
                     <button class="dm-tool-btn"><i :class="getStatusIcon(draft.statusName)" :style="{ color: getStatusColor(draft.statusName) }"></i></button>
                     <template #dropdown>
@@ -35,7 +35,7 @@
                     </template>
                  </el-dropdown>
                  
-                 <!-- Priority Dropdown -->
+                 <!-- Priority -->
                  <el-dropdown trigger="click" @command="(val) => updateDraftProperty(draft, 'priority', val)">
                     <button class="dm-tool-btn">
                        <i :class="getPriorityIcon(draft.priority)" :style="{ color: getPriorityColor(draft.priority) }"></i>
@@ -50,18 +50,112 @@
                     </template>
                  </el-dropdown>
 
-                 <!-- Label (placeholder) -->
-                 <button class="dm-tool-btn" title="Labels"><i class="fa-solid fa-tag text-muted"></i></button>
-                 <!-- Start date (placeholder) -->
-                 <button class="dm-tool-btn" title="Start date"><i class="fa-regular fa-calendar text-muted"></i></button>
-                 <!-- Due date (placeholder) -->
-                 <button class="dm-tool-btn" title="Due date"><i class="fa-solid fa-calendar-day text-muted"></i></button>
-                 <!-- Members (placeholder) -->
-                 <button class="dm-tool-btn" title="Members"><i class="fa-solid fa-user-group text-muted"></i></button>
-                 <!-- Modules (placeholder) -->
-                 <button class="dm-tool-btn" title="Modules"><i class="fa-solid fa-table-cells-large text-muted"></i></button>
-                 <!-- Cycles (placeholder) -->
-                 <button class="dm-tool-btn" title="Cycles"><i class="fa-solid fa-eye text-muted"></i></button>
+                 <!-- Assignees List View -->
+                 <el-popover placement="bottom" trigger="click" width="240" popper-class="plane-popover">
+                    <template #reference>
+                      <button class="dm-tool-btn" :class="{'text-primary': draft.assignee}" title="Assignees">
+                         <i class="fa-solid fa-user-group" :class="draft.assignee ? '' : 'text-muted'"></i>
+                         <span v-if="draft.assignee" style="margin-left: 4px;">{{ draft.assignee }}</span>
+                      </button>
+                    </template>
+                    <div class="popover-content">
+                       <input type="text" class="plane-search-input" v-model="searchAssignee" placeholder="Search members">
+                       <div class="plane-list mt-2">
+                          <label class="plane-list-item" v-for="m in filteredMembers" :key="m.id" @click="updateDraftProperty(draft, 'assignee', m.name); closeAllPopovers()">
+                             {{ m.name }}
+                          </label>
+                       </div>
+                    </div>
+                 </el-popover>
+
+                 <!-- Labels List View -->
+                 <el-popover placement="bottom" trigger="click" width="240" popper-class="plane-popover">
+                    <template #reference>
+                      <button class="dm-tool-btn" :class="{'text-primary': draft.label}" title="Labels">
+                         <i class="fa-solid fa-tag" :class="draft.label ? '' : 'text-muted'"></i>
+                         <span v-if="draft.label" style="margin-left: 4px;">{{ draft.label }}</span>
+                      </button>
+                    </template>
+                    <div class="popover-content">
+                       <input type="text" class="plane-search-input" v-model="searchLabel" placeholder="Search labels">
+                       <div class="plane-list mt-2">
+                          <label class="plane-list-item" v-for="l in filteredLabels" :key="l.id" @click="updateDraftProperty(draft, 'label', l.name); closeAllPopovers()">
+                             {{ l.name }}
+                          </label>
+                       </div>
+                    </div>
+                 </el-popover>
+
+                 <!-- Dates List View -->
+                 <!-- Start Date -->
+                 <div style="position: relative; display: inline-flex;">
+                    <button class="dm-tool-btn" :class="{'text-primary': draft.startDate}" title="Start date" @click="openPicker('start_' + draft.id)">
+                       <i class="fa-regular fa-clock" :class="draft.startDate ? '' : 'text-muted'"></i>
+                       <span v-if="draft.startDate" style="margin-left: 4px;">{{ draft.startDate }}</span>
+                    </button>
+                    <el-date-picker
+                      :ref="el => setPickerRef('start_' + draft.id, el)"
+                      v-model="draft.startDate"
+                      type="date"
+                      format="YYYY-MM-DD"
+                      value-format="YYYY-MM-DD"
+                      style="position: absolute; bottom: 0; left: 0; width: 0; height: 0; opacity: 0; padding: 0; border: 0; visibility: hidden;"
+                      @change="updateDraftProperty(draft, 'startDate', $event)"
+                    />
+                 </div>
+                 
+                 <!-- Due Date -->
+                 <div style="position: relative; display: inline-flex;">
+                    <button class="dm-tool-btn" :class="{'text-primary': draft.dueDate}" title="Due date" @click="openPicker('due_' + draft.id)">
+                       <i class="fa-regular fa-calendar-check" :class="draft.dueDate ? '' : 'text-muted'"></i>
+                       <span v-if="draft.dueDate" style="margin-left: 4px;">{{ draft.dueDate }}</span>
+                    </button>
+                    <el-date-picker
+                      :ref="el => setPickerRef('due_' + draft.id, el)"
+                      v-model="draft.dueDate"
+                      type="date"
+                      format="YYYY-MM-DD"
+                      value-format="YYYY-MM-DD"
+                      style="position: absolute; bottom: 0; left: 0; width: 0; height: 0; opacity: 0; padding: 0; border: 0; visibility: hidden;"
+                      @change="updateDraftProperty(draft, 'dueDate', $event)"
+                    />
+                 </div>
+                 
+                 <!-- Cycles List View -->
+                 <el-popover placement="bottom" trigger="click" width="240" popper-class="plane-popover">
+                    <template #reference>
+                      <button class="dm-tool-btn" :class="{'text-primary': draft.cycle}" title="Cycles">
+                         <i class="fa-solid fa-arrows-spin" :class="draft.cycle ? '' : 'text-muted'"></i>
+                         <span v-if="draft.cycle" style="margin-left: 4px;">{{ draft.cycle }}</span>
+                      </button>
+                    </template>
+                    <div class="popover-content">
+                       <input type="text" class="plane-search-input" v-model="searchCycle" placeholder="Search cycles">
+                       <div class="plane-list mt-2">
+                          <label class="plane-list-item" v-for="c in filteredCycles" :key="c.id" @click="updateDraftProperty(draft, 'cycle', c.name); closeAllPopovers()">
+                             {{ c.name }}
+                          </label>
+                       </div>
+                    </div>
+                 </el-popover>
+
+                 <!-- Modules List View -->
+                 <el-popover placement="bottom" trigger="click" width="240" popper-class="plane-popover">
+                    <template #reference>
+                      <button class="dm-tool-btn" :class="{'text-primary': draft.module}" title="Modules">
+                         <i class="fa-solid fa-table-cells-large" :class="draft.module ? '' : 'text-muted'"></i>
+                         <span v-if="draft.module" style="margin-left: 4px;">{{ draft.module }}</span>
+                      </button>
+                    </template>
+                    <div class="popover-content">
+                       <input type="text" class="plane-search-input" v-model="searchModule" placeholder="Search modules">
+                       <div class="plane-list mt-2">
+                          <label class="plane-list-item" v-for="m in filteredModules" :key="m.id" @click="updateDraftProperty(draft, 'module', m.name); closeAllPopovers()">
+                             {{ m.name }}
+                          </label>
+                       </div>
+                    </div>
+                 </el-popover>
 
                  <!-- Ellipsis Actions -->
                  <el-dropdown trigger="click" @command="(cmd) => handleEllipsisAction(cmd, draft)">
@@ -127,13 +221,109 @@
                 </template>
              </el-dropdown>
 
-             <!-- Assignees Dropdown (placeholder) -->
-             <button class="dm-tool-btn"><i class="fa-solid fa-user-group text-muted"></i> Assignees</button>
-             <button class="dm-tool-btn"><i class="fa-solid fa-tag text-muted"></i> Labels</button>
-             <button class="dm-tool-btn"><i class="fa-regular fa-calendar text-muted"></i> Start date</button>
-             <button class="dm-tool-btn"><i class="fa-solid fa-calendar-day text-muted"></i> Due date</button>
-             <button class="dm-tool-btn"><i class="fa-solid fa-arrows-spin text-muted"></i> Cycle</button>
-             <button class="dm-tool-btn"><i class="fa-solid fa-table-cells-large text-muted"></i> Modules</button>
+             <!-- Assignees Modal -->
+             <el-popover placement="bottom" trigger="click" width="240" popper-class="plane-popover" :visible="popovers.assignees">
+                <template #reference>
+                  <button class="dm-tool-btn" :class="{'text-primary': form.assignee}" @click="togglePopover('assignees')">
+                     <i class="fa-solid fa-user-group" :class="form.assignee ? '' : 'text-muted'"></i> 
+                     {{ form.assignee || 'Assignees' }}
+                  </button>
+                </template>
+                <div class="popover-content">
+                   <input type="text" class="plane-search-input" v-model="searchAssignee" placeholder="Search members...">
+                   <div class="plane-list mt-2">
+                      <label class="plane-list-item" v-for="m in filteredMembers" :key="m.id" @click="form.assignee = m.name; closeAllPopovers()">
+                         {{ m.name }}
+                      </label>
+                   </div>
+                </div>
+             </el-popover>
+
+             <!-- Labels Modal -->
+             <el-popover placement="bottom" trigger="click" width="240" popper-class="plane-popover" :visible="popovers.labels">
+                <template #reference>
+                  <button class="dm-tool-btn" :class="{'text-primary': form.label}" @click="togglePopover('labels')">
+                     <i class="fa-solid fa-tag" :class="form.label ? '' : 'text-muted'"></i> 
+                     {{ form.label || 'Labels' }}
+                  </button>
+                </template>
+                <div class="popover-content">
+                   <input type="text" class="plane-search-input" v-model="searchLabel" placeholder="Search labels...">
+                   <div class="plane-list mt-2">
+                      <label class="plane-list-item" v-for="l in filteredLabels" :key="l.id" @click="form.label = l.name; closeAllPopovers()">
+                         {{ l.name }}
+                      </label>
+                   </div>
+                </div>
+             </el-popover>
+
+             <!-- Start date -->
+             <div style="position: relative; display: inline-flex;">
+                <button class="dm-tool-btn" :class="{'text-primary': form.startDate}" @click="openPicker('form_start')">
+                   <i class="fa-regular fa-clock" :class="form.startDate ? '' : 'text-muted'"></i>
+                   <span v-if="form.startDate" style="margin-left: 4px;">{{ form.startDate }}</span>
+                </button>
+                <el-date-picker
+                  :ref="el => setPickerRef('form_start', el)"
+                  v-model="form.startDate"
+                  type="date"
+                  format="YYYY-MM-DD"
+                  value-format="YYYY-MM-DD"
+                  style="position: absolute; bottom: 0; left: 0; width: 0; height: 0; opacity: 0; padding: 0; border: 0; visibility: hidden;"
+                />
+             </div>
+
+             <!-- Due date -->
+             <div style="position: relative; display: inline-flex;">
+                <button class="dm-tool-btn" :class="{'text-primary': form.dueDate}" @click="openPicker('form_due')">
+                   <i class="fa-regular fa-calendar-check" :class="form.dueDate ? '' : 'text-muted'"></i>
+                   <span v-if="form.dueDate" style="margin-left: 4px;">{{ form.dueDate }}</span>
+                </button>
+                <el-date-picker
+                  :ref="el => setPickerRef('form_due', el)"
+                  v-model="form.dueDate"
+                  type="date"
+                  format="YYYY-MM-DD"
+                  value-format="YYYY-MM-DD"
+                  style="position: absolute; bottom: 0; left: 0; width: 0; height: 0; opacity: 0; padding: 0; border: 0; visibility: hidden;"
+                />
+             </div>
+
+             <!-- Cycle Modal -->
+             <el-popover placement="bottom" trigger="click" width="240" popper-class="plane-popover" :visible="popovers.cycles">
+                <template #reference>
+                  <button class="dm-tool-btn" :class="{'text-primary': form.cycle}" @click="togglePopover('cycles')">
+                     <i class="fa-solid fa-arrows-spin" :class="form.cycle ? '' : 'text-muted'"></i> 
+                     {{ form.cycle || 'Cycle' }}
+                  </button>
+                </template>
+                <div class="popover-content">
+                   <input type="text" class="plane-search-input" v-model="searchCycle" placeholder="Search cycles...">
+                   <div class="plane-list mt-2">
+                      <label class="plane-list-item" v-for="c in filteredCycles" :key="c.id" @click="form.cycle = c.name; closeAllPopovers()">
+                         {{ c.name }}
+                      </label>
+                   </div>
+                </div>
+             </el-popover>
+
+             <!-- Modules Modal -->
+             <el-popover placement="bottom" trigger="click" width="240" popper-class="plane-popover" :visible="popovers.modules">
+                <template #reference>
+                  <button class="dm-tool-btn" :class="{'text-primary': form.module}" @click="togglePopover('modules')">
+                     <i class="fa-solid fa-table-cells-large" :class="form.module ? '' : 'text-muted'"></i> 
+                     {{ form.module || 'Modules' }}
+                  </button>
+                </template>
+                <div class="popover-content">
+                   <input type="text" class="plane-search-input" v-model="searchModule" placeholder="Search modules...">
+                   <div class="plane-list mt-2">
+                      <label class="plane-list-item" v-for="m in filteredModules" :key="m.id" @click="form.module = m.name; closeAllPopovers()">
+                         {{ m.name }}
+                      </label>
+                   </div>
+                </div>
+             </el-popover>
           </div>
           
           <div class="dm-footer mt-4">
@@ -177,7 +367,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import NexusLayout from '@/components/layout/NexusLayout.vue'
 import axiosClient from '@/api/axiosClient'
 import { ElMessage } from 'element-plus'
@@ -189,12 +379,70 @@ const drafts = ref([])
 const projects = ref([])
 const movingDraft = ref(null)
 
+// Popovers Control
+const popovers = ref({ assignees: false, labels: false, cycles: false, modules: false })
+
+const togglePopover = (key) => {
+  const current = popovers.value[key]
+  closeAllPopovers()
+  popovers.value[key] = !current
+}
+
+const closeAllPopovers = () => {
+  popovers.value = { assignees: false, labels: false, cycles: false, modules: false }
+}
+
+const clickOutsidePopover = (e) => {
+  if (!e.target.closest('.el-popover') && !e.target.closest('.dm-tool-btn')) {
+    closeAllPopovers()
+  }
+}
+
+// Picker Refs (for hidden el-date-picker)
+const pickerRefs = ref({})
+const setPickerRef = (key, el) => {
+  if (el) {
+    pickerRefs.value[key] = el
+  }
+}
+const openPicker = (key) => {
+  const picker = pickerRefs.value[key]
+  if (picker) {
+    // In Vue 3 Element Plus, el-date-picker has a internal focus method or we can extract the input
+    picker.focus ? picker.focus() : (picker.$el?.querySelector('input')?.focus())
+  }
+}
+
+// Data Storage
+const dbMembers = ref([])
+const dbLabels = ref([])
+const dbCycles = ref([])
+const dbModules = ref([])
+
+// Searches
+const searchAssignee = ref('')
+const searchLabel = ref('')
+const searchCycle = ref('')
+const searchModule = ref('')
+
+// Computed Filtered Lists
+const filteredMembers = computed(() => dbMembers.value.filter(x => x.name.toLowerCase().includes(searchAssignee.value.toLowerCase())))
+const filteredLabels = computed(() => dbLabels.value.filter(x => x.name.toLowerCase().includes(searchLabel.value.toLowerCase())))
+const filteredCycles = computed(() => dbCycles.value.filter(x => x.name.toLowerCase().includes(searchCycle.value.toLowerCase())))
+const filteredModules = computed(() => dbModules.value.filter(x => x.name.toLowerCase().includes(searchModule.value.toLowerCase())))
+
 const form = ref({
   id: null,
   title: '',
   description: '',
   statusName: 'BACKLOG',
-  priority: 3
+  priority: 3,
+  assignee: '',
+  label: '',
+  startDate: '',
+  dueDate: '',
+  cycle: '',
+  module: ''
 })
 
 // ============ HELPERS ============
@@ -247,7 +495,19 @@ const getPriorityLabel = (p) => {
 // ============ MODALS ============
 
 const openModal = () => {
-  form.value = { id: null, title: '', description: '', statusName: 'BACKLOG', priority: 3 }
+  form.value = { 
+    id: null, 
+    title: '', 
+    description: '', 
+    statusName: 'BACKLOG', 
+    priority: 3,
+    assignee: '',
+    label: '',
+    startDate: '',
+    dueDate: '',
+    cycle: '',
+    module: ''
+  }
   editMode.value = false
   showModal.value = true
 }
@@ -258,7 +518,13 @@ const openEditModal = (draft) => {
      title: draft.title, 
      description: draft.description,
      statusName: draft.statusName || 'BACKLOG',
-     priority: draft.priority || 3
+     priority: draft.priority || 3,
+     assignee: draft.assignee || '',
+     label: draft.label || '',
+     startDate: draft.startDate || '',
+     dueDate: draft.dueDate || '',
+     cycle: draft.cycle || '',
+     module: draft.module || ''
   }
   editMode.value = true
   showModal.value = true
@@ -275,10 +541,35 @@ const fetchDrafts = async () => {
   }
 }
 
+const loadProjectContextData = async (projectId) => {
+  try {
+    const memRes = await axiosClient.get(`/projects/${projectId}/members`)
+    dbMembers.value = (memRes.data?.data || []).map(m => ({ id: m.userId || m.id, name: m.fullName || m.userName || m.email }))
+  } catch(e) {}
+  
+  try {
+    const lblRes = await axiosClient.get(`/projects/${projectId}/labels`)
+    dbLabels.value = lblRes.data?.data || []
+  } catch(e) {}
+
+  try {
+    const cycRes = await axiosClient.get(`/projects/${projectId}/sprints`)
+    dbCycles.value = cycRes.data?.data || []
+  } catch(e) {}
+
+  try {
+    const modRes = await axiosClient.get(`/projects/${projectId}/modules`)
+    dbModules.value = (modRes.data?.data || []).map(m => ({ id: m.id, name: m.name }))
+  } catch(e) {}
+}
+
 const fetchProjects = async () => {
   try {
     const res = await axiosClient.get('/projects')
     projects.value = res.data?.data || []
+    if (projects.value.length > 0) {
+      await loadProjectContextData(projects.value[0].id)
+    }
   } catch(e) {
     console.error(e)
   }
@@ -294,7 +585,13 @@ const saveDraft = async () => {
       title: form.value.title,
       description: form.value.description,
       statusName: form.value.statusName,
-      priority: form.value.priority
+      priority: form.value.priority,
+      assignee: form.value.assignee,
+      label: form.value.label,
+      startDate: form.value.startDate,
+      dueDate: form.value.dueDate,
+      cycle: form.value.cycle,
+      module: form.value.module
     }
     
     if (editMode.value && form.value.id) {
@@ -319,7 +616,13 @@ const updateDraftProperty = async (draft, field, value) => {
       title: draft.title,
       description: draft.description,
       statusName: draft.statusName,
-      priority: draft.priority
+      priority: draft.priority,
+      assignee: draft.assignee,
+      label: draft.label,
+      startDate: draft.startDate,
+      dueDate: draft.dueDate,
+      cycle: draft.cycle,
+      module: draft.module
     }
     payload[field] = value
     await axiosClient.put(`/drafts/${draft.id}`, payload)
@@ -367,7 +670,13 @@ const makeCopy = async (draft) => {
       title: `${draft.title} (copy)`,
       description: draft.description,
       statusName: draft.statusName || 'BACKLOG',
-      priority: draft.priority || 3
+      priority: draft.priority || 3,
+      assignee: draft.assignee,
+      label: draft.label,
+      startDate: draft.startDate,
+      dueDate: draft.dueDate,
+      cycle: draft.cycle,
+      module: draft.module
     })
     ElMessage.success('Draft duplicated')
     fetchDrafts()
@@ -419,6 +728,7 @@ const moveToProject = async (projectId) => {
 onMounted(() => {
   fetchDrafts()
   fetchProjects()
+  document.addEventListener('click', clickOutsidePopover)
 })
 </script>
 
@@ -478,6 +788,32 @@ onMounted(() => {
 .lr-right { display: flex; align-items: center; gap: 6px; }
 .text-xs { font-size: 12px; }
 .fw-500 { font-weight: 500; }
+
+/* Popover Content (Search + List) */
+.plane-search-input {
+  width: 100%;
+  background: #111315;
+  border: 1px solid #27272A;
+  color: #E4E4E7;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  outline: none;
+  box-sizing: border-box;
+}
+.plane-search-input:focus { border-color: #38BDF8; }
+.plane-list { max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+.plane-list-item { 
+  display: flex; gap: 8px; align-items: center;
+  padding: 6px 8px; border-radius: 4px; cursor: pointer; color: #E4E4E7; font-size: 13px; 
+}
+.plane-list-item:hover { background: #1E2025; }
+
+/* Legacy date picker override */
+.date-picker-wrap {
+  display: inline-block;
+  width: 110px;
+}
 
 /* Modal Styles */
 .modal-overlay {
@@ -549,13 +885,16 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 8px;
+  height: 26px;
+  padding: 0 8px;
   border-radius: 4px;
   cursor: pointer;
   white-space: nowrap;
   transition: background 0.15s, color 0.15s;
 }
 .dm-tool-btn:hover { background: #1E2025; color: #E4E4E7; }
+.text-primary { color: #E4E4E7 !important; border-color: #3f3f46 !important; background-color: #1E2025; }
+.text-primary i { color: #E4E4E7 !important; }
 
 .dm-footer {
   display: flex;

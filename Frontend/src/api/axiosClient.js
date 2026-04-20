@@ -94,7 +94,11 @@ axiosClient.interceptors.response.use(
                 // Refresh token failed (expired or invalid), force logout
                 localStorage.removeItem('accessToken');
                 localStorage.removeItem('user');
-                window.location.href = '/login'; // Redirect to login
+                const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+                const redirect = currentPath && !currentPath.startsWith('/login')
+                    ? `?redirect=${encodeURIComponent(currentPath)}`
+                    : '';
+                window.location.href = `/login${redirect}`; // Redirect to login
                 return Promise.reject(err);
             } finally {
                 isRefreshing = false;

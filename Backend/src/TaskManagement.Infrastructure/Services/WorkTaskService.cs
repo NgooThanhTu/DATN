@@ -12,13 +12,15 @@ namespace TaskManagement.Infrastructure.Services
     public class WorkTaskService : IWorkTaskService
     {
         private readonly ApplicationDbContext _context;
+        private readonly IGamificationService _gamificationService;
 
         // Roles that can see ALL tasks in a project
         private static readonly string[] ManagerRoles = { "PM", "PO", "SM", "PROJECT_MANAGER", "SCRUM_MASTER" };
 
-        public WorkTaskService(ApplicationDbContext context)
+        public WorkTaskService(ApplicationDbContext context, IGamificationService gamificationService)
         {
             _context = context;
+            _gamificationService = gamificationService;
         }
 
         public async Task<List<WorkTaskResponseDto>> GetByProjectAsync(Guid projectId, Guid userId)
@@ -38,6 +40,10 @@ namespace TaskManagement.Infrastructure.Services
                 .Include(wt => wt.TaskType)
                 .Include(wt => wt.Reporter)
                 .Include(wt => wt.AssignedUser)
+                .Include(wt => wt.IssueModules)
+                .Include(wt => wt.IssueLabels)
+                .Include(wt => wt.TaskAssignments)
+                    .ThenInclude(ta => ta.User)
                 .Where(wt => wt.ProjectId == projectId && !wt.IsDeleted && !wt.IsArchived);
 
             // 3. Role-based filtering
@@ -68,9 +74,32 @@ namespace TaskManagement.Infrastructure.Services
                     TaskStatusId = wt.TaskStatusId,
                     StatusName = wt.TaskStatus.Name, // We can normalize this on Frontend/Client if needed, or keeping simple here
                     ReporterId = wt.ReporterId,
-                    ReporterName = wt.Reporter.FullName,
+                    ReporterName = wt.Reporter.FullName ?? wt.Reporter.Email,
                     AssignedUserId = wt.AssignedUserId,
-                    AssigneeName = wt.AssignedUser.FullName,
+                    AssigneeName = wt.AssignedUser != null ? wt.AssignedUser.FullName : null,
+                    Assignees = wt.TaskAssignments
+                        .Where(ta => ta.Status)
+                        .Select(ta => new TaskAssigneeDto
+                        {
+                            UserId = ta.UserId,
+                            FullName = ta.User.FullName,
+                            Email = ta.User.Email,
+                            ProgressPercent = ta.ProgressPercent,
+                            ContributionWeight = ta.ContributionWeight,
+                            EstimatedHours = ta.EstimatedHours,
+                            TotalActualHours = ta.TotalActualHours,
+                            IsBlocked = ta.BlockedByUserId.HasValue,
+                            BlockedByUserId = ta.BlockedByUserId,
+                            BlockReason = ta.BlockReason
+                        })
+                        .ToList(),
+                    ModuleId = wt.IssueModules
+                        .OrderBy(im => im.AssignedAt)
+                        .Select(im => (Guid?)im.ModuleId)
+                        .FirstOrDefault(),
+                    LabelIds = wt.IssueLabels
+                        .Select(il => il.LabelId)
+                        .ToList(),
                     Priority = wt.Priority,
                     StoryPoints = wt.StoryPoints,
                     DueDate = wt.DueDate,
@@ -80,8 +109,7 @@ namespace TaskManagement.Infrastructure.Services
                     UpdatedAt = wt.UpdatedAt,
                     RowVersion = wt.RowVersion,
                     SortOrder = wt.SortOrder,
-                    SequenceId = wt.SequenceId,
-                    IsSubscribed = wt.Subscribers.Any(s => s.UserId == userId)
+                    SequenceId = wt.SequenceId
                 })
                 .ToListAsync();
 
@@ -100,7 +128,7 @@ namespace TaskManagement.Infrastructure.Services
             if (reporterId != Guid.Empty)
             {
                 var isMember = await _context.ProjectMembers
-                    .AnyAsync(pm => pm.ProjectId == request.ProjectId && pm.UserId == reporterId);
+                    .AnyAsync(pm => pm.ProjectId == request.ProjectId && pm.UserId == reporterId && pm.Status);
                 if (!isMember)
                 {
                     throw new UnauthorizedAccessException("Bạn không phải thành viên của dự án này. Không thể tạo công việc.");
@@ -132,6 +160,64 @@ namespace TaskManagement.Infrastructure.Services
             project.IssueSequence += 1;
             string sequenceId = $"{project.Identifier}-{project.IssueSequence}";
 
+            var requestedAssigneeIds = (request.AssigneeIds ?? new List<Guid>()).Distinct().ToList();
+            if (!requestedAssigneeIds.Any() && request.AssignedUserId.HasValue)
+            {
+                requestedAssigneeIds.Add(request.AssignedUserId.Value);
+            }
+
+            if (requestedAssigneeIds.Any())
+            {
+                var validAssigneeCount = await _context.ProjectMembers
+                    .CountAsync(pm => pm.ProjectId == request.ProjectId && pm.Status && requestedAssigneeIds.Contains(pm.UserId));
+                if (validAssigneeCount != requestedAssigneeIds.Count)
+                {
+                    throw new InvalidOperationException("Assignee khong thuoc du an nay.");
+                }
+            }
+
+            if (request.SprintId.HasValue)
+            {
+                var sprintExists = await _context.Sprints
+                    .AnyAsync(s => s.Id == request.SprintId.Value && s.ProjectId == request.ProjectId);
+                if (!sprintExists)
+                {
+                    throw new InvalidOperationException("Cycle khong thuoc du an nay.");
+                }
+            }
+
+            if (request.ModuleId.HasValue)
+            {
+                var moduleExists = await _context.Modules
+                    .AnyAsync(m => m.Id == request.ModuleId.Value && m.ProjectId == request.ProjectId);
+                if (!moduleExists)
+                {
+                    throw new InvalidOperationException("Module khong thuoc du an nay.");
+                }
+            }
+
+            if (request.ParentTaskId.HasValue)
+            {
+                var parentExists = await _context.WorkTasks
+                    .AnyAsync(wt => wt.Id == request.ParentTaskId.Value && wt.ProjectId == request.ProjectId && !wt.IsDeleted);
+                if (!parentExists)
+                {
+                    throw new InvalidOperationException("Parent task khong thuoc du an nay.");
+                }
+            }
+
+            var requestedLabelIds = (request.LabelIds ?? new List<Guid>()).Distinct().ToList();
+            if (requestedLabelIds.Any())
+            {
+                var validLabelCount = await _context.Labels
+                    .CountAsync(label => requestedLabelIds.Contains(label.Id)
+                        && (label.ProjectId == request.ProjectId || (label.ProjectId == null && label.WorkspaceId == project.WorkspaceId)));
+                if (validLabelCount != requestedLabelIds.Count)
+                {
+                    throw new InvalidOperationException("Label khong thuoc du an nay.");
+                }
+            }
+
             // 7. Create entity
             var workTask = new TaskManagement.Domain.Entities.WorkTask
             {
@@ -161,12 +247,55 @@ namespace TaskManagement.Infrastructure.Services
             _context.WorkTasks.Add(workTask);
             await _context.SaveChangesAsync();
 
+            if (requestedAssigneeIds.Any())
+            {
+                workTask.AssignedUserId = requestedAssigneeIds[0];
+                foreach (var assigneeId in requestedAssigneeIds)
+                {
+                    _context.TaskAssignments.Add(new Domain.Entities.TaskAssignment
+                    {
+                        WorkTaskId = workTask.Id,
+                        UserId = assigneeId,
+                        Status = true
+                    });
+                }
+            }
+
+            if (request.ModuleId.HasValue)
+            {
+                _context.IssueModules.Add(new Domain.Entities.IssueModule
+                {
+                    WorkTaskId = workTask.Id,
+                    ModuleId = request.ModuleId.Value,
+                    AssignedAt = DateTime.UtcNow
+                });
+            }
+
+            foreach (var labelId in requestedLabelIds)
+            {
+                _context.IssueLabels.Add(new Domain.Entities.IssueLabel
+                {
+                    WorkTaskId = workTask.Id,
+                    LabelId = labelId,
+                    AssignedAt = DateTime.UtcNow
+                });
+            }
+
+            if (requestedAssigneeIds.Any() || request.ModuleId.HasValue || requestedLabelIds.Any())
+            {
+                await _context.SaveChangesAsync();
+            }
+
             // Reload with navigation properties
             var created = await _context.WorkTasks
                 .Include(wt => wt.TaskStatus)
                 .Include(wt => wt.TaskType)
                 .Include(wt => wt.Reporter)
                 .Include(wt => wt.AssignedUser)
+                .Include(wt => wt.IssueModules)
+                .Include(wt => wt.IssueLabels)
+                .Include(wt => wt.TaskAssignments)
+                    .ThenInclude(ta => ta.User)
                 .FirstAsync(wt => wt.Id == workTask.Id);
 
             return MapToDto(created);
@@ -187,7 +316,7 @@ namespace TaskManagement.Infrastructure.Services
 
             // 1. RBAC Check
             var membership = await _context.ProjectMembers
-                .FirstOrDefaultAsync(pm => pm.ProjectId == taskToUpdate.ProjectId && pm.UserId == userId);
+                .FirstOrDefaultAsync(pm => pm.ProjectId == taskToUpdate.ProjectId && pm.UserId == userId && pm.Status);
 
             if (membership == null)
                 throw new UnauthorizedAccessException("Bạn không phải thành viên của dự án này.");
@@ -196,6 +325,36 @@ namespace TaskManagement.Infrastructure.Services
             if (!isManager && taskToUpdate.ReporterId != userId && taskToUpdate.AssignedUserId != userId && !taskToUpdate.TaskAssignments.Any(ta => ta.UserId == userId))
             {
                  throw new UnauthorizedAccessException("Bạn không có quyền sửa đổi tác vụ này.");
+            }
+
+            if (dto.AssignedUserId.HasValue)
+            {
+                var assigneeIsMember = await _context.ProjectMembers
+                    .AnyAsync(pm => pm.ProjectId == taskToUpdate.ProjectId && pm.UserId == dto.AssignedUserId.Value && pm.Status);
+                if (!assigneeIsMember)
+                {
+                    throw new InvalidOperationException("Assignee khong thuoc du an nay.");
+                }
+            }
+
+            if (dto.SprintId.HasValue)
+            {
+                var sprintExists = await _context.Sprints
+                    .AnyAsync(s => s.Id == dto.SprintId.Value && s.ProjectId == taskToUpdate.ProjectId);
+                if (!sprintExists)
+                {
+                    throw new InvalidOperationException("Cycle khong thuoc du an nay.");
+                }
+            }
+
+            if (dto.TaskTypeId != Guid.Empty)
+            {
+                var taskTypeExists = await _context.TaskTypes
+                    .AnyAsync(tt => tt.Id == dto.TaskTypeId && tt.ProjectId == taskToUpdate.ProjectId);
+                if (!taskTypeExists)
+                {
+                    throw new InvalidOperationException("Task type khong thuoc du an nay.");
+                }
             }
 
             // 2. Sprint Lock
@@ -218,6 +377,7 @@ namespace TaskManagement.Infrastructure.Services
             
             taskToUpdate.UpdatedAt = DateTime.UtcNow;
 
+
             if (dto.RowVersion != null && dto.RowVersion.Length > 0)
             {
                 _context.Entry(taskToUpdate).Property(nameof(taskToUpdate.RowVersion)).OriginalValue = dto.RowVersion;
@@ -228,107 +388,82 @@ namespace TaskManagement.Infrastructure.Services
             return MapToDto(taskToUpdate);
         }
 
-        public async Task UpdateTaskStatusAsync(Guid taskId, UpdateTaskStatusRequestDto request)
+        public async Task UpdateTaskStatusAsync(Guid taskId, Guid userId, UpdateTaskStatusRequestDto request)
         {
             var taskToUpdate = await _context.WorkTasks
                 .Include(wt => wt.TaskStatus)
                 .Include(wt => wt.Sprint)
+                .Include(wt => wt.TaskAssignments)
                 .FirstOrDefaultAsync(wt => wt.Id == taskId && !wt.IsDeleted);
 
             if (taskToUpdate == null) throw new ArgumentException("Tác vụ không tồn tại.");
 
+            var membership = await _context.ProjectMembers
+                .FirstOrDefaultAsync(pm => pm.ProjectId == taskToUpdate.ProjectId && pm.UserId == userId && pm.Status);
+            if (membership == null)
+                throw new UnauthorizedAccessException("Ban khong phai thanh vien cua du an nay.");
+
+            var canUpdateTask = ManagerRoles.Contains(membership.ProjectRole, StringComparer.OrdinalIgnoreCase)
+                || taskToUpdate.ReporterId == userId
+                || taskToUpdate.AssignedUserId == userId
+                || taskToUpdate.TaskAssignments.Any(ta => ta.UserId == userId && ta.Status);
+            if (!canUpdateTask)
+                throw new UnauthorizedAccessException("Ban khong co quyen sua tac vu nay.");
+
             // Sprint Lock
             if (taskToUpdate.Sprint != null && !taskToUpdate.Sprint.Status)
-            {
                 throw new InvalidOperationException("Không thể chỉnh sửa Task của một Sprint đã đóng.");
-            }
 
             var oldStatus = taskToUpdate.TaskStatus;
-            
+            var oldStatusName = oldStatus.Name;
+
+            // Resolve new status
             TaskManagement.Domain.Entities.TaskStatus? newStatus = null;
             if (request.TaskStatusId != Guid.Empty)
             {
-                newStatus = await _context.TaskStatuses.FirstOrDefaultAsync(ts => ts.Id == request.TaskStatusId);
+                newStatus = await _context.TaskStatuses.FirstOrDefaultAsync(ts => ts.Id == request.TaskStatusId && ts.ProjectId == taskToUpdate.ProjectId);
             }
             else if (!string.IsNullOrEmpty(request.StatusName))
             {
-                // Resolve by name and project
                 newStatus = await ResolveTaskStatusAsync(request.StatusName, taskToUpdate.ProjectId);
             }
 
             if (newStatus == null) throw new ArgumentException("Trạng thái chuyển đến không tồn tại.");
             if (oldStatus.Id == newStatus.Id) return;
 
-            // State Machine Guardrails — use normalized names, not positions
-            string oldNormalized = NormalizeStatusName(oldStatus.Name);
-            string newNormalized = NormalizeStatusName(newStatus.Name);
-
-            // Define all valid transitions
-            var allowedTransitions = new Dictionary<string, HashSet<string>>
-            {
-                { "BACKLOG",     new HashSet<string> { "TO DO", "IN PROGRESS" } },
-                { "TO DO",       new HashSet<string> { "IN PROGRESS", "BACKLOG" } },
-                { "IN PROGRESS", new HashSet<string> { "IN REVIEW", "DONE", "TO DO" } },
-                { "IN REVIEW",   new HashSet<string> { "DONE", "IN PROGRESS" } },
-                { "DONE",        new HashSet<string> { "IN PROGRESS" } }
-            };
-
-            if (allowedTransitions.TryGetValue(oldNormalized, out var validTargets))
-            {
-                if (!validTargets.Contains(newNormalized))
-                {
-                    throw new InvalidOperationException(
-                        $"Không thể chuyển từ \"{oldNormalized}\" sang \"{newNormalized}\". " +
-                        $"Các trạng thái hợp lệ: {string.Join(", ", validTargets)}.");
-                }
-            }
-            else
-            {
-                // Unknown source status — allow any transition
-            }
+            // Allow all status transitions — guardrails are dependency/subtask checks only.
 
             bool isMovingToActiveOrDone = newStatus.Name.Contains("In Progress", StringComparison.OrdinalIgnoreCase) ||
-                                          newStatus.Name.Contains("Done", StringComparison.OrdinalIgnoreCase) ||
-                                          newStatus.Name.Contains("Đang làm", StringComparison.OrdinalIgnoreCase) ||
-                                          newStatus.Name.Contains("Hoàn thành", StringComparison.OrdinalIgnoreCase);
+                                          newStatus.Name.Contains("Done", StringComparison.OrdinalIgnoreCase);
 
-            // Task Dependencies
+            // Task Dependencies check
             if (isMovingToActiveOrDone)
             {
                 var blockers = await _context.TaskDependencies
                     .Include(td => td.PredecessorTask)
                     .ThenInclude(pt => pt.TaskStatus)
-                    .Where(td => td.SuccessorTaskId == taskId && td.DependencyType == 1) // Only check "blocks" type
+                    .Where(td => td.SuccessorTaskId == taskId && td.DependencyType == 1)
                     .Select(td => td.PredecessorTask)
                     .ToListAsync();
 
                 foreach (var blocker in blockers)
                 {
-                    bool isBlockerDone = blocker.TaskStatus.Name.Contains("Done", StringComparison.OrdinalIgnoreCase) ||
-                                         blocker.TaskStatus.Name.Contains("Hoàn thành", StringComparison.OrdinalIgnoreCase);
+                    bool isBlockerDone = blocker.TaskStatus.Name.Contains("Done", StringComparison.OrdinalIgnoreCase);
                     if (!isBlockerDone)
-                    {
                         throw new InvalidOperationException($"Tác vụ phụ thuộc '{blocker.Title}' chưa hoàn thành.");
-                    }
                 }
             }
 
             // Parent-Subtask Constraint
-            bool isMovingToDone = newStatus.Name.Contains("Done", StringComparison.OrdinalIgnoreCase) ||
-                                  newStatus.Name.Contains("Hoàn thành", StringComparison.OrdinalIgnoreCase);
-
+            bool isMovingToDone = newStatus.Name.Contains("Done", StringComparison.OrdinalIgnoreCase);
             if (isMovingToDone)
             {
                 bool hasUnfinishedSubtasks = await _context.WorkTasks
                     .Include(wt => wt.TaskStatus)
                     .AnyAsync(wt => wt.ParentTaskId == taskId && !wt.IsDeleted &&
-                                    !wt.TaskStatus.Name.Contains("Done", StringComparison.OrdinalIgnoreCase) &&
-                                    !wt.TaskStatus.Name.Contains("Hoàn thành", StringComparison.OrdinalIgnoreCase));
-
+                                    !wt.TaskStatus.Name.Contains("Done", StringComparison.OrdinalIgnoreCase));
                 if (hasUnfinishedSubtasks)
-                {
                     throw new InvalidOperationException("Không thể hoàn thành tác vụ cha khi vẫn còn subtask chưa hoàn thành.");
-                }
             }
 
             taskToUpdate.TaskStatusId = newStatus.Id;
@@ -339,15 +474,14 @@ namespace TaskManagement.Infrastructure.Services
                 _context.Entry(taskToUpdate).Property(nameof(taskToUpdate.RowVersion)).OriginalValue = request.RowVersion;
             }
 
-            // (A) Concurrency Handler: Bọc SaveChangesAsync để bắt DbUpdateConcurrencyException
             try
             {
                 await _context.SaveChangesAsync();
+                await _gamificationService.ApplyStatusChangeRewardsAsync(taskId, userId, oldStatusName, newStatus.Name);
             }
             catch (DbUpdateConcurrencyException)
             {
-                throw new DbUpdateConcurrencyException(
-                    "Dữ liệu đã bị người khác thay đổi trước bạn. Vui lòng tải lại trang để tránh ghi đè (Anti-Overwrite).");
+                throw;
             }
         }
 
@@ -394,7 +528,15 @@ namespace TaskManagement.Infrastructure.Services
         public async Task<IEnumerable<WorkTaskResponseDto>> GetMyTasksAsync(Guid userId)
         {
             var tasks = await _context.WorkTasks
-                .Where(wt => (wt.AssignedUserId == userId || wt.ReporterId == userId || wt.Subscribers.Any(s => s.UserId == userId)) && !wt.IsDeleted && !wt.IsArchived)
+                .AsNoTracking()
+                .Include(wt => wt.TaskStatus)
+                .Include(wt => wt.TaskType)
+                .Include(wt => wt.Reporter)
+                .Include(wt => wt.AssignedUser)
+                .Include(wt => wt.TaskAssignments)
+                    .ThenInclude(ta => ta.User)
+                .Include(wt => wt.Project)
+                .Where(wt => (wt.AssignedUserId == userId || wt.TaskAssignments.Any(ta => ta.UserId == userId && ta.Status) || wt.Subscribers.Any(s => s.UserId == userId)) && !wt.IsDeleted && !wt.IsArchived)
                 .OrderByDescending(wt => wt.UpdatedAt)
                 .Select(wt => new WorkTaskResponseDto
                 {
@@ -409,6 +551,22 @@ namespace TaskManagement.Infrastructure.Services
                     TaskTypeName = wt.TaskType.Name,
                     AssigneeName = wt.AssignedUser != null ? wt.AssignedUser.FullName : null,
                     AssignedUserId = wt.AssignedUserId,
+                    Assignees = wt.TaskAssignments
+                        .Where(ta => ta.Status)
+                        .Select(ta => new TaskAssigneeDto
+                        {
+                            UserId = ta.UserId,
+                            FullName = ta.User.FullName,
+                            Email = ta.User.Email,
+                            ProgressPercent = ta.ProgressPercent,
+                            ContributionWeight = ta.ContributionWeight,
+                            EstimatedHours = ta.EstimatedHours,
+                            TotalActualHours = ta.TotalActualHours,
+                            IsBlocked = ta.BlockedByUserId.HasValue,
+                            BlockedByUserId = ta.BlockedByUserId,
+                            BlockReason = ta.BlockReason
+                        })
+                        .ToList(),
                     ReporterName = wt.Reporter.FullName,
                     ReporterId = wt.ReporterId,
                     PlannedStartDate = wt.PlannedStartDate,
@@ -420,8 +578,7 @@ namespace TaskManagement.Infrastructure.Services
                     RowVersion = wt.RowVersion,
                     CreatedAt = wt.CreatedAt,
                     UpdatedAt = wt.UpdatedAt,
-                    ProjectName = wt.Project.Name,
-                    IsSubscribed = wt.Subscribers.Any(s => s.UserId == userId)
+                    ProjectName = wt.Project.Name
                 })
                 .ToListAsync();
 
@@ -472,11 +629,35 @@ namespace TaskManagement.Infrastructure.Services
                 ReporterName = wt.Reporter != null ? wt.Reporter.FullName : "",
                 AssignedUserId = wt.AssignedUserId,
                 AssigneeName = wt.AssignedUser != null ? wt.AssignedUser.FullName : null,
+                Assignees = wt.TaskAssignments
+                    .Where(ta => ta.Status)
+                    .Select(ta => new TaskAssigneeDto
+                    {
+                        UserId = ta.UserId,
+                        FullName = ta.User.FullName,
+                        Email = ta.User.Email,
+                        ProgressPercent = ta.ProgressPercent,
+                        ContributionWeight = ta.ContributionWeight,
+                        EstimatedHours = ta.EstimatedHours,
+                        TotalActualHours = ta.TotalActualHours,
+                        IsBlocked = ta.BlockedByUserId.HasValue,
+                        BlockedByUserId = ta.BlockedByUserId,
+                        BlockReason = ta.BlockReason
+                    })
+                    .ToList(),
+                ModuleId = wt.IssueModules
+                    .OrderBy(im => im.AssignedAt)
+                    .Select(im => (Guid?)im.ModuleId)
+                    .FirstOrDefault(),
+                LabelIds = wt.IssueLabels
+                    .Select(il => il.LabelId)
+                    .ToList(),
                 Priority = wt.Priority,
                 StoryPoints = wt.StoryPoints,
                 DueDate = wt.DueDate,
                 PlannedStartDate = wt.PlannedStartDate,
                 PlannedEndDate = wt.PlannedEndDate,
+                ParentTaskId = wt.ParentTaskId,
                 CreatedAt = wt.CreatedAt,
                 UpdatedAt = wt.UpdatedAt,
                 RowVersion = wt.RowVersion,
@@ -494,9 +675,14 @@ namespace TaskManagement.Infrastructure.Services
                 .ToListAsync();
 
             var dbQuery = _context.WorkTasks
+                .Include(wt => wt.TaskStatus)
+                .Include(wt => wt.TaskType)
                 .Include(wt => wt.Reporter)
                 .Include(wt => wt.AssignedUser)
-                .Include(wt => wt.Subscribers)
+                .Include(wt => wt.TaskAssignments)
+                    .ThenInclude(ta => ta.User)
+                .Include(wt => wt.IssueModules)
+                .Include(wt => wt.IssueLabels)
                 .Where(wt => (userProjectIds.Contains(wt.ProjectId) || wt.Subscribers.Any(s => s.UserId == userId)) && !wt.IsDeleted && !wt.IsArchived);
 
             // Filtering
@@ -516,7 +702,7 @@ namespace TaskManagement.Infrastructure.Services
 
             if (assigneeId.HasValue)
             {
-                dbQuery = dbQuery.Where(wt => wt.AssignedUserId == assigneeId.Value);
+                dbQuery = dbQuery.Where(wt => wt.AssignedUserId == assigneeId.Value || wt.TaskAssignments.Any(ta => ta.UserId == assigneeId.Value && ta.Status));
             }
 
             if (priority.HasValue)
@@ -538,20 +724,83 @@ namespace TaskManagement.Infrastructure.Services
                     TaskStatusId = wt.TaskStatusId,
                     StatusName = wt.TaskStatus.Name,
                     ReporterId = wt.ReporterId,
-                    ReporterName = wt.Reporter.FullName,
+                    ReporterName = wt.Reporter.FullName ?? wt.Reporter.Email,
                     AssignedUserId = wt.AssignedUserId,
-                    AssigneeName = wt.AssignedUser.FullName,
+                    AssigneeName = wt.AssignedUser != null ? wt.AssignedUser.FullName : null,
+                    Assignees = wt.TaskAssignments
+                        .Where(ta => ta.Status)
+                        .Select(ta => new TaskAssigneeDto
+                        {
+                            UserId = ta.UserId,
+                            FullName = ta.User.FullName,
+                            Email = ta.User.Email,
+                            ProgressPercent = ta.ProgressPercent,
+                            ContributionWeight = ta.ContributionWeight,
+                            EstimatedHours = ta.EstimatedHours,
+                            TotalActualHours = ta.TotalActualHours,
+                            IsBlocked = ta.BlockedByUserId.HasValue,
+                            BlockedByUserId = ta.BlockedByUserId,
+                            BlockReason = ta.BlockReason
+                        })
+                        .ToList(),
+                    ModuleId = wt.IssueModules
+                        .OrderBy(im => im.AssignedAt)
+                        .Select(im => (Guid?)im.ModuleId)
+                        .FirstOrDefault(),
+                    LabelIds = wt.IssueLabels
+                        .Select(il => il.LabelId)
+                        .ToList(),
                     Priority = wt.Priority,
                     StoryPoints = wt.StoryPoints,
                     DueDate = wt.DueDate,
-                    CreatedAt = wt.CreatedAt,
-                    IsSubscribed = wt.Subscribers.Any(s => s.UserId == userId)
+                    CreatedAt = wt.CreatedAt
                 })
                 .ToListAsync();
 
             foreach (var r in results) r.StatusName = NormalizeStatusName(r.StatusName);
 
             return results;
+        }
+
+        public async Task ArchiveAsync(Guid id)
+        {
+            var task = await _context.WorkTasks.FirstOrDefaultAsync(wt => wt.Id == id);
+            if (task == null) throw new ArgumentException("Tac vu khong ton tai.");
+
+            task.IsArchived = true;
+            task.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task RestoreAsync(Guid id)
+        {
+            var task = await _context.WorkTasks.FirstOrDefaultAsync(wt => wt.Id == id);
+            if (task == null) throw new ArgumentException("Tac vu khong ton tai.");
+
+            task.IsArchived = false;
+            task.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task<bool> ToggleSubscriptionAsync(Guid taskId, Guid userId)
+        {
+            var existing = await _context.TaskSubscribers
+                .FirstOrDefaultAsync(ts => ts.WorkTaskId == taskId && ts.UserId == userId);
+
+            if (existing != null)
+            {
+                _context.TaskSubscribers.Remove(existing);
+                await _context.SaveChangesAsync();
+                return false;
+            }
+
+            _context.TaskSubscribers.Add(new TaskManagement.Domain.Entities.TaskSubscriber
+            {
+                WorkTaskId = taskId,
+                UserId = userId
+            });
+            await _context.SaveChangesAsync();
+            return true;
         }
 
         private async Task<TaskManagement.Domain.Entities.TaskStatus> ResolveTaskStatusAsync(string? statusName, Guid projectId)
@@ -629,51 +878,6 @@ namespace TaskManagement.Infrastructure.Services
             }
 
             return taskType.Id;
-        }
-
-        public async Task ArchiveAsync(Guid id)
-        {
-            var task = await _context.WorkTasks.FirstOrDefaultAsync(wt => wt.Id == id);
-            if (task == null) throw new ArgumentException("Tác vụ không tồn tại.");
-            
-            task.IsArchived = true;
-            task.UpdatedAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
-        }
-
-        public async Task RestoreAsync(Guid id)
-        {
-            var task = await _context.WorkTasks.FirstOrDefaultAsync(wt => wt.Id == id);
-            if (task == null) throw new ArgumentException("Tác vụ không tồn tại.");
-            
-            task.IsArchived = false;
-            task.UpdatedAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
-        }
-
-        public async Task<bool> ToggleSubscriptionAsync(Guid taskId, Guid userId)
-        {
-            var existing = await _context.TaskSubscribers
-                .FirstOrDefaultAsync(ts => ts.WorkTaskId == taskId && ts.UserId == userId);
-
-            bool isSubscribed;
-            if (existing != null)
-            {
-                _context.TaskSubscribers.Remove(existing);
-                isSubscribed = false;
-            }
-            else
-            {
-                _context.TaskSubscribers.Add(new TaskManagement.Domain.Entities.TaskSubscriber
-                {
-                    WorkTaskId = taskId,
-                    UserId = userId
-                });
-                isSubscribed = true;
-            }
-
-            await _context.SaveChangesAsync();
-            return isSubscribed;
         }
     }
 }

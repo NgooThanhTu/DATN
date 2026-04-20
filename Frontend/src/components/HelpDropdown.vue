@@ -1,27 +1,29 @@
 <template>
-  <el-dropdown trigger="click" popper-class="help-dropdown-popper global-help-popper">
-    <div class="help-trigger-btn">
+  <el-dropdown ref="dropdownRef" trigger="click" popper-class="help-dropdown-popper global-help-popper" @command="handleCommand">
+    <button class="help-trigger-btn" type="button" aria-label="Open help menu">
       <i class="fa-solid fa-circle-question"></i>
-    </div>
+    </button>
     <template #dropdown>
       <el-dropdown-menu class="dark-help-menu">
         <div class="help-header">
-          <h3>Trợ giúp</h3>
-          <i class="fa-solid fa-xmark close-btn"></i>
+          <h3>Tro giup</h3>
+          <button class="close-btn" type="button" @click="closeMenu" aria-label="Close help menu">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
         </div>
-        <el-dropdown-item><i class="fa-solid fa-lightbulb"></i> Tìm hiểu cập nhật mới</el-dropdown-item>
-        <el-dropdown-item><i class="fa-solid fa-file-lines"></i> Đọc về điều hướng mới</el-dropdown-item>
-        <el-dropdown-item><i class="fa-solid fa-book"></i> Duyệt tài liệu hướng dẫn</el-dropdown-item>
-        <el-dropdown-item><i class="fa-solid fa-desktop"></i> Học kỹ năng điều hành dự án</el-dropdown-item>
-        <el-dropdown-item divided><i class="fa-solid fa-comment"></i> Hỏi cộng đồng trực tuyến</el-dropdown-item>
-        <el-dropdown-item><i class="fa-solid fa-triangle-exclamation"></i> Liên hệ hỗ trợ</el-dropdown-item>
-        <el-dropdown-item><i class="fa-solid fa-comments"></i> Phản hồi về SprintA</el-dropdown-item>
-        <el-dropdown-item><i class="fa-solid fa-keyboard"></i> Phím tắt</el-dropdown-item>
-        <el-dropdown-item><i class="fa-solid fa-paper-plane"></i> Tải ứng dụng Mobile</el-dropdown-item>
+        <el-dropdown-item command="updates"><i class="fa-solid fa-lightbulb"></i> Cap nhat moi</el-dropdown-item>
+        <el-dropdown-item command="navigation"><i class="fa-solid fa-file-lines"></i> Dieu huong moi</el-dropdown-item>
+        <el-dropdown-item command="docs"><i class="fa-solid fa-book"></i> Tai lieu huong dan</el-dropdown-item>
+        <el-dropdown-item command="learn"><i class="fa-solid fa-desktop"></i> Hoc quan ly du an</el-dropdown-item>
+        <el-dropdown-item command="community" divided><i class="fa-solid fa-comment"></i> Cong dong truc tuyen</el-dropdown-item>
+        <el-dropdown-item command="support"><i class="fa-solid fa-triangle-exclamation"></i> Lien he ho tro</el-dropdown-item>
+        <el-dropdown-item command="feedback"><i class="fa-solid fa-comments"></i> Phan hoi ve SprintA</el-dropdown-item>
+        <el-dropdown-item command="shortcuts"><i class="fa-solid fa-keyboard"></i> Phim tat</el-dropdown-item>
+        <el-dropdown-item command="mobile"><i class="fa-solid fa-paper-plane"></i> Tai ung dung Mobile</el-dropdown-item>
         <div class="help-footer">
-          <a href="#">Giới thiệu</a>
-          <a href="#">Điều khoản</a>
-          <a href="#">Bảo mật</a>
+          <button type="button" @click="handleCommand('about')">Gioi thieu</button>
+          <button type="button" @click="handleCommand('terms')">Dieu khoan</button>
+          <button type="button" @click="handleCommand('privacy')">Bao mat</button>
         </div>
       </el-dropdown-menu>
     </template>
@@ -29,11 +31,42 @@
 </template>
 
 <script setup>
-// No extra logic needed for now
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+
+const router = useRouter()
+const dropdownRef = ref(null)
+
+const closeMenu = () => {
+  dropdownRef.value?.handleClose?.()
+}
+
+const handleCommand = (command) => {
+  const commandMap = {
+    docs: () => router.push('/views'),
+    updates: () => router.push('/dashboard'),
+    navigation: () => router.push('/spaces'),
+    learn: () => router.push('/analytics'),
+    shortcuts: () => ElMessage.info('Shortcuts: Ctrl+K search, Esc close modal.'),
+    support: () => ElMessage.info('Ho tro dang duoc phat trien. Hay lien he admin he thong.'),
+    feedback: () => ElMessage.info('Cam on ban. Form phan hoi se duoc bo sung o ban tiep theo.'),
+    community: () => ElMessage.info('Cong dong truc tuyen dang duoc chuan bi.'),
+    mobile: () => ElMessage.info('Ung dung mobile chua san sang de tai.'),
+    about: () => ElMessage.info('SprintA quan ly cong viec theo space, cycle va module.'),
+    terms: () => ElMessage.info('Dieu khoan su dung se duoc cong bo trong trung tam tro giup.'),
+    privacy: () => ElMessage.info('Chinh sach bao mat se duoc cong bo trong trung tam tro giup.')
+  }
+
+  commandMap[command]?.()
+  closeMenu()
+}
 </script>
 
 <style scoped>
 .help-trigger-btn {
+  border: 0;
+  background: transparent;
   color: var(--text-secondary);
   font-size: 18px;
   cursor: pointer;
@@ -74,6 +107,8 @@
 }
 
 .close-btn {
+  border: 0;
+  background: transparent;
   cursor: pointer;
   font-size: 14px;
   color: var(--text-secondary);
@@ -116,13 +151,16 @@
   margin-top: 8px;
 }
 
-.help-footer a {
+.help-footer button {
+  border: 0;
+  background: transparent;
   color: var(--text-secondary);
   font-size: 12px;
   text-decoration: none;
+  cursor: pointer;
 }
 
-.help-footer a:hover {
+.help-footer button:hover {
   color: var(--text-primary);
   text-decoration: underline;
 }

@@ -5,9 +5,12 @@ const props = defineProps({
   tasks: { type: Array, default: () => [] }
 })
 
-const emit = defineEmits(['open-task'])
+const emit = defineEmits(['open-task', 'create-task'])
 
 const currentDate = ref(new Date())
+const showOptions = ref(false)
+const showOnlyDated = ref(true)
+const taskLimit = ref(2)
 
 // Navigation
 const goToday = () => { currentDate.value = new Date() }
@@ -87,10 +90,17 @@ const getTasksForDay = (date) => {
     
     // If only one date, show on that specific day
     const singleDate = endDate || startDate
+    if (showOnlyDated.value && !singleDate) return false
     if (!singleDate) return false
     const d = new Date(singleDate)
     return d.getFullYear() === date.getFullYear() && d.getMonth() === date.getMonth() && d.getDate() === date.getDate()
   })
+}
+
+const visibleTasksForDay = (date) => getTasksForDay(date).slice(0, taskLimit.value)
+
+const toggleTaskLimit = () => {
+  taskLimit.value = taskLimit.value === 2 ? 6 : 2
 }
 
 const isToday = (date) => {
@@ -115,6 +125,13 @@ const getStatusColor = (statusName) => {
   if (s.includes('TODO')) return '#a855f7'
   return '#6b7280'
 }
+
+const requestCreateTask = (date) => {
+  emit('create-task', {
+    plannedStartDate: date.toISOString(),
+    dueDate: date.toISOString()
+  })
+}
 </script>
 
 <template>
@@ -128,7 +145,18 @@ const getStatusColor = (statusName) => {
       </div>
       <div class="cal-actions">
         <button class="cal-btn" @click="goToday">Today</button>
-        <button class="cal-btn">Options <i class="fa-solid fa-chevron-down"></i></button>
+        <div class="cal-options">
+          <button class="cal-btn" @click="showOptions = !showOptions">
+            Options <i class="fa-solid fa-chevron-down"></i>
+          </button>
+          <div class="cal-options-menu" v-if="showOptions">
+            <label class="cal-option-row">
+              <input type="checkbox" v-model="showOnlyDated" />
+              Show dated work items
+            </label>
+            <div class="cal-option-empty">Month view is active.</div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -152,7 +180,7 @@ const getStatusColor = (statusName) => {
         </div>
         <div class="day-tasks">
           <div 
-            v-for="task in getTasksForDay(day.date).slice(0, 2)" 
+            v-for="task in visibleTasksForDay(day.date)" 
             :key="task.id" 
             class="day-task-chip"
             :style="{ borderLeft: `3px solid ${getStatusColor(task.statusName)}` }"
@@ -161,14 +189,14 @@ const getStatusColor = (statusName) => {
           >
             <span class="chip-text">{{ task.title }}</span>
           </div>
-          <div v-if="getTasksForDay(day.date).length > 2" class="day-more">
-            + {{ getTasksForDay(day.date).length - 2 }} more
-          </div>
+          <button v-if="getTasksForDay(day.date).length > taskLimit" type="button" class="day-more" @click="toggleTaskLimit">
+            + {{ getTasksForDay(day.date).length - taskLimit }} more
+          </button>
         </div>
         <!-- Quick add -->
-        <div class="day-add-btn" v-if="day.isCurrentMonth">
+        <button class="day-add-btn" type="button" v-if="day.isCurrentMonth" @click="requestCreateTask(day.date)">
           <i class="fa-solid fa-plus"></i> Add work item
-        </div>
+        </button>
       </div>
     </div>
   </div>
@@ -225,6 +253,33 @@ const getStatusColor = (statusName) => {
 .cal-actions {
   display: flex;
   gap: 8px;
+}
+.cal-options {
+  position: relative;
+}
+.cal-options-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 10;
+  width: 220px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+}
+.cal-option-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+.cal-option-empty {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin-top: 8px;
 }
 .cal-btn {
   padding: 6px 14px;
@@ -335,6 +390,9 @@ const getStatusColor = (statusName) => {
   display: block;
 }
 .day-more {
+  border: 0;
+  background: transparent;
+  text-align: left;
   font-size: 11px;
   color: var(--text-muted);
   padding: 2px 6px;
@@ -346,6 +404,8 @@ const getStatusColor = (statusName) => {
 
 /* ── Quick Add ── */
 .day-add-btn {
+  border: 0;
+  background: transparent;
   position: absolute;
   bottom: 4px;
   left: 4px;

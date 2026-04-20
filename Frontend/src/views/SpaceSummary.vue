@@ -7,24 +7,12 @@
         <div class="sh-left">
           <div class="breadcrumb">
             <span class="proj-icon">C</span>
-            <el-dropdown trigger="click" @command="handleProjectCommand">
-              <span class="proj-name">
-                {{ project?.name || 'Cun' }}
-                <i class="fa-solid fa-chevron-down" style="font-size: 8px; margin-left: 4px;"></i>
-              </span>
-              <template #dropdown>
-                <el-dropdown-menu class="dark-dropdown">
-                  <el-dropdown-item command="archive">
-                    <i class="fa-regular fa-box-archive"></i> Archive space
-                  </el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
+            <span class="proj-name">{{ project?.name || 'Cun' }}</span>
             <i class="fa-solid fa-chevron-right separator"></i>
             <span class="active-page">
               <i class="fa-solid fa-layer-group"></i> Work Items
             </span>
-            <span class="item-count">{{ rawTasks.length }}</span>
+            <span class="item-count">{{ topLevelTasks.length }}</span>
           </div>
         </div>
         
@@ -38,8 +26,9 @@
             <button class="toggle-btn" :class="{ active: currentTab === 'timeline' }" @click="currentTab = 'timeline'" title="Gantt chart view"><i class="fa-solid fa-chart-gantt"></i></button>
           </div>
 
-          <button class="plane-toolbar-btn">
+          <button class="plane-toolbar-btn" @click="showFilterPanel = !showFilterPanel" :class="{ active: showFilterPanel || activeTaskFilters.length }">
             <i class="fa-solid fa-filter"></i>
+            <span v-if="activeTaskFilters.length" class="filter-count">{{ activeTaskFilters.length }}</span>
           </button>
           
           <!-- Display Dropdown -->
@@ -70,7 +59,7 @@
                 </div>
                 <div class="dd-section border-top">
                    <label class="dd-item checkbox">
-                      <input type="checkbox" checked /> Show sub-work items
+                     <input type="checkbox" disabled /> Show sub-work items
                    </label>
                 </div>
              </div>
@@ -84,23 +73,40 @@
         </div>
       </header>
 
+      <div class="work-filter-row" v-if="showFilterPanel || activeTaskFilters.length">
+        <FilterBar
+          v-model:filters="activeTaskFilters"
+          @apply="applyTaskFilters"
+          @remove="removeTaskFilter"
+          @clear="clearTaskFilters"
+        />
+      </div>
+
       <!-- Other Tab Views -->
       <div v-if="currentTab === 'list'" class="list-wrapper" style="padding: 16px;">
-         <ListView 
-            :tasks="filteredTasksList" 
-            :projectMembers="projectMembers"
-            @task-click="openTaskDetail" 
-            @task-created="handleListTaskCreate"
-            @update-task="updateTask" />
+         <ListView
+           :tasks="filteredTasksList"
+           :projectMembers="projectMembers"
+           @task-click="openTaskDetail"
+           @task-created="handleListTaskCreate"
+           @update-task="updateTask"
+         />
       </div>
       <div v-if="currentTab === 'calendar'" class="calendar-wrapper">
-         <CalendarTab :tasks="filteredTasksList" @open-task="openTaskDetail" />
+         <CalendarTab :tasks="filteredTasksList" @open-task="openTaskDetail" @create-task="openCreateTaskFromCalendar" />
       </div>
       <div v-if="currentTab === 'spreadsheet'" class="spreadsheet-wrapper" style="display: flex; flex: 1; overflow: hidden;">
-         <SpreadsheetTab :tasks="rawTasks" />
+          <SpreadsheetTab
+            :tasks="filteredTasksList"
+            :projectId="getProjectId()"
+            :projectMembers="projectMembers"
+            @task-click="openTaskDetail"
+            @update-task="updateTask"
+            @create-task="payload => openCreateTask(payload?.statusName || 'TO DO')"
+          />
       </div>
       <div v-if="currentTab === 'timeline'" class="timeline-wrapper">
-         <TimelineTab :projectId="projectId" @open-task="openTaskDetail" />
+         <TimelineTab :projectId="projectId" :tasks="filteredTasksList" @open-task="openTaskDetail" />
       </div>
 
       <!-- Kanban Board Layout -->
@@ -128,35 +134,6 @@
                 <div class="issue-card" :class="{ 'active-card': selectedTask?.id === element.id }" @click="openTaskDetail(element)">
                   <p class="issue-sequence mb-1">{{ element.sequenceId || element.id.substring(0,8).toUpperCase() }}</p>
                   <p class="issue-title" :style="element.statusName === 'DONE' ? { textDecoration: 'line-through', color: '#A1A1AA' } : {}">{{ element.title }}</p>
-                  
-                  <div class="card-bottom">
-                    <div class="cb-left">
-                       <el-dropdown trigger="click" @command="(val) => updateTask(element, 'assigneeId', val)">
-                         <div class="card-pill hover:bg-[#27272A] cursor-pointer">
-                            <template v-if="element.assigneeName">
-                               <div class="avatar-xxs-kanban bg-teal-600">{{ element.assigneeName.charAt(0).toUpperCase() }}</div>
-                               <span>{{ element.assigneeName }}</span>
-                            </template>
-                            <template v-else>
-                               <i class="fa-regular fa-circle-user"></i>
-                               <span>Unassigned</span>
-                            </template>
-                         </div>
-                         <template #dropdown>
-                            <el-dropdown-menu class="plane-dropdown">
-                               <el-dropdown-item :command="null">Unassigned</el-dropdown-item>
-                               <el-dropdown-item v-for="m in projectMembers" :key="m.userId" :command="m.userId">
-                                  {{ m.fullName || m.userName }}
-                               </el-dropdown-item>
-                            </el-dropdown-menu>
-                         </template>
-                       </el-dropdown>
-                    </div>
-                    <div class="cb-right">
-                       <i class="fa-solid fa-ellipsis-vertical"></i>
-                    </div>
-                  </div>
-
                   <div class="issue-meta mt-2" style="display:flex; align-items:center; gap:8px;">
                      <div class="badge">
                        <i class="fa-regular fa-circle" v-if="(element.statusName||'').toUpperCase() === 'TO DO' || (element.statusName||'').toUpperCase() === 'TODO'"></i>
@@ -216,7 +193,7 @@
          <div class="ap-header">
             <h3>Analytics for {{ project?.name || 'Cun' }}</h3>
             <div class="ap-actions">
-               <button class="icon-btn"><i class="fa-solid fa-expand"></i></button>
+               <button class="icon-btn" @click="showAnalyticsSidebar = false"><i class="fa-solid fa-expand"></i></button>
                <button class="icon-btn" @click="showAnalyticsSidebar = false"><i class="fa-solid fa-xmark"></i></button>
             </div>
          </div>
@@ -257,9 +234,9 @@
                <div class="flex-between">
                   <h4>Customized Insights</h4>
                   <div class="insight-filters">
-                     <button class="filter-btn"><i class="fa-solid fa-briefcase"></i> Work item <i class="fa-solid fa-chevron-down"></i></button>
-                     <button class="filter-btn"><i class="fa-solid fa-list"></i> Priority <i class="fa-solid fa-chevron-down"></i></button>
-                     <button class="filter-btn"><i class="fa-solid fa-plus-minus"></i> Add Property <i class="fa-solid fa-chevron-down"></i></button>
+                     <button class="filter-btn" @click="showFilterPanel = true"><i class="fa-solid fa-briefcase"></i> Work item <i class="fa-solid fa-chevron-down"></i></button>
+                     <button class="filter-btn" @click="groupBy = groupBy === 'status' ? 'priority' : 'status'"><i class="fa-solid fa-list"></i> {{ groupBy === 'status' ? 'Priority' : 'Status' }} <i class="fa-solid fa-chevron-down"></i></button>
+                     <button class="filter-btn" @click="showFilterPanel = true"><i class="fa-solid fa-plus-minus"></i> Add Property <i class="fa-solid fa-chevron-down"></i></button>
                   </div>
                </div>
                
@@ -272,7 +249,7 @@
                   <span class="text-muted">4 Priority</span>
                   <div class="flex-center gap-1">
                      <i class="fa-solid fa-magnifying-glass text-muted"></i>
-                     <button class="export-btn"><i class="fa-solid fa-download"></i> Export as csv</button>
+                     <button class="export-btn" @click="exportAnalyticsCsv('priority')"><i class="fa-solid fa-download"></i> Export as csv</button>
                   </div>
                </div>
                <table class="ap-table">
@@ -291,7 +268,7 @@
                   <span class="text-muted">1 Assignee</span>
                   <div class="flex-center gap-1">
                      <i class="fa-solid fa-magnifying-glass text-muted"></i>
-                     <button class="export-btn"><i class="fa-solid fa-download"></i> Export as csv</button>
+                     <button class="export-btn" @click="exportAnalyticsCsv('assignee')"><i class="fa-solid fa-download"></i> Export as csv</button>
                   </div>
                </div>
                <table class="ap-table">
@@ -325,10 +302,10 @@
 
 <script setup>
 // AI 3: CHUYÊN VIÊN GHÉP NỐI LOGIC FRONT-TO-BACK
-import { ref, onMounted, computed, defineAsyncComponent } from 'vue'
+import { ref, onMounted, computed, defineAsyncComponent, watch, nextTick, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import axiosClient from '@/api/axiosClient'
-import { ElMessageBox, ElMessage, ElNotification } from 'element-plus'
 import NexusLayout from '@/components/layout/NexusLayout.vue'
 import draggable from 'vuedraggable'
 import TaskDetailModal from '@/components/TaskDetailModal.vue'
@@ -336,9 +313,8 @@ import ListView from '@/components/ListView.vue'
 import CalendarTab from '@/components/CalendarTab.vue'
 import TimelineTab from '@/components/TimelineTab.vue'
 import SpreadsheetTab from '@/components/SpreadsheetTab.vue'
-import { onUnmounted } from 'vue';
+import FilterBar from '@/components/FilterBar.vue'
 import { useWorkTaskStore } from '@/store/useWorkTaskStore';
-import { useActivityStore } from '@/store/useActivityStore';
 
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
@@ -358,12 +334,12 @@ use([
 
 const showDisplayDropdown = ref(false)
 const showAnalyticsSidebar = ref(false)
+const showFilterPanel = ref(false)
 
 const route = useRoute()
 const router = useRouter()
 const projectId = route.params.id
 const store = useWorkTaskStore();
-const actStore = useActivityStore();
 
 const project = ref({})
 const rawTasks = ref([])
@@ -375,7 +351,133 @@ const inlineTaskTitle = ref('')
 const currentTab = ref('board')
 const searchQuery = ref('')
 const activeFilters = ref({ assignee: null })
+const activeTaskFilters = ref([])
 const groupBy = ref('status')
+const activeSprintFilterId = computed(() => route.query.sprintId || route.params.cycleId || null)
+const activeModuleFilterId = computed(() => route.query.moduleId || null)
+
+const isSubtask = (task) => Boolean(task?.parentTaskId || task?.parentId)
+
+const getTaskAssigneeIds = (task) => {
+  if (Array.isArray(task.assigneeIds) && task.assigneeIds.length) return task.assigneeIds
+  if (Array.isArray(task.assignees) && task.assignees.length) return task.assignees.map(item => item.userId || item.id).filter(Boolean)
+  if (task.assignedUserId) return [task.assignedUserId]
+  return []
+}
+
+const topLevelTasks = computed(() => rawTasks.value.filter(task => !isSubtask(task)))
+
+const normalizeText = (value) => `${value || ''}`.toLowerCase().trim()
+const normalizeStatus = (value) => `${value || 'BACKLOG'}`.toUpperCase().replace(/\s+/g, ' ').trim()
+const normalizePriority = (value) => {
+  const map = { urgent: 1, high: 2, normal: 3, low: 4, none: null }
+  return Object.prototype.hasOwnProperty.call(map, normalizeText(value)) ? map[normalizeText(value)] : value
+}
+const filterValues = (value) => Array.isArray(value) ? value : `${value || ''}`.split(',').map(item => item.trim()).filter(Boolean)
+const valuesInclude = (values, target) => values.map(normalizeText).includes(normalizeText(target))
+const currentUserId = () => {
+  try {
+    const rawUser = localStorage.getItem('user')
+    const user = rawUser ? JSON.parse(rawUser) : null
+    return user?.id || user?.userId || localStorage.getItem('userId') || null
+  } catch {
+    return localStorage.getItem('userId') || null
+  }
+}
+const getTaskDate = (task, field) => {
+  const value = task[field] || (field === 'startDate' ? task.plannedStartDate : null) || (field === 'dueDate' ? task.dueDate : null)
+  if (!value) return null
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+const startOfToday = () => {
+  const date = new Date()
+  date.setHours(0, 0, 0, 0)
+  return date
+}
+const isThisWeek = (date) => {
+  if (!date) return false
+  const today = startOfToday()
+  const end = new Date(today)
+  end.setDate(today.getDate() + 7)
+  return date >= today && date <= end
+}
+const taskMatchesFilter = (task, filter) => {
+  const operator = filter.operator || filter.condition || 'is'
+  const value = filter.value || filter.displayValue
+  const field = filter.field
+
+  if (field === 'status') {
+    const left = normalizeStatus(task.statusName)
+    const rightValues = filterValues(value).map(normalizeStatus)
+    if (operator === 'is not' || operator === 'not in') return !rightValues.includes(left)
+    return rightValues.includes(left)
+  }
+
+  if (field === 'priority') {
+    const left = task.priority || null
+    const rightValues = filterValues(value).map(normalizePriority)
+    if (operator === 'is not' || operator === 'not in') return !rightValues.includes(left)
+    return rightValues.includes(left)
+  }
+
+  if (field === 'assignee') {
+    const assigneeIds = getTaskAssigneeIds(task)
+    if (operator === 'empty') return assigneeIds.length === 0
+    if (operator === 'not empty') return assigneeIds.length > 0
+    if (normalizeText(value) === 'unassigned') return operator === 'is not' ? assigneeIds.length > 0 : assigneeIds.length === 0
+    const assigneeNames = (task.assignees || []).map(item => item.fullName || item.name || item.email)
+    const hasMatch = filterValues(value).some(item => assigneeIds.includes(item) || valuesInclude(assigneeNames, item))
+    return operator === 'is not' ? !hasMatch : hasMatch
+  }
+
+  if (field === 'creator') {
+    const creatorIds = [task.reporterId, task.createdById, task.createdBy].filter(Boolean)
+    const creatorNames = [task.reporterName, task.createdByName, task.creatorName, task.createdBy?.fullName].filter(Boolean)
+    const values = filterValues(value)
+    const me = currentUserId()
+    const hasMatch = values.some(item => {
+      if (normalizeText(item) === 'me') return Boolean(me && creatorIds.includes(me))
+      return creatorIds.includes(item) || valuesInclude(creatorNames, item)
+    })
+    return operator === 'is not' ? !hasMatch : hasMatch
+  }
+
+  if (field === 'label') {
+    const labelIds = task.labelIds || []
+    const labelNames = (task.labels || task.labelNames || []).map(item => item.name || item)
+    if (operator === 'empty' || normalizeText(value) === 'no label') return labelIds.length === 0 && labelNames.length === 0
+    const hasMatch = filterValues(value).some(item => labelIds.includes(item) || valuesInclude(labelNames, item))
+    return operator === 'not includes' || operator === 'not_includes' ? !hasMatch : hasMatch
+  }
+
+  if (['startDate', 'dueDate', 'createdAt', 'updatedAt'].includes(field)) {
+    const dateField = field === 'startDate' ? 'plannedStartDate' : field
+    const date = getTaskDate(task, dateField)
+    if (operator === 'empty') return !date
+    if (operator === 'overdue') return Boolean(date && date < startOfToday() && normalizeStatus(task.statusName) !== 'DONE')
+    if (normalizeText(value) === 'empty') return !date
+    if (normalizeText(value) === 'today') return Boolean(date && date.toDateString() === startOfToday().toDateString())
+    if (normalizeText(value) === 'this week') return isThisWeek(date)
+    return true
+  }
+
+  if (field === 'cycle') {
+    if (operator === 'empty' || normalizeText(value) === 'no cycle') return !task.sprintId
+    const hasMatch = filterValues(value).some(item => task.sprintId === item || normalizeText(task.sprintName) === normalizeText(item))
+    return operator === 'is not' ? !hasMatch : hasMatch
+  }
+
+  if (field === 'module') {
+    if (operator === 'empty' || normalizeText(value) === 'no module') return !task.moduleId && !(task.moduleIds || []).length
+    const moduleIds = [task.moduleId, ...(task.moduleIds || []), ...(task.modules || []).map(item => item.id || item.moduleId)].filter(Boolean)
+    const moduleNames = [task.moduleName, ...(task.modules || []).map(item => item.name)].filter(Boolean)
+    const hasMatch = filterValues(value).some(item => moduleIds.includes(item) || valuesInclude(moduleNames, item))
+    return operator === 'is not' ? !hasMatch : hasMatch
+  }
+
+  return true
+}
 
 let dynamicProjectId = null;
 const getProjectId = () => {
@@ -384,16 +486,30 @@ const getProjectId = () => {
 }
 
 const filteredTasksList = computed(() => {
-  let filteredTasks = [...rawTasks.value];
+  let filteredTasks = [...topLevelTasks.value];
 
   if (searchQuery.value) {
      filteredTasks = filteredTasks.filter(t => t.title.toLowerCase().includes(searchQuery.value.toLowerCase()) || (t.sequenceId && t.sequenceId.toLowerCase().includes(searchQuery.value.toLowerCase())));
   }
   if (activeFilters.value.assignee) {
-     filteredTasks = filteredTasks.filter(t => t.assignedUserId === activeFilters.value.assignee.userId);
+     filteredTasks = filteredTasks.filter(t => getTaskAssigneeIds(t).includes(activeFilters.value.assignee.userId));
+  }
+  if (activeSprintFilterId.value) {
+     filteredTasks = filteredTasks.filter(t => t.sprintId === activeSprintFilterId.value);
+  }
+  if (activeModuleFilterId.value) {
+     filteredTasks = filteredTasks.filter(t => {
+       if (t.moduleId === activeModuleFilterId.value) return true
+       if (Array.isArray(t.moduleIds) && t.moduleIds.includes(activeModuleFilterId.value)) return true
+       if (Array.isArray(t.modules) && t.modules.some(m => (m.id || m.moduleId) === activeModuleFilterId.value)) return true
+       return false
+     });
+  }
+  if (activeTaskFilters.value.length) {
+     filteredTasks = filteredTasks.filter(task => activeTaskFilters.value.every(filter => taskMatchesFilter(task, filter)));
   }
 
-  return filteredTasks.sort((a,b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  return filteredTasks.sort((a,b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0));
 });
 
 const createdResolvedOptions = computed(() => {
@@ -487,20 +603,8 @@ const loadInitialData = async () => {
   if(!pid) {
       try {
           const res = await axiosClient.get('/projects');
-          if (res.data?.data?.length === 0) {
-              const createRes = await axiosClient.post('/projects', {
-                 name: 'Cun',
-                 description: 'Auto-created project',
-                 startDate: new Date().toISOString()
-              });
-              if (createRes.data?.data?.id) {
-                  pid = createRes.data.data.id;
-              }
-          } else if (res.data?.data?.length > 0) {
+          if (res.data?.data?.length > 0) {
               pid = res.data.data[0].id;
-          }
-          
-          if (pid) {
               dynamicProjectId = pid;
               localStorage.setItem('lastProjectId', pid);
           }
@@ -509,8 +613,6 @@ const loadInitialData = async () => {
           return;
       }
   }
-
-  if (!pid) return;
 
   try {
     const pRes = await axiosClient.get(`/projects/${pid}`)
@@ -550,19 +652,21 @@ const closeTaskDetail = () => {
   selectedTask.value = null;
 }
 
-const updateTask = async (task, field, value) => {
+const updateTask = async (task, field, value, previousValue = task ? task[field] : undefined) => {
    try {
       const pid = getProjectId();
-      if (!pid) return;
+      if (!pid || !task?.id) return;
       
       const payload = {};
       payload[field] = value;
-      await axiosClient.patch(`/projects/${pid}/WorkTasks/${task.id}`, payload);
-      const fieldLabels = { assigneeId: 'Assignee', statusName: 'Status', priority: 'Priority', title: 'Title' };
-      actStore.logActivity(`Updated ${fieldLabels[field] || field}`, `Task: ${task.title}`, 'fa-solid fa-pen-to-square');
+      task[field] = value;
+      await store.updateTask(pid, task.id, payload);
       await fetchTasks();
    } catch (error) {
       console.error('Failed to update task:', error);
+      if (task) task[field] = previousValue;
+      ElMessage.error(error.response?.data?.message || 'Khong the cap nhat cong viec');
+      await fetchTasks();
    }
 }
 
@@ -572,11 +676,23 @@ const openCreateTask = (statusName) => {
      title: '', 
      description: '', 
      statusName: statusName || 'BACKLOG', 
-     priority: 3
+      priority: 3,
+      sprintId: activeSprintFilterId.value || null
    };
 }
 
-import { nextTick } from 'vue'
+const openCreateTaskFromCalendar = (dates) => {
+   selectedTask.value = {
+     isNew: true,
+     title: '',
+     description: '',
+     statusName: 'TO DO',
+     priority: 3,
+     plannedStartDate: dates?.plannedStartDate || null,
+     dueDate: dates?.dueDate || null,
+     sprintId: activeSprintFilterId.value || null
+   };
+}
 
 const inlineInput = ref(null);
 
@@ -600,22 +716,19 @@ const submitInlineTask = async (col) => {
       inlineCreateColId.value = null;
       return;
    }
-   const titleForLog = inlineTaskTitle.value.trim();
    try {
       await axiosClient.post(`/projects/${getProjectId()}/WorkTasks`, {
          title: inlineTaskTitle.value.trim(),
          description: '',
          statusName: col.name || 'BACKLOG',
-         priority: 3
+          priority: 3,
+          sprintId: activeSprintFilterId.value || null
       });
       inlineTaskTitle.value = '';
-      inlineCreateColId.value = null; // <-- MUST CLOSE OVERLAY
-      await fetchTasks();
-      actStore.logActivity(`Created work item "${titleForLog}"`, 'in ' + col.name, 'fa-solid fa-plus');
-      ElNotification({ title: 'Thành công', message: 'Tạo công việc thành công', type: 'success' });
+      fetchTasks();
    } catch (e) {
-      console.error('Lỗi khi tạo inline task:', e);
-      ElNotification({ title: 'Lỗi', message: e.response?.data?.message || 'Không thể tạo công việc', type: 'error' });
+      console.error(e);
+      ElMessage.error(e.response?.data?.message || 'Khong the tao cong viec');
    }
 }
 
@@ -627,12 +740,13 @@ const handleListTaskCreate = async (payload) => {
          title: payload.title,
          description: '',
          statusName: payload.statusName || 'BACKLOG',
-         priority: payload.priority || 3
+          priority: payload.priority || 3,
+          sprintId: activeSprintFilterId.value || null
       });
-      await fetchTasks();
-      actStore.logActivity(`Created work item "${payload.title}"`, 'in List View', 'fa-solid fa-plus');
+      fetchTasks();
    } catch (error) {
       console.error(error);
+      ElMessage.error(error.response?.data?.message || 'Khong the tao cong viec');
    }
 }
 
@@ -640,17 +754,24 @@ const handleDraggableChange = async (evt, group) => {
   if (evt.added || evt.moved) {
     const element = evt.added ? evt.added.element : evt.moved.element;
     const newIndex = evt.added ? evt.added.newIndex : evt.moved.newIndex;
+    const previousTask = { ...element };
+    const getSortOrder = (task, fallback) => {
+      const sortOrder = Number(task?.sortOrder);
+      return Number.isFinite(sortOrder) ? sortOrder : fallback;
+    };
     
     // Math cho LexoRank
     let newSortOrder = 65536;
     if (group.items.length === 1) {
        newSortOrder = 65536;
     } else if (newIndex === 0) {
-       newSortOrder = group.items[1].sortOrder / 2.0;
+       newSortOrder = getSortOrder(group.items[1], 131072) / 2.0;
     } else if (newIndex === group.items.length - 1) {
-       newSortOrder = group.items[group.items.length - 2].sortOrder + 65536;
+       newSortOrder = getSortOrder(group.items[group.items.length - 2], 0) + 65536;
     } else {
-       newSortOrder = (group.items[newIndex - 1].sortOrder + group.items[newIndex + 1].sortOrder) / 2.0;
+       const beforeSort = getSortOrder(group.items[newIndex - 1], 0);
+       const afterSort = getSortOrder(group.items[newIndex + 1], beforeSort + 131072);
+       newSortOrder = (beforeSort + afterSort) / 2.0;
     }
     
     element.sortOrder = newSortOrder;
@@ -658,21 +779,25 @@ const handleDraggableChange = async (evt, group) => {
     if (groupBy.value === 'status') {
        element.statusName = group.name; // Cập nhật Optimistic UI
        try {
-         await axiosClient.put(`/projects/${getProjectId()}/WorkTasks/${element.id}/reorder`, {
-           sortOrder: newSortOrder,
-           newStatusName: group.name
-         });
+         await store.reorderTask(getProjectId(), element.id, newSortOrder, group.name);
+         await fetchTasks();
        } catch (error) {
+         Object.assign(element, previousTask);
+         ElMessage.error(error.response?.data?.message || 'Khong the cap nhat bang Kanban');
          console.error('Lỗi API reorder:', error);
          fetchTasks(); // Load lại data nếu gặp lỗi
        }
     } else if (groupBy.value === 'priority') {
        element.priority = group.priorityValue;
        try {
-         await axiosClient.put(`/projects/${getProjectId()}/WorkTasks/${element.id}/reorder`, {
-           sortOrder: newSortOrder
-         });
-       } catch (error) {
+         await store.updateTask(getProjectId(), element.id, {
+           sortOrder: newSortOrder,
+           priority: group.priorityValue
+          });
+          await fetchTasks();
+        } catch (error) {
+          Object.assign(element, previousTask);
+          ElMessage.error(error.response?.data?.message || 'Khong the cap nhat do uu tien');
          console.error('Lỗi API reorder:', error);
          fetchTasks();
        }
@@ -680,45 +805,78 @@ const handleDraggableChange = async (evt, group) => {
   }
 }
 
-const handleProjectCommand = (command) => {
-   if (command === 'archive') {
-      archiveProject();
-   }
-}
-
-const archiveProject = async () => {
-   try {
-      await ElMessageBox.confirm(
-         'Bạn có chắc muốn lưu trữ không gian này? Các công việc sẽ bị ẩn khỏi bảng điều khiển.',
-         'Xác nhận lưu trữ',
-         {
-            confirmButtonText: 'Lưu trữ',
-            cancelButtonText: 'Hủy',
-            type: 'warning',
-            confirmButtonClass: 'el-button--danger'
-         }
-      );
-      
-      const pid = getProjectId();
-      await axiosClient.put(`/projects/${pid}/archive`);
-      ElMessage.success('Đã lưu trữ không gian thành công');
-      router.push('/dashboard');
-   } catch (error) {
-      if (error !== 'cancel') {
-         ElMessage.error('Có lỗi xảy ra khi lưu trữ không gian');
-      }
-   }
-}
-
 
 const handleGlobalCreate = () => {
     openCreateTask('TO DO')
 }
 
+const syncFiltersToUrl = () => {
+  const query = { ...route.query }
+  if (activeTaskFilters.value.length) {
+    query.filters = encodeURIComponent(JSON.stringify(activeTaskFilters.value))
+  } else {
+    delete query.filters
+  }
+  router.replace({ query })
+}
+
+const applyTaskFilters = (filters) => {
+  activeTaskFilters.value = Array.isArray(filters) ? filters : activeTaskFilters.value
+  syncFiltersToUrl()
+}
+
+const removeTaskFilter = (id) => {
+  activeTaskFilters.value = activeTaskFilters.value.filter(filter => filter.id !== id)
+  syncFiltersToUrl()
+}
+
+const clearTaskFilters = () => {
+  activeTaskFilters.value = []
+  syncFiltersToUrl()
+}
+
+const hydrateFiltersFromUrl = () => {
+  if (!route.query.filters) return
+  try {
+    const parsed = JSON.parse(decodeURIComponent(route.query.filters))
+    activeTaskFilters.value = Array.isArray(parsed) ? parsed : []
+    showFilterPanel.value = activeTaskFilters.value.length > 0
+  } catch (error) {
+    activeTaskFilters.value = []
+  }
+}
+
+const exportAnalyticsCsv = (type) => {
+  const rows = type === 'priority'
+    ? [['Priority', 'Count'], ['Urgent', rawTasks.value.filter(t => t.priority === 1).length], ['High', rawTasks.value.filter(t => t.priority === 2).length], ['Normal', rawTasks.value.filter(t => t.priority === 3).length], ['Low', rawTasks.value.filter(t => t.priority === 4).length]]
+    : [['Assignee', 'Count'], ['Unassigned', rawTasks.value.filter(t => !getTaskAssigneeIds(t).length).length]]
+  const csv = rows.map(row => row.join(',')).join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `${type}-analytics.csv`
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
 onMounted(() => {
+  hydrateFiltersFromUrl()
   loadInitialData()
   window.addEventListener('global-create-task', handleGlobalCreate)
 })
+
+watch(
+  () => [route.query.tab, route.query.sprintId, route.query.moduleId, route.params.cycleId],
+  () => {
+    if (route.query.tab === 'spreadsheet' || activeSprintFilterId.value || activeModuleFilterId.value) {
+      currentTab.value = 'spreadsheet'
+    } else if (route.query.tab === 'board') {
+      currentTab.value = 'board'
+    }
+  },
+  { immediate: true }
+)
 
 onUnmounted(() => {
   window.removeEventListener('global-create-task', handleGlobalCreate)
@@ -845,6 +1003,28 @@ onUnmounted(() => {
 }
 .plane-toolbar-btn:hover {
   background: #1E2025;
+}
+.plane-toolbar-btn.active {
+  background: #1E2025;
+  color: #fff;
+}
+.filter-count {
+  margin-left: 6px;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: #0EA5E9;
+  color: #fff;
+  font-size: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.work-filter-row {
+  padding: 10px 24px;
+  border-bottom: 1px solid #1E2025;
+  background: #0D0F11;
+  flex-shrink: 0;
 }
 
 .plane-primary-btn {

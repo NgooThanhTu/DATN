@@ -28,7 +28,7 @@
           </div>
           <div class="tr-right">
             <!-- Properties pills -->
-            <div class="pill-group">
+            <div class="pill-group" @click.stop>
               <el-dropdown trigger="click" @command="(val) => updateTaskProperty(task, 'statusName', val)">
                 <div class="pill pill-status cursor-pointer hover:bg-[#1E2025]">
                    <i class="status-icon-sm" :class="group.iconClass" :style="{ color: group.color }"></i>
@@ -62,23 +62,31 @@
                 </template>
               </el-dropdown>
               
-              <el-dropdown trigger="click" @command="(val) => updateTaskProperty(task, 'assigneeId', val)">
-                <div class="pill pill-user cursor-pointer hover:bg-[#1E2025]">
-                  <div class="avatar-xxs">
-                    <i class="fa-regular fa-user" v-if="!task.assigneeName"></i>
-                    <span v-else>{{ task.assigneeName.substring(0,1).toUpperCase() }}</span>
+              <el-popover placement="bottom" trigger="click" width="260" popper-class="plane-popover">
+                <template #reference>
+                  <div class="pill pill-user cursor-pointer hover:bg-[#1E2025]">
+                     <div class="avatar-xxs">
+                        <i class="fa-regular fa-user" v-if="!getTaskAssigneeSummary(task).label"></i>
+                        <span v-else>{{ getTaskAssigneeSummary(task).avatar }}</span>
+                     </div>
+                     <span v-if="getTaskAssigneeSummary(task).label" class="pill-user-text">{{ getTaskAssigneeSummary(task).label }}</span>
                   </div>
-                  <span v-if="task.assigneeName" class="ml-1">{{ task.assigneeName }}</span>
-                </div>
-                <template #dropdown>
-                  <el-dropdown-menu class="plane-dropdown">
-                    <el-dropdown-item :command="null">Unassigned</el-dropdown-item>
-                    <el-dropdown-item v-for="m in projectMembers" :key="m.userId" :command="m.userId">
-                      {{ m.fullName || m.userName }}
-                    </el-dropdown-item>
-                  </el-dropdown-menu>
                 </template>
-              </el-dropdown>
+                <div class="popover-content">
+                  <input type="text" class="plane-search-input" v-model="searchAssignee" placeholder="Search members" />
+                  <div class="plane-list mt-2">
+                    <label
+                      class="plane-list-item"
+                      v-for="member in filteredMembers"
+                      :key="member.userId || member.id"
+                      @click.stop="toggleTaskAssignee(task, member.userId || member.id)"
+                    >
+                      <input type="checkbox" :checked="getTaskAssigneeIds(task).includes(member.userId || member.id)" />
+                      {{ member.fullName || member.name || member.email }}
+                    </label>
+                  </div>
+                </div>
+              </el-popover>
             </div>
             <div class="row-action">
               <i class="fa-solid fa-ellipsis"></i>
@@ -151,7 +159,7 @@ const props = defineProps({
   projectMembers: { type: Array, default: () => [] }
 })
 
-const emit = defineEmits(['task-click', 'task-created'])
+const emit = defineEmits(['task-click', 'task-created', 'update-task'])
 
 const collapsedGroups = ref({})
 const inlineCreateGroup = ref(null)
@@ -159,7 +167,43 @@ const inlineTaskTitle = ref('')
 const inlineTaskPriority = ref(3)
 const inlineTaskStatus = ref('TO DO')
 const inlineInputs = ref(null)
+const searchAssignee = ref('')
 import { nextTick } from 'vue'
+
+const filteredMembers = computed(() => {
+  const keyword = searchAssignee.value.trim().toLowerCase()
+  if (!keyword) return props.projectMembers
+  return props.projectMembers.filter(member =>
+    `${member.fullName || member.name || member.email || ''}`.toLowerCase().includes(keyword)
+  )
+})
+
+const getTaskAssigneeIds = (task) => {
+  if (Array.isArray(task.assigneeIds) && task.assigneeIds.length) return task.assigneeIds
+  if (Array.isArray(task.assignees) && task.assignees.length) return task.assignees.map(item => item.userId)
+  if (task.assignedUserId) return [task.assignedUserId]
+  return []
+}
+
+const getTaskAssigneeSummary = (task) => {
+  const ids = getTaskAssigneeIds(task)
+  if (!ids.length) return { label: '', avatar: '' }
+  if (ids.length === 1) {
+    const member = props.projectMembers.find(item => (item.userId || item.id) === ids[0])
+    const label = member?.fullName || member?.name || member?.email || task.assigneeName || 'Assignee'
+    return { label, avatar: label.substring(0, 1).toUpperCase() }
+  }
+  return { label: `${ids.length} assignees`, avatar: `${ids.length}` }
+}
+
+const toggleTaskAssignee = (task, memberId) => {
+  const currentIds = getTaskAssigneeIds(task)
+  const nextIds = currentIds.includes(memberId)
+    ? currentIds.filter(id => id !== memberId)
+    : [...currentIds, memberId]
+
+  emit('update-task', task, 'assigneeIds', nextIds, currentIds)
+}
 
 const openInlineCreate = (key) => {
     inlineCreateGroup.value = key
@@ -206,7 +250,7 @@ const groupedTasks = computed(() => {
     done: { name: 'Done', iconClass: 'fa-solid fa-circle-check', color: '#10B981', tasks: [] }
   }
 
-  props.tasks.forEach(task => {
+  props.tasks.filter(task => !(task.parentTaskId || task.parentId)).forEach(task => {
     const s = (task.statusName || '').toUpperCase().trim();
     if (s === 'IN PROGRESS' || s === 'INPROGRESS') groups.inprogress.tasks.push(task)
     else if (s === 'DONE') groups.done.tasks.push(task)
@@ -219,7 +263,7 @@ const groupedTasks = computed(() => {
 })
 
 const updateTaskProperty = (task, field, value) => {
-   emit('update-task', task, field, value);
+   emit('update-task', task, field, value, task[field]);
 }
 </script>
 
@@ -324,6 +368,15 @@ const updateTaskProperty = (task, field, value) => {
   font-size: 14px;
   font-weight: 500;
   color: #D4D4D8;
+}
+
+.pill-user-text {
+  font-size: 12px;
+  color: #D4D4D8;
+  max-width: 120px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tr-right {

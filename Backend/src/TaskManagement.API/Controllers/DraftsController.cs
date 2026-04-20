@@ -202,13 +202,13 @@ namespace TaskManagement.API.Controllers
 
             return Ok(new { message = "Draft deleted" });
         }
-    }
 
-    public class DraftCreateUpdateDto
-    {
-        public string? Title { get; set; }
-        public string? Description { get; set; }
-        public string? StatusName { get; set; }
-        public int? Priority { get; set; }
+        public class DraftCreateUpdateDto
+        {
+            public string? Title { get; set; }
+            public string? Description { get; set; }
+            public string? StatusName { get; set; }
+            public int? Priority { get; set; }
+        }
     }
 }

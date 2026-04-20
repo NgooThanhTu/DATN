@@ -19,6 +19,7 @@ const viewType = ref('list')
 
 // Selected Filters State
 const activeFilters = ref([])
+const showViewSearch = ref(false)
 
 const addFilterOption = (label, icon) => {
     // Check if we want to allow multiples (like Start date) or just one of a kind
@@ -40,37 +41,64 @@ const handleClearFilters = () => {
     activeFilters.value = []
 }
 
-const handleAddFilter = () => {
-    // This is called from the FilterBar "+" button
-    // It should focus/open the dropdown if possible, but for now we'll just keep it linked
+const handleAddFilter = (filter) => {
+    if (!filter?.id) return
+    activeFilters.value.push(filter)
+}
+
+const getTaskFieldValue = (task, field) => {
+    const fieldMap = {
+        status: task.statusName || task.state || task.status,
+        priority: task.priorityName || task.priority,
+        assignee: task.assigneeName || task.assignedToName || task.assignees?.map(a => a.fullName || a.name).join(', '),
+        creator: task.reporterName || task.createdByName || task.creatorName,
+        label: task.labels?.map(l => l.name || l.labelName).join(', '),
+        startDate: task.plannedStartDate || task.startDate,
+        dueDate: task.dueDate || task.plannedEndDate,
+        cycle: task.sprintName || task.cycleName,
+        module: task.moduleName,
+        createdAt: task.createdAt || task.createdDate,
+        updatedAt: task.updatedAt || task.updatedDate
+    }
+    return fieldMap[field] ?? task[field]
+}
+
+const normalizeValue = (value) => `${value ?? ''}`.toLowerCase()
+
+const applyTaskFilters = (items, filters) => {
+    if (!filters?.length) return items
+
+    return items.filter(task => filters.every(filter => {
+        const actual = getTaskFieldValue(task, filter.field)
+        const expected = filter.value
+        const operator = filter.operator || filter.condition || 'is'
+        const actualText = normalizeValue(actual)
+        const expectedText = normalizeValue(expected)
+        const actualDate = actual ? new Date(actual).getTime() : null
+        const expectedDate = expected ? new Date(expected).getTime() : null
+
+        if (operator === 'empty') return !actual
+        if (operator === 'not empty') return Boolean(actual)
+        if (operator === 'overdue') return actualDate && actualDate < Date.now()
+        if (operator === 'before') return actualDate && expectedDate && actualDate < expectedDate
+        if (operator === 'after') return actualDate && expectedDate && actualDate > expectedDate
+        if (operator === 'between') {
+            const endDate = filter.valueTo ? new Date(filter.valueTo).getTime() : null
+            return actualDate && expectedDate && endDate && actualDate >= expectedDate && actualDate <= endDate
+        }
+        if (operator === 'is not' || operator === 'is_not') return actualText !== expectedText
+        if (operator === 'includes') return actualText.includes(expectedText)
+        if (operator === 'not includes' || operator === 'not_includes') return !actualText.includes(expectedText)
+        if (operator === 'in') return expectedText.split(',').map(v => v.trim()).includes(actualText)
+        if (operator === 'not in' || operator === 'not_in') return !expectedText.split(',').map(v => v.trim()).includes(actualText)
+        return actualText === expectedText || actualText.includes(expectedText)
+    }))
 }
 
 // Sorting and Filtering
 const sortBy = ref('Updated at')
 const sortDir = ref('Descending')
 const filterSearch = ref('')
-
-// Header Filter Dropdown state
-const filterFavorites = ref(false)
-const filterDateOpen = ref(true)
-const filterDateChecked = ref([])
-const filterByOpen = ref(true)
-const filterByChecked = ref([])
-
-const dateOptions = [
-  { label: '1 week ago',  value: '1w' },
-  { label: '2 weeks ago', value: '2w' },
-  { label: '1 month ago', value: '1m' },
-  { label: 'Custom',      value: 'custom' }
-]
-
-const activeFilterCount = computed(() => {
-  let count = 0
-  if (filterFavorites.value) count++
-  count += filterDateChecked.value.length
-  count += filterByChecked.value.length
-  return count
-})
 
 // Creation form
 const newView = ref({
@@ -84,6 +112,14 @@ const displayProps = ref(['ID', 'Assignee', 'Start date', 'Due date', 'Labels', 
 const groupBy = ref('States')
 const orderBy = ref('Manual')
 const showSubItems = ref(false)
+
+const filteredViews = computed(() => {
+  const q = filterSearch.value.trim().toLowerCase()
+  if (!q) return views.value
+  return views.value.filter(view =>
+    `${view.name || ''} ${view.description || ''}`.toLowerCase().includes(q)
+  )
+})
 
 const fetchViews = async () => {
   try {
@@ -103,9 +139,11 @@ const fetchViewTasks = async (view) => {
   loading.value = true
   try {
     let priority = null
+    let metadataFilters = []
     try {
         const metadata = JSON.parse(view.queryMetadata)
         if (metadata.priority === 'Urgent') priority = 1
+        metadataFilters = metadata.filters || []
     } catch(e) {}
 
     const res = await axiosClient.get(`/tasks/search`, {
@@ -114,7 +152,7 @@ const fetchViewTasks = async (view) => {
         projectId: projectId.value
       }
     })
-    tasks.value = res.data.data
+    tasks.value = applyTaskFilters(res.data.data || [], metadataFilters)
   } catch (err) {
     console.error('Failed to fetch tasks', err)
   } finally {
@@ -125,7 +163,17 @@ const fetchViewTasks = async (view) => {
 const createView = async () => {
   if (!newView.value.name) return
   try {
-    const res = await axiosClient.post(`/projects/${projectId.value}/views`, newView.value)
+    const payload = {
+      ...newView.value,
+      queryMetadata: JSON.stringify({
+        filters: activeFilters.value,
+        displayProps: displayProps.value,
+        groupBy: groupBy.value,
+        orderBy: orderBy.value,
+        showSubItems: showSubItems.value
+      })
+    }
+    const res = await axiosClient.post(`/projects/${projectId.value}/views`, payload)
     views.value.push(res.data.data)
     ElNotification.success('View created successfully')
     showCreateModal.value = false
@@ -137,6 +185,7 @@ const createView = async () => {
 
 const resetForm = () => {
     newView.value = { name: '', description: '', queryMetadata: '{}' }
+    activeFilters.value = []
 }
 
 const deleteView = async (id) => {
@@ -215,9 +264,10 @@ onMounted(() => {
 
       <div class="header-right">
         <template v-if="!activeView">
-            <button class="h-tool-btn"><i class="fa-solid fa-magnifying-glass"></i></button>
+            <button class="h-tool-btn" type="button" @click="showViewSearch = !showViewSearch"><i class="fa-solid fa-magnifying-glass"></i></button>
+            <input v-if="showViewSearch" v-model="filterSearch" class="view-search-input" type="text" placeholder="Search views" />
             <el-dropdown trigger="click">
-                <button class="h-tool-btn outlined">
+                <button class="h-tool-btn outlined" type="button">
                     <i class="fa-solid fa-arrow-down-short-wide mr-2"></i>
                     {{ sortBy }}
                 </button>
@@ -230,76 +280,11 @@ onMounted(() => {
                 </template>
             </el-dropdown>
             
-            <!-- Filters Dropdown -->
-            <el-popover
-              placement="bottom-end"
-              trigger="click"
-              :width="400"
-              popper-class="views-filter-popper"
-              :show-arrow="false"
-              :offset="8"
-            >
-              <template #reference>
-                <button class="h-tool-btn outlined" :class="{ 'filter-active': filterFavorites || filterDateChecked.length > 0 || filterByChecked.length > 0 }">
-                  <i class="fa-solid fa-filter mr-2"></i> Filters
-                  <span v-if="activeFilterCount > 0" class="filter-badge">{{ activeFilterCount }}</span>
-                </button>
-              </template>
-              <div class="vf-dropdown">
-                <!-- Search -->
-                <div class="vf-search-row">
-                  <i class="fa-solid fa-magnifying-glass vf-search-icon"></i>
-                  <input v-model="filterSearch" type="text" placeholder="Search" class="vf-search-input" />
-                </div>
-
-                <!-- Favorites -->
-                <div class="vf-section">
-                  <label class="vf-checkbox-row">
-                    <input type="checkbox" v-model="filterFavorites" class="vf-cb" />
-                    <span class="vf-cb-label">Favorites</span>
-                  </label>
-                </div>
-
-                <div class="vf-divider"></div>
-
-                <!-- Created date -->
-                <div class="vf-collapsible">
-                  <div class="vf-col-header" @click="filterDateOpen = !filterDateOpen">
-                    <span class="vf-col-title">Created date</span>
-                    <i class="fa-solid fa-chevron-up vf-col-arrow" :class="{ 'rotated': !filterDateOpen }"></i>
-                  </div>
-                  <div class="vf-col-body" v-show="filterDateOpen">
-                    <label class="vf-checkbox-row" v-for="opt in dateOptions" :key="opt.value">
-                      <input type="checkbox" :value="opt.value" v-model="filterDateChecked" class="vf-cb" />
-                      <span class="vf-cb-label">{{ opt.label }}</span>
-                    </label>
-                  </div>
-                </div>
-
-                <div class="vf-divider"></div>
-
-                <!-- Created by -->
-                <div class="vf-collapsible">
-                  <div class="vf-col-header" @click="filterByOpen = !filterByOpen">
-                    <span class="vf-col-title">Created by</span>
-                    <i class="fa-solid fa-chevron-up vf-col-arrow" :class="{ 'rotated': !filterByOpen }"></i>
-                  </div>
-                  <div class="vf-col-body" v-show="filterByOpen">
-                    <label class="vf-checkbox-row">
-                      <input type="checkbox" value="you" v-model="filterByChecked" class="vf-cb" />
-                      <div class="vf-user">
-                        <div class="vf-avatar">D</div>
-                        <span class="vf-cb-label">You</span>
-                      </div>
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </el-popover>
-            <button class="add-view-primary" @click="showCreateModal = true">Add view</button>
+            <button class="h-tool-btn outlined" type="button" @click="showCreateModal = true"><i class="fa-solid fa-filter mr-2"></i> Filters</button>
+            <button class="add-view-primary" type="button" @click="showCreateModal = true">Add view</button>
         </template>
         <template v-else>
-            <button class="h-tool-btn outlined"><i class="fa-solid fa-sliders mr-2"></i> Display</button>
+            <button class="h-tool-btn outlined" type="button" disabled title="Display settings are configured when creating the view"><i class="fa-solid fa-sliders mr-2"></i> Display</button>
         </template>
       </div>
     </header>
@@ -311,7 +296,7 @@ onMounted(() => {
           <p>No custom views here.</p>
         </div>
         
-        <div class="view-item-row" v-for="view in views" :key="view.id" @click="selectView(view)">
+        <div class="view-item-row" v-for="view in filteredViews" :key="view.id" @click="selectView(view)">
             <div class="vi-left">
                 <i class="fa-solid fa-layer-group vi-icon"></i>
                 <span class="vi-name">{{ view.name }}</span>
@@ -319,10 +304,10 @@ onMounted(() => {
             <div class="vi-right">
                 <i class="fa-solid fa-earth-americas vi-globe" v-if="view.isGlobal"></i>
                 <div class="vi-avatar">P</div>
-                <button class="vi-star" :class="{ active: view.isFavorite }" @click.stop="toggleFavorite(view)">
+                <button class="vi-star" type="button" :class="{ active: view.isFavorite }" @click.stop="toggleFavorite(view)">
                     <i class="fa-regular fa-star"></i>
                 </button>
-                <button class="vi-more"><i class="fa-solid fa-ellipsis"></i></button>
+                <button class="vi-more" type="button" @click.stop="deleteView(view.id)"><i class="fa-solid fa-ellipsis"></i></button>
             </div>
         </div>
       </div>
@@ -354,10 +339,10 @@ onMounted(() => {
             
             <div class="modal-controls-bar">
                 <div class="toggle-group">
-                    <button class="m-toggle active"><i :class="viewTypeIcon" class="mr-2"></i> List</button>
+                    <button class="m-toggle active" type="button" disabled><i :class="viewTypeIcon" class="mr-2"></i> List</button>
                     <!-- UPDATED PLACEMENT TO 'right-start' FOR SCROLLABILITY -->
                     <el-dropdown trigger="click" popper-class="display-popper-final" placement="right-start" :hide-on-click="false">
-                        <button class="m-toggle">Display</button>
+                        <button class="m-toggle" type="button">Display</button>
                         <template #dropdown>
                             <div class="display-scroll-vfinal">
                                 <div class="st-content">
@@ -400,7 +385,7 @@ onMounted(() => {
                     </el-dropdown>
                 </div>
                 <el-dropdown trigger="click" popper-class="filter-modal-popper" placement="bottom-start">
-                    <button class="filter-btn"><i class="fa-solid fa-filter-circle-plus mr-2"></i> Filters</button>
+                    <button class="filter-btn" type="button"><i class="fa-solid fa-filter-circle-plus mr-2"></i> Filters</button>
                     <template #dropdown>
                         <div class="filter-modal-dropdown">
                             <div class="f-search">
@@ -427,8 +412,8 @@ onMounted(() => {
             </div>
         </div>
         <div class="modal-footer">
-            <button class="cancel-btn" @click="resetModal">Cancel</button>
-            <button class="create-btn" @click="createView" :disabled="!newView.name">Create View</button>
+            <button class="cancel-btn" type="button" @click="resetModal">Cancel</button>
+            <button class="create-btn" type="button" @click="createView" :disabled="!newView.name">Create View</button>
         </div>
       </div>
     </div>
@@ -447,6 +432,7 @@ onMounted(() => {
 .header-right { display: flex; align-items: center; gap: 8px; }
 .h-tool-btn { background: transparent; border: none; color: #A1A1AA; cursor: pointer; padding: 6px 12px; border-radius: 4px; font-size: 13px; }
 .h-tool-btn.outlined { border: 1px solid #1E1E22; }
+.view-search-input { background: #0D0F11; border: 1px solid #27272A; border-radius: 6px; color: #E4E4E7; font-size: 13px; padding: 6px 10px; outline: none; width: 180px; }
 .add-view-primary { background: #0EA5E9; border: none; color: #fff; padding: 6px 16px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer; }
 
 /* Content List (Restored to Turn 9) */
@@ -539,144 +525,5 @@ onMounted(() => {
 .f-opt i { font-size: 12px; width: 16px; text-align: center; color: #71717A; }
 
 :deep(.filter-modal-popper) { background: transparent !important; border: none !important; box-shadow: none !important; }
-
-/* ===== HEADER FILTER DROPDOWN ===== */
-:deep(.views-filter-popper) {
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  padding: 0 !important;
-}
-
-.vf-dropdown {
-  width: 380px;
-  background: #16181D;
-  border: 1px solid #27272A;
-  border-radius: 10px;
-  overflow: hidden;
-  box-shadow: 0 16px 40px rgba(0,0,0,0.6);
-}
-
-.vf-search-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  border-bottom: 1px solid #27272A;
-}
-.vf-search-icon { font-size: 12px; color: #71717A; flex-shrink: 0; }
-.vf-search-input {
-  background: transparent;
-  border: none;
-  color: #E4E4E7;
-  font-size: 13px;
-  outline: none;
-  width: 100%;
-}
-.vf-search-input::placeholder { color: #52525B; }
-
-.vf-section { padding: 10px 14px; }
-
-.vf-divider { height: 1px; background: #27272A; }
-
-.vf-collapsible { padding: 4px 0; }
-
-.vf-col-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 14px;
-  cursor: pointer;
-  user-select: none;
-}
-.vf-col-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: #71717A;
-  letter-spacing: 0.03em;
-}
-.vf-col-arrow {
-  font-size: 10px;
-  color: #71717A;
-  transition: transform 0.2s;
-}
-.vf-col-arrow.rotated { transform: rotate(180deg); }
-
-.vf-col-body { padding: 0 14px 10px 14px; display: flex; flex-direction: column; gap: 2px; }
-
-.vf-checkbox-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 7px 6px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.vf-checkbox-row:hover { background: #1E2025; }
-
-.vf-cb {
-  appearance: none;
-  -webkit-appearance: none;
-  width: 15px;
-  height: 15px;
-  border: 1.5px solid #3F3F46;
-  border-radius: 4px;
-  flex-shrink: 0;
-  cursor: pointer;
-  position: relative;
-  transition: all 0.15s;
-}
-.vf-cb:checked {
-  background: #0EA5E9;
-  border-color: #0EA5E9;
-}
-.vf-cb:checked::after {
-  content: '';
-  position: absolute;
-  left: 4px;
-  top: 1px;
-  width: 4px;
-  height: 8px;
-  border: solid white;
-  border-width: 0 1.5px 1.5px 0;
-  transform: rotate(45deg);
-}
-
-.vf-cb-label { font-size: 13px; color: #D4D4D8; }
-
-.vf-user { display: flex; align-items: center; gap: 8px; }
-.vf-avatar {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: #0F766E;
-  color: #fff;
-  font-size: 10px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-/* Active filter indicator on button */
-.h-tool-btn.filter-active {
-  border-color: #0EA5E9;
-  color: #38BDF8;
-}
-.filter-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-left: 6px;
-  background: #0EA5E9;
-  color: #fff;
-  font-size: 10px;
-  font-weight: 700;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-}
 </style>
 

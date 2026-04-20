@@ -16,10 +16,10 @@
           <section class="widget-section">
             <div class="section-top">
               <h2 class="section-title">Your quickstart guide</h2>
-              <div class="header-action-text"><i class="fa-solid fa-xmark"></i> Not right now</div>
+              <button class="header-action-text" @click="hideQuickstart = true"><i class="fa-solid fa-xmark"></i> Not right now</button>
             </div>
 
-            <div class="guide-grid">
+            <div class="guide-grid" v-if="!hideQuickstart">
               <!-- Card 1 -->
               <div class="guide-card completed">
                 <div class="guide-icon"><i class="fa-solid fa-briefcase"></i></div>
@@ -36,7 +36,7 @@
                 <div class="guide-info">
                   <h3>Invite your team</h3>
                   <p>Build, ship, and manage with coworkers.</p>
-                  <a href="#" class="guide-link">Get them in</a>
+                  <button class="guide-link" @click="showComingSoon('Invite feature')">Get them in</button>
                 </div>
               </div>
 
@@ -46,7 +46,7 @@
                 <div class="guide-info">
                   <h3>Set up your workspace.</h3>
                   <p>Turn features on or off or go beyond that.</p>
-                  <a href="#" class="guide-link">Configure this workspace</a>
+                  <button class="guide-link" @click="goToSpaces">Configure this workspace</button>
                 </div>
               </div>
 
@@ -56,7 +56,7 @@
                 <div class="guide-info">
                   <h3>Make Plane yours.</h3>
                   <p>Choose your picture, colors, and more.</p>
-                  <a href="#" class="guide-link">Personalize now</a>
+                  <button class="guide-link" @click="goToProfile">Personalize now</button>
                 </div>
               </div>
             </div>
@@ -66,7 +66,7 @@
           <section class="widget-section">
             <div class="section-top">
               <h2 class="section-title">Quicklinks</h2>
-              <div class="header-action-text text-blue"><i class="fa-solid fa-plus"></i> Add quick link</div>
+              <button class="header-action-text text-blue" @click="showComingSoon('Quick links')"><i class="fa-solid fa-plus"></i> Add quick link</button>
             </div>
             
             <div class="empty-quicklinks">
@@ -86,10 +86,14 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import NexusLayout from '@/components/layout/NexusLayout.vue'
 
+const router = useRouter()
 const currentUser = ref(null)
 const currentDateTime = ref('')
+const hideQuickstart = ref(false)
 
 const updateTime = () => {
     const now = new Date()
@@ -105,6 +109,18 @@ onMounted(() => {
     updateTime()
     setInterval(updateTime, 60000) // Update minute by minute
 })
+
+const goToSpaces = () => {
+  router.push('/spaces')
+}
+
+const goToProfile = () => {
+  router.push('/profile')
+}
+
+const showComingSoon = (feature) => {
+  ElMessage.info({ message: `${feature} is being prepared.`, plain: true })
+}
 </script>
 
 <style scoped>
@@ -165,6 +181,8 @@ onMounted(() => {
 }
 
 .header-action-text {
+  background: transparent;
+  border: none;
   font-size: 13px;
   color: #a1a1aa;
   cursor: pointer;
@@ -228,6 +246,9 @@ onMounted(() => {
 }
 
 .guide-link {
+  background: transparent;
+  border: none;
+  padding: 0;
   font-size: 13px;
   color: #0ea5e9;
   text-decoration: none;

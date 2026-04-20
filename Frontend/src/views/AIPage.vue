@@ -25,7 +25,7 @@
             <div class="input-box">
               <i class="fa-solid fa-paperclip attach-btn"></i>
               <input type="text" placeholder="Hỏi SprintA AI bất cứ điều gì..." v-model="userMessage" @keyup.enter="sendMessage" :disabled="isLoading" />
-              <button class="send-btn" @click="sendMessage" :disabled="isLoading"><span class="fa fa-paper-plane"></span></button>
+              <button class="send-btn" @click="sendMessage" :disabled="isLoading || !userMessage.trim()"><span class="fa fa-paper-plane"></span></button>
             </div>
             <div class="ai-disclaimer">SprintA AI có thể mắc sai sót. Hãy kiểm tra lại các thông tin quan trọng.</div>
           </div>
@@ -37,9 +37,9 @@
           <div class="section-label">Trợ lý AI</div>
           <div class="section-title">HÀNH ĐỘNG NHANH</div>
           <div class="quick-links">
-            <div class="q-link"><i class="fa-solid fa-map-location-dot"></i> Tạo lộ trình</div>
-            <div class="q-link"><i class="fa-regular fa-file-lines"></i> Tóm tắt công việc</div>
-            <div class="q-link"><i class="fa-solid fa-pen-nib"></i> Soạn bản cập nhật</div>
+            <button class="q-link" @click="useQuickPrompt('Tạo lộ trình cho dự án hiện tại')"><i class="fa-solid fa-map-location-dot"></i> Tạo lộ trình</button>
+            <button class="q-link" @click="useQuickPrompt('Tóm tắt các công việc quan trọng')"><i class="fa-regular fa-file-lines"></i> Tóm tắt công việc</button>
+            <button class="q-link" @click="useQuickPrompt('Soạn bản cập nhật tiến độ ngắn gọn')"><i class="fa-solid fa-pen-nib"></i> Soạn bản cập nhật</button>
           </div>
         </div>
 
@@ -53,7 +53,7 @@
           <div class="upgrade-card">
             <div class="plan-label">GÓI PRO</div>
             <div class="plan-desc">Mở khóa các truy vấn AI không giới hạn và quy trình làm việc tùy chỉnh.</div>
-            <button class="btn-upgrade">Nâng cấp ngay</button>
+            <button class="btn-upgrade" @click="router.push('/rewards')">Nâng cấp ngay</button>
           </div>
         </div>
       </aside>
@@ -117,11 +117,18 @@ const sendMessage = async () => {
   chatHistory.value.push({ role: 'bot', content: 'Đang gõ...', isTyping: true });
 
   try {
-    const res = await axiosClient.post('/ai/chat', { message: msg });
+    const history = chatHistory.value
+      .filter(item => !item.isTyping)
+      .slice(-10)
+      .map(item => ({ role: item.role === 'bot' ? 'assistant' : 'user', content: item.content }));
+    const res = await axiosClient.post('/ai/chat', { message: msg, history });
     chatHistory.value.pop();
-    chatHistory.value.push({ role: 'bot', content: res.data.data });
+    chatHistory.value.push({ role: 'bot', content: res.data?.data || res.data?.message || 'AI khong tra ve noi dung.' });
   } catch (error) {
     chatHistory.value.pop();
+    const message = error.response?.data?.message || error.response?.data?.error || error.message || 'Khong ket noi duoc AI.';
+    chatHistory.value.push({ role: 'bot', content: `AI chua gui duoc: ${message}` });
+    return;
     chatHistory.value.push({ role: 'bot', content: 'Xin lỗi, có lỗi xảy ra khi kết nối với AI. Hãy thử lại.' });
   } finally {
     isLoading.value = false;
@@ -162,6 +169,10 @@ const toggleAI = () => {
 const toggleAIView = () => {
   // Toggle the popup even on this page if requested
   toggleAI()
+}
+
+const useQuickPrompt = (prompt) => {
+  userMessage.value = prompt
 }
 
 

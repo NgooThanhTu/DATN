@@ -275,6 +275,16 @@ namespace TaskManagement.Infrastructure.Data
                 .HasForeignKey(ta => ta.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            modelBuilder.Entity<TaskAssignment>()
+                .HasOne(ta => ta.BlockedByUser)
+                .WithMany()
+                .HasForeignKey(ta => ta.BlockedByUserId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<TaskAssignment>()
+                .Property(ta => ta.ContributionWeight)
+                .HasDefaultValue(1.0);
+
             modelBuilder.Entity<TaskDependency>()
                 .HasOne(td => td.PredecessorTask)
                 .WithMany(wt => wt.SuccessorDependencies)
@@ -389,6 +399,15 @@ namespace TaskManagement.Infrastructure.Data
                 .WithMany(uw => uw.PointTransactions)
                 .HasForeignKey(pt => pt.UserWalletUserId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<PointTransaction>()
+                .HasOne(pt => pt.WorkTask)
+                .WithMany()
+                .HasForeignKey(pt => pt.WorkTaskId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<PointTransaction>()
+                .HasIndex(pt => new { pt.UserWalletUserId, pt.WorkTaskId, pt.TransactionType });
 
             // =============================================
             // 8. Relationships - Group 6: AI Integration

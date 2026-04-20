@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
+using System.Text.Json;
 using System.Threading.Tasks;
 using TaskManagement.Application.DTOs.Project;
 using TaskManagement.Application.Interfaces;
@@ -23,6 +24,79 @@ namespace TaskManagement.Infrastructure.Services
             _httpContextAccessor = httpContextAccessor;
         }
 
+        private static string BuildProjectUiConfig(string? existingConfig, string? cover, string? icon)
+        {
+            var config = new Dictionary<string, string?>();
+
+            if (!string.IsNullOrWhiteSpace(existingConfig))
+            {
+                config["navigationConfig"] = existingConfig;
+            }
+
+            if (!string.IsNullOrWhiteSpace(cover))
+            {
+                config["cover"] = cover;
+            }
+
+            if (!string.IsNullOrWhiteSpace(icon))
+            {
+                config["icon"] = icon;
+            }
+
+            return JsonSerializer.Serialize(config);
+        }
+
+        private static void ApplyProjectUiConfig(List<ProjectResponseDto> projects)
+        {
+            foreach (var project in projects)
+            {
+                ApplyProjectUiConfig(project);
+            }
+        }
+
+        private static void ApplyProjectUiConfig(List<ProjectDiscoveryDto> projects)
+        {
+            foreach (var project in projects)
+            {
+                ApplyProjectUiConfig(project);
+            }
+        }
+
+        private static void ApplyProjectUiConfig(ProjectResponseDto project)
+        {
+            var config = ParseProjectUiConfig(project.Cover);
+            project.Cover = config.Cover;
+            project.Icon = config.Icon;
+        }
+
+        private static void ApplyProjectUiConfig(ProjectDiscoveryDto project)
+        {
+            var config = ParseProjectUiConfig(project.Cover);
+            project.Cover = config.Cover;
+            project.Icon = config.Icon;
+        }
+
+        private static (string? Cover, string? Icon) ParseProjectUiConfig(string? rawConfig)
+        {
+            if (string.IsNullOrWhiteSpace(rawConfig))
+            {
+                return (null, null);
+            }
+
+            try
+            {
+                using var document = JsonDocument.Parse(rawConfig);
+                var root = document.RootElement;
+                var cover = root.TryGetProperty("cover", out var coverElement) ? coverElement.GetString() : null;
+                var icon = root.TryGetProperty("icon", out var iconElement) ? iconElement.GetString() : null;
+                return (cover, icon);
+            }
+            catch (JsonException)
+            {
+                return (null, null);
+            }
+        }
+
         /// <summary>
         /// 5.2 Chống N+1: Dùng .Include().Select() gom data trong 1 câu SQL
         /// </summary>
@@ -34,15 +108,16 @@ namespace TaskManagement.Infrastructure.Services
                 return new List<ProjectResponseDto>();
             }
 
-            return await _context.Projects
+            var projects = await _context.Projects
                 .AsNoTracking()
                 .Include(p => p.Creator)
                 .Include(p => p.Department)
-                .Where(p => !p.IsDeleted && !p.IsArchived && p.ProjectMembers.Any(pm => pm.UserId == userId && pm.Status))
+                .Where(p => !p.IsDeleted && p.ProjectMembers.Any(pm => pm.UserId == userId && pm.Status))
                 .Select(p => new ProjectResponseDto
                 {
                     Id = p.Id,
                     Name = p.Name,
+                    Key = p.Identifier,
                     Description = p.Description,
                     StartDate = p.StartDate,
                     EndDate = p.EndDate,
@@ -51,10 +126,25 @@ namespace TaskManagement.Infrastructure.Services
                     DepartmentId = p.DepartmentId,
                     DepartmentName = p.Department != null ? p.Department.Name : null,
                     ActiveMemberCount = p.ProjectMembers.Count(m => m.Status == true),
+                    NetworkType = p.NetworkType,
+                    LeadUserId = p.ProjectMembers
+                        .Where(pm => pm.Status && (pm.ProjectRole == "PROJECT_LEAD" || pm.ProjectRole == "PROJECT_MANAGER"))
+                        .OrderBy(pm => pm.ProjectRole == "PROJECT_LEAD" ? 0 : 1)
+                        .Select(pm => (Guid?)pm.UserId)
+                        .FirstOrDefault(),
+                    LeadName = p.ProjectMembers
+                        .Where(pm => pm.Status && (pm.ProjectRole == "PROJECT_LEAD" || pm.ProjectRole == "PROJECT_MANAGER"))
+                        .OrderBy(pm => pm.ProjectRole == "PROJECT_LEAD" ? 0 : 1)
+                        .Select(pm => pm.User.FullName)
+                        .FirstOrDefault(),
+                    Cover = p.NavigationConfig,
                     CreatedAt = p.CreatedAt,
                     UpdatedAt = p.UpdatedAt
                 })
                 .ToListAsync();
+
+            ApplyProjectUiConfig(projects);
+            return projects;
         }
 
         /// <summary>
@@ -66,15 +156,35 @@ namespace TaskManagement.Infrastructure.Services
             var userIdString = _httpContextAccessor.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier);
             Guid? userId = Guid.TryParse(userIdString, out Guid uid) ? uid : null;
 
-            return await _context.Projects
+            var query = _context.Projects
                 .AsNoTracking()
                 .Include(p => p.Creator)
                 .Include(p => p.Department)
-                .Where(p => !p.IsDeleted && !p.IsArchived && p.Status)
+                .Where(p => !p.IsDeleted && !p.IsArchived && p.Status);
+
+            if (userId.HasValue)
+            {
+                var workspaceIds = await _context.WorkspaceMembers
+                    .AsNoTracking()
+                    .Where(wm => wm.UserId == userId.Value && wm.IsActive)
+                    .Select(wm => wm.WorkspaceId)
+                    .ToListAsync();
+
+                query = query.Where(p =>
+                    p.ProjectMembers.Any(pm => pm.UserId == userId.Value && pm.Status) ||
+                    (p.NetworkType == "Public" && workspaceIds.Contains(p.WorkspaceId)));
+            }
+            else
+            {
+                query = query.Where(p => false);
+            }
+
+            var projects = await query
                 .Select(p => new ProjectDiscoveryDto
                 {
                     Id = p.Id,
                     Name = p.Name,
+                    Key = p.Identifier,
                     Description = p.Description,
                     StartDate = p.StartDate,
                     EndDate = p.EndDate,
@@ -83,6 +193,18 @@ namespace TaskManagement.Infrastructure.Services
                     DepartmentId = p.DepartmentId,
                     DepartmentName = p.Department != null ? p.Department.Name : null,
                     ActiveMemberCount = p.ProjectMembers.Count(m => m.Status == true),
+                    NetworkType = p.NetworkType,
+                    LeadUserId = p.ProjectMembers
+                        .Where(pm => pm.Status && (pm.ProjectRole == "PROJECT_LEAD" || pm.ProjectRole == "PROJECT_MANAGER"))
+                        .OrderBy(pm => pm.ProjectRole == "PROJECT_LEAD" ? 0 : 1)
+                        .Select(pm => (Guid?)pm.UserId)
+                        .FirstOrDefault(),
+                    LeadName = p.ProjectMembers
+                        .Where(pm => pm.Status && (pm.ProjectRole == "PROJECT_LEAD" || pm.ProjectRole == "PROJECT_MANAGER"))
+                        .OrderBy(pm => pm.ProjectRole == "PROJECT_LEAD" ? 0 : 1)
+                        .Select(pm => pm.User.FullName)
+                        .FirstOrDefault(),
+                    Cover = p.NavigationConfig,
                     CreatedAt = p.CreatedAt,
                     UpdatedAt = p.UpdatedAt,
                     IsMember = userId.HasValue && p.ProjectMembers.Any(pm => pm.UserId == userId.Value && pm.Status),
@@ -91,6 +213,9 @@ namespace TaskManagement.Infrastructure.Services
                         : null
                 })
                 .ToListAsync();
+
+            ApplyProjectUiConfig(projects);
+            return projects;
         }
 
         public async Task<List<ProjectDiscoveryDto>> GetArchivedAsync()
@@ -98,7 +223,7 @@ namespace TaskManagement.Infrastructure.Services
             var userIdString = _httpContextAccessor.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier);
             Guid? userId = Guid.TryParse(userIdString, out Guid uid) ? uid : null;
 
-            return await _context.Projects
+            var projects = await _context.Projects
                 .AsNoTracking()
                 .Include(p => p.Creator)
                 .Include(p => p.Department)
@@ -114,7 +239,7 @@ namespace TaskManagement.Infrastructure.Services
                     CreatorName = p.Creator.FullName,
                     DepartmentId = p.DepartmentId,
                     DepartmentName = p.Department != null ? p.Department.Name : null,
-                    ActiveMemberCount = p.ProjectMembers.Count(m => m.Status == true),
+                    ActiveMemberCount = p.ProjectMembers.Count(m => m.Status),
                     CreatedAt = p.CreatedAt,
                     UpdatedAt = p.UpdatedAt,
                     IsMember = userId.HasValue && p.ProjectMembers.Any(pm => pm.UserId == userId.Value && pm.Status),
@@ -123,13 +248,15 @@ namespace TaskManagement.Infrastructure.Services
                         : null
                 })
                 .ToListAsync();
-        }
 
+            ApplyProjectUiConfig(projects);
+            return projects;
+        }
 
 
         public async Task<ProjectResponseDto?> GetByIdAsync(Guid id)
         {
-            return await _context.Projects
+            var project = await _context.Projects
                 .Include(p => p.Creator)
                 .Include(p => p.Department)
                 .Where(p => p.Id == id)
@@ -137,6 +264,7 @@ namespace TaskManagement.Infrastructure.Services
                 {
                     Id = p.Id,
                     Name = p.Name,
+                    Key = p.Identifier,
                     Description = p.Description,
                     StartDate = p.StartDate,
                     EndDate = p.EndDate,
@@ -145,10 +273,29 @@ namespace TaskManagement.Infrastructure.Services
                     DepartmentId = p.DepartmentId,
                     DepartmentName = p.Department != null ? p.Department.Name : null,
                     ActiveMemberCount = p.ProjectMembers.Count(m => m.Status == true),
+                    NetworkType = p.NetworkType,
+                    LeadUserId = p.ProjectMembers
+                        .Where(pm => pm.Status && (pm.ProjectRole == "PROJECT_LEAD" || pm.ProjectRole == "PROJECT_MANAGER"))
+                        .OrderBy(pm => pm.ProjectRole == "PROJECT_LEAD" ? 0 : 1)
+                        .Select(pm => (Guid?)pm.UserId)
+                        .FirstOrDefault(),
+                    LeadName = p.ProjectMembers
+                        .Where(pm => pm.Status && (pm.ProjectRole == "PROJECT_LEAD" || pm.ProjectRole == "PROJECT_MANAGER"))
+                        .OrderBy(pm => pm.ProjectRole == "PROJECT_LEAD" ? 0 : 1)
+                        .Select(pm => pm.User.FullName)
+                        .FirstOrDefault(),
+                    Cover = p.NavigationConfig,
                     CreatedAt = p.CreatedAt,
                     UpdatedAt = p.UpdatedAt
                 })
                 .FirstOrDefaultAsync();
+
+            if (project != null)
+            {
+                ApplyProjectUiConfig(project);
+            }
+
+            return project;
         }
 
         public async Task<ProjectResponseDto> CreateAsync(Guid creatorId, CreateProjectDto dto)
@@ -195,7 +342,7 @@ namespace TaskManagement.Infrastructure.Services
             }
 
             // Generate Identifier: lấy 3-4 ký tự đầu viết hoa từ tên project
-            string identifier = GenerateIdentifier(dto.Name);
+            string identifier = string.IsNullOrWhiteSpace(dto.Key) ? GenerateIdentifier(dto.Name) : NormalizeIdentifier(dto.Key);
             // Ensure unique within workspace
             int suffix = 1;
             string originalIdentifier = identifier;
@@ -217,6 +364,22 @@ namespace TaskManagement.Infrastructure.Services
                 }
             }
 
+            var networkType = string.Equals(dto.NetworkType, "Private", StringComparison.OrdinalIgnoreCase)
+                ? "Private"
+                : "Public";
+
+            Guid? leadUserId = dto.LeadUserId;
+            if (leadUserId.HasValue)
+            {
+                var leadIsWorkspaceMember = await _context.WorkspaceMembers
+                    .AnyAsync(wm => wm.WorkspaceId == workspaceId && wm.UserId == leadUserId.Value && wm.IsActive);
+
+                if (!leadIsWorkspaceMember)
+                    throw new ArgumentException("Lead phải là thành viên đang hoạt động trong workspace.");
+            }
+
+            navConfig = BuildProjectUiConfig(navConfig, dto.Cover, dto.Icon);
+
             var project = new Project
             {
                 Id = Guid.NewGuid(),
@@ -232,6 +395,7 @@ namespace TaskManagement.Infrastructure.Services
                 ProjectTemplateId = dto.ProjectTemplateId,
                 TemplateType = templateType,
                 NavigationConfig = navConfig,
+                NetworkType = networkType,
                 IsDeleted = false,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
@@ -278,6 +442,22 @@ namespace TaskManagement.Infrastructure.Services
                 Status = true
             };
             _context.ProjectMembers.Add(projectMember);
+
+            if (leadUserId.HasValue && leadUserId.Value != creatorId)
+            {
+                _context.ProjectMembers.Add(new TaskManagement.Domain.Entities.ProjectMember
+                {
+                    ProjectId = project.Id,
+                    UserId = leadUserId.Value,
+                    ProjectRole = "PROJECT_LEAD",
+                    JoinedAt = DateTime.UtcNow,
+                    Status = true
+                });
+            }
+            else if (leadUserId.HasValue)
+            {
+                projectMember.ProjectRole = "PROJECT_LEAD";
+            }
             
             // Add System Audit Log
             var auditLog = new TaskManagement.Domain.Entities.SystemAuditLog
@@ -322,6 +502,10 @@ namespace TaskManagement.Infrastructure.Services
 
             return (await GetByIdAsync(project.Id))!;
         }
+
+        /// <summary>
+        /// 5.1 Archive: Set Status = false (ẩn khỏi danh sách active, vẫn xem được lịch sử)
+        /// </summary>
         public async Task ArchiveAsync(Guid id)
         {
             var project = await _context.Projects.FirstOrDefaultAsync(p => p.Id == id);
@@ -329,6 +513,7 @@ namespace TaskManagement.Infrastructure.Services
                 throw new ArgumentException("Dự án không tồn tại.");
 
             project.IsArchived = true;
+            project.Status = false;
             project.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
         }
@@ -340,6 +525,7 @@ namespace TaskManagement.Infrastructure.Services
                 throw new ArgumentException("Dự án không tồn tại.");
 
             project.IsArchived = false;
+            project.Status = true;
             project.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
         }
@@ -392,6 +578,18 @@ namespace TaskManagement.Infrastructure.Services
             // Multiple words: take first letter of each word (max 4)
             var initials = string.Concat(words.Take(4).Select(w => char.ToUpper(w[0])));
             return initials;
+        }
+
+        private static string NormalizeIdentifier(string key)
+        {
+            var normalized = new string(key
+                .Trim()
+                .ToUpperInvariant()
+                .Where(char.IsLetterOrDigit)
+                .Take(8)
+                .ToArray());
+
+            return string.IsNullOrWhiteSpace(normalized) ? "PRJ" : normalized;
         }
     }
 }

@@ -220,6 +220,31 @@ namespace TaskManagement.API.Controllers
             return Ok(new { statusCode = 201, message = "Đã thêm bình luận.", data = result });
         }
 
+        [HttpPut("projects/{projectId}/WorkTasks/{taskId}/comments/{commentId}")]
+        public async Task<IActionResult> UpdateComment(Guid projectId, Guid taskId, Guid commentId, [FromBody] UpdateCommentRequest request)
+        {
+            var userId = GetUserId();
+            if (userId == null) return Unauthorized();
+
+            var comment = await _context.Comments
+                .FirstOrDefaultAsync(c => c.Id == commentId && c.WorkTaskId == taskId && !c.IsDeleted);
+
+            if (comment == null) return NotFound(new { message = "Comment khong ton tai." });
+            if (comment.UserId != userId.Value) return Forbid();
+
+            comment.Content = request.Content ?? string.Empty;
+            comment.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+            return Ok(new { statusCode = 200, message = "Da cap nhat binh luan." });
+        }
+
+        [HttpDelete("projects/{projectId}/WorkTasks/{taskId}/comments/{commentId}")]
+        public Task<IActionResult> DeleteCommentNested(Guid projectId, Guid taskId, Guid commentId)
+        {
+            return DeleteComment(commentId);
+        }
+
         /// <summary>
         /// DELETE /api/comments/{commentId}
         /// </summary>
@@ -267,5 +292,10 @@ namespace TaskManagement.API.Controllers
             var fileUrl = $"/uploads/{targetFolder}/{uniqueName}";
             return Ok(new { statusCode = 200, data = new { fileUrl, fileName = file.FileName, contentType = file.ContentType, fileSize = file.Length } });
         }
+    }
+
+    public class UpdateCommentRequest
+    {
+        public string? Content { get; set; }
     }
 }

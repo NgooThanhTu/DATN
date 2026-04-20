@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import NexusLayout from '@/components/layout/NexusLayout.vue'
 import axiosClient from '@/api/axiosClient'
+import { ElMessage } from 'element-plus'
 
 import { Bar, Line, Radar } from 'vue-chartjs'
 import {
@@ -17,6 +18,9 @@ ChartJS.register(
 )
 
 const activeTab = ref('Overview')
+const analyticsScope = ref('All projects')
+const insightDimension = ref('Priority')
+const workItemMetric = ref('Work item')
 
 const totalTasks = ref(0)
 const totalProjects = ref(0)
@@ -43,6 +47,25 @@ const fetchStats = async () => {
     } catch(e) {
         console.error('Lỗi lấy thống kê', e)
     }
+}
+
+const notifyAnalyticsFilter = (label) => {
+    ElMessage.info(`${label} filter is being prepared.`)
+}
+
+const selectAnalyticsScope = (scope) => {
+    analyticsScope.value = scope
+    ElMessage.success(`Analytics scope: ${scope}`)
+}
+
+const selectWorkItemMetric = (metric) => {
+    workItemMetric.value = metric
+    activeTab.value = 'Work items'
+}
+
+const selectInsightDimension = (dimension) => {
+    insightDimension.value = dimension
+    ElMessage.success(`Chart grouped by ${dimension}`)
 }
 
 onMounted(() => {
@@ -107,6 +130,15 @@ const getLineChartData = () => {
 }
 
 const getBarChartData = () => {
+    if (insightDimension.value === 'Status') {
+        const labels = statusStats.value.map(s => s.Status)
+        const counts = statusStats.value.map(s => s.Count)
+        return {
+            labels: labels.length ? labels : ['No status data'],
+            datasets: [{ label: 'Work Items by Status', data: counts.length ? counts : [0], backgroundColor: '#3B82F6', borderRadius: 4 }]
+        }
+    }
+
     const labels = priorityStats.value.map(p => getPriorityLabel(p.Priority))
     const counts = priorityStats.value.map(p => p.Count)
     const bgColors = priorityStats.value.map(p => getPriorityColor(p.Priority))
@@ -157,7 +189,16 @@ const chartConfig = {
                <button class="tab-btn" :class="{ active: activeTab === 'Overview' }" @click="activeTab = 'Overview'">Overview</button>
                <button class="tab-btn" :class="{ active: activeTab === 'Work items' }" @click="activeTab = 'Work items'">Work items</button>
             </div>
-            <button class="plane-toolbar-btn ms-auto"><i class="fa-solid fa-briefcase"></i> All projects <i class="fa-solid fa-chevron-down ms-2"></i></button>
+            <el-dropdown trigger="click" class="ms-auto" @command="selectAnalyticsScope">
+              <button class="plane-toolbar-btn" type="button"><i class="fa-solid fa-briefcase"></i> {{ analyticsScope }} <i class="fa-solid fa-chevron-down ms-2"></i></button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="All projects">All projects</el-dropdown-item>
+                  <el-dropdown-item command="My projects">My projects</el-dropdown-item>
+                  <el-dropdown-item command="Active projects">Active projects</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
          </div>
       </header>
       
@@ -251,10 +292,28 @@ const chartConfig = {
             <!-- Customized Insights -->
             <div class="ap-chart-card mt-4">
                <div class="flex-between">
-                  <h4>Work items by Priority</h4>
+                  <h4>Work items by {{ insightDimension }}</h4>
                   <div class="insight-filters">
-                     <button class="filter-btn"><i class="fa-solid fa-briefcase"></i> Work item <i class="fa-solid fa-chevron-down"></i></button>
-                     <button class="filter-btn"><i class="fa-solid fa-list"></i> Priority <i class="fa-solid fa-chevron-down"></i></button>
+                     <el-dropdown trigger="click" @command="selectWorkItemMetric">
+                       <button class="filter-btn" type="button"><i class="fa-solid fa-briefcase"></i> {{ workItemMetric }} <i class="fa-solid fa-chevron-down"></i></button>
+                       <template #dropdown>
+                         <el-dropdown-menu>
+                           <el-dropdown-item command="Work item">Work item</el-dropdown-item>
+                           <el-dropdown-item command="Created">Created</el-dropdown-item>
+                           <el-dropdown-item command="Resolved">Resolved</el-dropdown-item>
+                           <el-dropdown-item command="Overdue">Overdue</el-dropdown-item>
+                         </el-dropdown-menu>
+                       </template>
+                     </el-dropdown>
+                     <el-dropdown trigger="click" @command="selectInsightDimension">
+                       <button class="filter-btn" type="button"><i class="fa-solid fa-list"></i> {{ insightDimension }} <i class="fa-solid fa-chevron-down"></i></button>
+                       <template #dropdown>
+                         <el-dropdown-menu>
+                           <el-dropdown-item command="Priority">Priority</el-dropdown-item>
+                           <el-dropdown-item command="Status">Status</el-dropdown-item>
+                         </el-dropdown-menu>
+                       </template>
+                     </el-dropdown>
                   </div>
                </div>
                

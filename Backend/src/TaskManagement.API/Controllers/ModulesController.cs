@@ -33,8 +33,28 @@ namespace TaskManagement.API.Controllers
                     m.Status,
                     m.StartDate,
                     m.TargetDate,
+                    m.LeadId,
                     LeadName = m.Lead != null ? m.Lead.FullName : null,
-                    IssueCount = m.IssueModules.Count(),
+                    IssueCount = m.IssueModules.Count(im => !im.WorkTask.IsDeleted),
+                    DoneIssueCount = m.IssueModules.Count(im =>
+                        !im.WorkTask.IsDeleted &&
+                        (im.WorkTask.TaskStatus.Name.Contains("DONE") ||
+                         im.WorkTask.TaskStatus.Name.Contains("Done") ||
+                         im.WorkTask.TaskStatus.Name.Contains("Complete"))),
+                    ProgressPercent = m.IssueModules.Count(im => !im.WorkTask.IsDeleted) == 0
+                        ? 0
+                        : (int)Math.Round(
+                            m.IssueModules
+                                .Where(im => !im.WorkTask.IsDeleted)
+                                .Average(im => im.WorkTask.TaskAssignments.Any(ta => ta.Status)
+                                    ? im.WorkTask.TaskAssignments
+                                        .Where(ta => ta.Status)
+                                        .Average(ta => ta.ProgressPercent)
+                                    : (im.WorkTask.TaskStatus.Name.Contains("DONE") ||
+                                       im.WorkTask.TaskStatus.Name.Contains("Done") ||
+                                       im.WorkTask.TaskStatus.Name.Contains("Complete")
+                                        ? 100
+                                        : 0))),
                     m.CreatedAt,
                     m.UpdatedAt
                 })

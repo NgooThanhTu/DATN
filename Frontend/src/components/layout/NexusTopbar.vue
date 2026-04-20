@@ -23,10 +23,6 @@
       <div class="help-btn" @click="$emit('toggle-ai')">
          <i class="fa-solid fa-robot"></i>
       </div>
-      <a href="https://github.com/plane" target="_blank" class="github-btn">
-         <i class="fa-brands fa-github"></i>
-         Star us on GitHub
-      </a>
       <UserDropdown class="nav-item" />
     </div>
   </header>
@@ -163,26 +159,6 @@ const searchQuery = ref('')
 .help-btn:hover {
   color: #e4e4e7;
 }
-
-.github-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #e4e4e7;
-  text-decoration: none;
-  font-size: 12px;
-  font-weight: 500;
-  padding: 6px 12px;
-  border-radius: 6px;
-  border: 1px solid #27272a;
-  background: #1e2025;
-  transition: background 0.2s;
-}
-
-.github-btn:hover {
-  background: #27272a;
-}
-.github-btn i { font-size: 14px; }
 
 @media (max-width: 1024px) {
   .menu-toggle { display: block; }
