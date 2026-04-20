@@ -34,17 +34,25 @@
 
         <!-- Populated Grid -->
         <div v-else class="stickies-grid">
-          <div class="sticky-card" v-for="sticky in stickies" :key="sticky.id" :style="{ backgroundColor: sticky.color }">
+          <div 
+          class="sticky-card" 
+          v-for="sticky in stickies" 
+          :key="sticky.id" 
+          :class="{ 'is-new': sticky.isNew }"
+          :style="{ backgroundColor: sticky.color }"
+        >
              <textarea 
-               class="sticky-input" 
-               v-model="sticky.content"
-               placeholder="Click to type here..."
-               :style="{ 
-                 fontWeight: sticky.isBold ? '600' : '400',
-                 fontStyle: sticky.isItalic ? 'italic' : 'normal',
-                 textAlign: sticky.align
-               }"
-             ></textarea>
+                class="sticky-input" 
+                v-model="sticky.content"
+                placeholder="Click to type here..."
+                :ref="el => { if (el) textareaRefs[sticky.id] = el }"
+                :style="{ 
+                  fontWeight: sticky.isBold ? '600' : '400',
+                  fontStyle: sticky.isItalic ? 'italic' : 'normal',
+                  textAlign: sticky.align
+                }"
+                @input="debouncedSave()"
+              ></textarea>
              
              <div class="sticky-footer">
                 <div class="sf-left">
@@ -61,7 +69,7 @@
                              :key="c" 
                              class="color-swatch"
                              :style="{ backgroundColor: c }"
-                             @click="sticky.color = c"
+                             @click="sticky.color = c; debouncedSave()"
                            >
                              <i v-if="sticky.color === c" class="fa-solid fa-check text-[10px] text-white"></i>
                            </div>
@@ -69,8 +77,8 @@
                      </div>
                    </el-popover>
                    
-                   <button class="sf-btn" :class="{ 'active': sticky.isBold }" @click="sticky.isBold = !sticky.isBold"><i class="fa-solid fa-bold"></i></button>
-                   <button class="sf-btn" :class="{ 'active': sticky.isItalic }" @click="sticky.isItalic = !sticky.isItalic"><i class="fa-solid fa-italic"></i></button>
+                   <button class="sf-btn" :class="{ 'active': sticky.isBold }" @click="sticky.isBold = !sticky.isBold; debouncedSave()"><i class="fa-solid fa-bold"></i></button>
+                   <button class="sf-btn" :class="{ 'active': sticky.isItalic }" @click="sticky.isItalic = !sticky.isItalic; debouncedSave()"><i class="fa-solid fa-italic"></i></button>
                    <button class="sf-btn" @click="cycleAlignment(sticky)">
                      <i v-if="sticky.align === 'left'" class="fa-solid fa-align-left"></i>
                      <i v-if="sticky.align === 'center'" class="fa-solid fa-align-center"></i>
@@ -87,64 +95,100 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import NexusLayout from '@/components/layout/NexusLayout.vue'
 
-// Plane's realistic dark theme sticky colors (as requested: 8 colors, contrasting, not bright)
+// Sticky color palette - dark theme friendly
 const backgroundColors = [
-  '#3F3F46', // Zinc 700 (Gray)
+  '#3F3F46', // Zinc Gray
   '#4C2B2D', // Deep Red
   '#4A314D', // Deep Purple
-  '#5C4532', // Deep Bronze/Brown
+  '#5C4532', // Deep Bronze
   '#1B4D3E', // Forest Green
-  '#1D4C5C', // Ocean Blue/Teal
-  '#1E3A8A', // Dark Navy Blue
-  '#3B2E58'  // Violet
+  '#1D4C5C', // Ocean Teal
+  '#1E3A8A', // Dark Navy
+  '#3B2E58', // Violet
+  '#44403C', // Warm Stone
+  '#365314', // Olive Green
+  '#7C2D12', // Rust
+  '#1E3A5F'  // Steel Blue
 ]
 
 const stickies = ref([])
-const createCount = ref(0) // tracks how many we've made to cycle colors
+// Holds textarea DOM element refs keyed by sticky id
+const textareaRefs = {}
 
-// Load from local storage if exists
+// Debounce timer for auto-save
+let saveTimer = null
+const debouncedSave = () => {
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = setTimeout(() => saveToStorage(), 600)
+}
+
+// Load from local storage when mounted
 onMounted(() => {
-  const saved = localStorage.getItem('plane_stickies');
+  const saved = localStorage.getItem('plane_stickies')
   if (saved) {
     try {
-      stickies.value = JSON.parse(saved);
-      createCount.value = stickies.value.length;
+      stickies.value = JSON.parse(saved)
     } catch(e) {}
   }
 })
 
-// Save to storage automatically every time we modify anything
+// Save to localStorage
 const saveToStorage = () => {
-    localStorage.setItem('plane_stickies', JSON.stringify(stickies.value));
+  // Strip transient `isNew` flag before persisting
+  const toSave = stickies.value.map(({ isNew, ...rest }) => rest)
+  localStorage.setItem('plane_stickies', JSON.stringify(toSave))
 }
 
-const addSticky = () => {
-  const nextColorIdx = createCount.value % backgroundColors.length;
-  stickies.value.push({
-    id: Date.now(),
+// Pick a random color that is different from the last sticky's color
+const getRandomColor = () => {
+  const lastColor = stickies.value.length > 0
+    ? stickies.value[stickies.value.length - 1].color
+    : null
+  const available = backgroundColors.filter(c => c !== lastColor)
+  const pool = available.length > 0 ? available : backgroundColors
+  return pool[Math.floor(Math.random() * pool.length)]
+}
+
+const addSticky = async () => {
+  const newId = Date.now()
+  const newSticky = {
+    id: newId,
     content: '',
-    color: backgroundColors[nextColorIdx],
+    color: getRandomColor(),
     isBold: false,
     isItalic: false,
-    align: 'left'
-  });
-  createCount.value++;
-  saveToStorage();
+    align: 'left',
+    isNew: true // triggers highlight animation
+  }
+  stickies.value.push(newSticky)
+  saveToStorage()
+
+  // Wait for DOM to render, then focus the new sticky's textarea
+  await nextTick()
+  const el = textareaRefs[newId]
+  if (el) el.focus()
+
+  // Remove the `isNew` highlight flag after animation completes
+  setTimeout(() => {
+    const sticky = stickies.value.find(s => s.id === newId)
+    if (sticky) sticky.isNew = false
+  }, 1000)
 }
 
 const deleteSticky = (id) => {
-  stickies.value = stickies.value.filter(s => s.id !== id);
-  saveToStorage();
+  stickies.value = stickies.value.filter(s => s.id !== id)
+  delete textareaRefs[id]
+  saveToStorage()
 }
 
 const cycleAlignment = (sticky) => {
-  if (sticky.align === 'left') sticky.align = 'center';
-  else if (sticky.align === 'center') sticky.align = 'right';
-  else sticky.align = 'left';
-  saveToStorage();
+  if (sticky.align === 'left') sticky.align = 'center'
+  else if (sticky.align === 'center') sticky.align = 'right'
+  else sticky.align = 'left'
+  debouncedSave()
 }
 </script>
 
@@ -222,9 +266,26 @@ const cycleAlignment = (sticky) => {
   flex-direction: column;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
   transition: transform 0.2s, box-shadow 0.2s;
+  animation: slideInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .sticky-card:hover { 
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+}
+
+/* Highlight pulse for newly created sticky */
+.sticky-card.is-new {
+  animation: slideInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1), highlightNew 1s ease-out;
+}
+
+@keyframes slideInUp {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes highlightNew {
+  0%   { box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.7); }
+  60%  { box-shadow: 0 0 0 6px rgba(14, 165, 233, 0.2); }
+  100% { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4); }
 }
 
 .sticky-input {
