@@ -1,247 +1,456 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
+import { useRoute } from 'vue-router'
+import axiosClient from '@/api/axiosClient'
+import { ElNotification, ElMessageBox } from 'element-plus'
+import ListView from '@/components/ListView.vue'
 
-const views = ref([
-  { id: 1, name: 'Project Urgent Tasks', hasGlobal: true }
-])
+import FilterBar from '@/components/FilterBar.vue'
 
+const route = useRoute()
+const projectId = computed(() => route.params.id || localStorage.getItem('currentProjectId') || 'default')
+
+const views = ref([])
+const activeView = ref(null)
+const tasks = ref([])
+const loading = ref(false)
 const showCreateModal = ref(false)
-const showFilters = ref(false)
-const viewType = ref('list') // 'list' or 'display'
+const viewType = ref('list') 
 
-const resetModal = () => {
-   showCreateModal.value = false
-   showFilters.value = false
-   viewType.value = 'list'
+// Selected Filters State
+const activeFilters = ref([])
+
+const addFilterOption = (label, icon) => {
+    // Check if we want to allow multiples (like Start date) or just one of a kind
+    // For now, let's just add it with a unique ID
+    activeFilters.value.push({
+        id: Date.now(),
+        label: label,
+        condition: 'is',
+        value: '--',
+        icon: icon
+    })
 }
 
+const handleRemoveFilter = (id) => {
+    activeFilters.value = activeFilters.value.filter(f => f.id !== id)
+}
+
+const handleClearFilters = () => {
+    activeFilters.value = []
+}
+
+const handleAddFilter = () => {
+    // This is called from the FilterBar "+" button
+    // It should focus/open the dropdown if possible, but for now we'll just keep it linked
+}
+
+// Sorting and Filtering
+const sortBy = ref('Updated at')
+const sortDir = ref('Descending')
+const filterSearch = ref('')
+
+// Creation form
+const newView = ref({
+  name: '',
+  description: '',
+  queryMetadata: '{}'
+})
+
+// Display Properties State
+const displayProps = ref(['ID', 'Assignee', 'Start date', 'Due date', 'Labels', 'Priority', 'State'])
+const groupBy = ref('States')
+const orderBy = ref('Manual')
+const showSubItems = ref(false)
+
+const fetchViews = async () => {
+  try {
+    const res = await axiosClient.get(`/projects/${projectId.value}/views`)
+    views.value = res.data.data
+  } catch (err) {
+    console.error('Failed to fetch views', err)
+  }
+}
+
+const selectView = async (view) => {
+  activeView.value = view
+  await fetchViewTasks(view)
+}
+
+const fetchViewTasks = async (view) => {
+  loading.value = true
+  try {
+    let priority = null
+    try {
+        const metadata = JSON.parse(view.queryMetadata)
+        if (metadata.priority === 'Urgent') priority = 1
+    } catch(e) {}
+
+    const res = await axiosClient.get(`/tasks/search`, {
+      params: { 
+        priority: priority,
+        projectId: projectId.value
+      }
+    })
+    tasks.value = res.data.data
+  } catch (err) {
+    console.error('Failed to fetch tasks', err)
+  } finally {
+    loading.value = false
+  }
+}
+
+const createView = async () => {
+  if (!newView.value.name) return
+  try {
+    const res = await axiosClient.post(`/projects/${projectId.value}/views`, newView.value)
+    views.value.push(res.data.data)
+    ElNotification.success('View created successfully')
+    showCreateModal.value = false
+    resetForm()
+  } catch (err) {
+    ElNotification.error('Failed to create view')
+  }
+}
+
+const resetForm = () => {
+    newView.value = { name: '', description: '', queryMetadata: '{}' }
+}
+
+const deleteView = async (id) => {
+  try {
+    await ElMessageBox.confirm('Are you sure you want to delete this view?', 'Warning', {
+      type: 'warning',
+      confirmButtonText: 'Delete',
+      confirmButtonClass: 'el-button--danger'
+    })
+    await axiosClient.delete(`/projects/${projectId.value}/views/${id}`)
+    views.value = views.value.filter(v => v.id !== id)
+    if (activeView.value?.id === id) activeView.value = null
+    ElNotification.success('View deleted')
+  } catch (err) {
+    if (err !== 'cancel') ElNotification.error('Failed to delete view')
+  }
+}
+
+const toggleFavorite = async (view) => {
+  try {
+    const res = await axiosClient.patch(`/projects/${projectId.value}/views/${view.id}/favorite`)
+    view.isFavorite = res.data.data.isFavorite
+  } catch (err) {
+    ElNotification.error('Failed to toggle favorite')
+  }
+}
+
+const resetModal = () => {
+  showCreateModal.value = false
+  resetForm()
+}
+
+const goBackToList = () => {
+    activeView.value = null
+}
+
+const toggleDisplayProp = (prop) => {
+    const idx = displayProps.value.indexOf(prop)
+    if (idx > -1) displayProps.value.splice(idx, 1)
+    else displayProps.value.push(prop)
+}
+
+const viewTypeIcon = computed(() => {
+    switch(viewType.value) {
+        case 'list': return 'fa-solid fa-bars'
+        case 'board': return 'fa-solid fa-columns'
+        case 'calendar': return 'fa-regular fa-calendar'
+        case 'table': return 'fa-solid fa-table'
+        case 'timeline': return 'fa-solid fa-timeline'
+        default: return 'fa-solid fa-bars'
+    }
+})
+
+onMounted(() => {
+  fetchViews()
+})
 </script>
 
 <template>
-  <div class="plane-views-wrapper">
-    <!-- Header Controls -->
-    <div class="views-header border-b border-[#1E2025]">
-       <div class="vh-left flex items-center gap-2 text-[13px] font-medium text-gray-400">
-           <i class="fa-solid fa-certificate text-orange-400"></i> CYBWF
-           <i class="fa-solid fa-chevron-right text-[9px] mx-1"></i>
-           <i class="fa-solid fa-layer-group text-gray-300"></i> <span class="text-gray-200">Views</span>
-       </div>
-       <div class="vh-right flex items-center gap-3">
-          <button class="icon-action hover-white text-gray-400"><i class="fa-solid fa-magnifying-glass"></i></button>
-          
-          <!-- Dropdown Name Filter -->
-          <el-dropdown trigger="click" popper-class="plane-popover dark !p-0">
-              <button class="filter-action outlined"><i class="fa-solid fa-arrow-up-z-a" style="transform: scaleY(-1)"></i> Name</button>
-              <template #dropdown>
-                 <el-dropdown-menu class="dark-dropdown custom-menu w-48 bg-[#1B1C20] border border-[#2D2F36] py-1 rounded-md shadow-xl text-[13px] text-gray-300">
-                    <el-dropdown-item class="hover:bg-gray-800 flex justify-between px-3 py-1.5 cursor-pointer">Name <i class="fa-solid fa-check text-gray-400"></i></el-dropdown-item>
-                    <el-dropdown-item class="hover:bg-gray-800 flex px-3 py-1.5 cursor-pointer">Created at</el-dropdown-item>
-                    <el-dropdown-item class="hover:bg-gray-800 flex px-3 py-1.5 cursor-pointer">Updated at</el-dropdown-item>
-                    <div class="border-b border-gray-700 my-1 mx-2"></div>
-                    <el-dropdown-item class="hover:bg-gray-800 flex px-3 py-1.5 cursor-pointer">Ascending</el-dropdown-item>
-                    <el-dropdown-item class="hover:bg-gray-800 flex justify-between px-3 py-1.5 cursor-pointer">Descending <i class="fa-solid fa-check text-gray-400"></i></el-dropdown-item>
-                 </el-dropdown-menu>
-              </template>
-          </el-dropdown>
-          
-          <button class="filter-action outlined"><i class="fa-solid fa-filter"></i> Filters</button>
-          <button class="primary-action bg-[#0EA5E9] hover:bg-[#0284C7] text-white px-4 py-1.5 rounded-md font-medium text-[13px]" @click="showCreateModal = true">Add view</button>
-       </div>
-    </div>
+  <div class="views-page">
+    <!-- Top Header Navigation (Breadcrumbs) - Restored to Turn 9 layout -->
+    <header class="app-header">
+      <div class="header-left">
+        <div class="breadcrumb-refined">
+            <i class="fa-solid fa-certificate text-orange-400"></i>
+            <span class="p-name">CYBWF</span>
+            <i class="fa-solid fa-chevron-right sep"></i>
+            <i class="fa-solid fa-layer-group text-slate-400"></i>
+            <span class="v-name" @click="goBackToList">Views</span>
+            <template v-if="activeView">
+                <i class="fa-solid fa-chevron-right sep"></i>
+                <span class="cur-view">{{ activeView.name }}</span>
+            </template>
+        </div>
+      </div>
 
-    <!-- Body -->
-    <div class="views-body p-6 w-full">
-      <div v-if="views.length === 0" class="empty-state text-muted text-sm flex justify-center w-full mt-10">No custom views found.</div>
-      
-      <div class="views-list flex flex-col w-full">
-         <div class="view-item group flex justify-between items-center py-3 border-b border-transparent hover:bg-[#16181D] px-4 rounded-lg cursor-pointer transition-colors" v-for="v in views" :key="v.id">
-            <div class="mr-left flex items-center gap-3">
-               <i class="fa-solid fa-layer-group text-gray-400 text-lg"></i>
-               <div class="m-title text-sm font-medium text-[#E4E4E7]">{{ v.name }}</div>
+      <div class="header-right">
+        <template v-if="!activeView">
+            <button class="h-tool-btn"><i class="fa-solid fa-magnifying-glass"></i></button>
+            <el-dropdown trigger="click">
+                <button class="h-tool-btn outlined">
+                    <i class="fa-solid fa-arrow-down-short-wide mr-2"></i>
+                    {{ sortBy }}
+                </button>
+                <template #dropdown>
+                    <el-dropdown-menu class="dark-popover">
+                        <el-dropdown-item @click="sortBy = 'Name'">Name</el-dropdown-item>
+                        <el-dropdown-item @click="sortBy = 'Created at'">Created at</el-dropdown-item>
+                        <el-dropdown-item @click="sortBy = 'Updated at'">Updated at</el-dropdown-item>
+                    </el-dropdown-menu>
+                </template>
+            </el-dropdown>
+            
+            <button class="h-tool-btn outlined"><i class="fa-solid fa-filter mr-2"></i> Filters</button>
+            <button class="add-view-primary" @click="showCreateModal = true">Add view</button>
+        </template>
+        <template v-else>
+            <button class="h-tool-btn outlined"><i class="fa-solid fa-sliders mr-2"></i> Display</button>
+        </template>
+      </div>
+    </header>
+
+    <!-- Main Content Body - Restored to Turn 9 layout -->
+    <main class="views-content">
+      <div v-if="!activeView" class="views-list">
+        <div v-if="views.length === 0" class="empty-placeholder">
+          <p>No custom views here.</p>
+        </div>
+        
+        <div class="view-item-row" v-for="view in views" :key="view.id" @click="selectView(view)">
+            <div class="vi-left">
+                <i class="fa-solid fa-layer-group vi-icon"></i>
+                <span class="vi-name">{{ view.name }}</span>
+            </div>
+            <div class="vi-right">
+                <i class="fa-solid fa-earth-americas vi-globe" v-if="view.isGlobal"></i>
+                <div class="vi-avatar">P</div>
+                <button class="vi-star" :class="{ active: view.isFavorite }" @click.stop="toggleFavorite(view)">
+                    <i class="fa-regular fa-star"></i>
+                </button>
+                <button class="vi-more"><i class="fa-solid fa-ellipsis"></i></button>
+            </div>
+        </div>
+      </div>
+
+      <div v-else class="detail-container">
+        <ListView :tasks="tasks" />
+      </div>
+    </main>
+
+    <!-- Modal (ONLY REFORMING THE DISPLAY DROPDOWN) -->
+    <div class="modal-overlay" v-if="showCreateModal" @click.self="resetModal">
+      <div class="view-modal premium">
+        <div class="modal-header"><h3>Create View</h3></div>
+        <div class="modal-body">
+            <div class="input-row">
+                <div class="icon-box"><i class="fa-solid fa-layer-group"></i></div>
+                <input type="text" v-model="newView.name" placeholder="Title" class="title-input" />
+            </div>
+            <textarea v-model="newView.description" placeholder="Description" rows="4" class="desc-input"></textarea>
+            
+            <div class="m-filter-section">
+                <FilterBar 
+                    :filters="activeFilters" 
+                    @remove="handleRemoveFilter" 
+                    @clear="handleClearFilters"
+                    @add="handleAddFilter"
+                />
             </div>
             
-            <div class="mr-right flex items-center gap-4 text-gray-400">
-               <i v-if="v.hasGlobal" class="fa-solid fa-earth-americas text-sm"></i>
-               <div class="avatar-xxs bg-teal-700 rounded-full w-6 h-6 flex justify-center items-center text-white text-xs font-semibold">P</div>
-               <button class="icon-action hover-white opacity-0 group-hover:opacity-100 transition-opacity"><i class="fa-regular fa-star"></i></button>
-               <button class="icon-action hover-white p-1 rounded bg-[#16181D] group-hover:bg-[#27272A] border border-gray-800 transition-colors w-7 h-7 flex-center text-xs"><i class="fa-solid fa-ellipsis"></i></button>
+            <div class="modal-controls-bar">
+                <div class="toggle-group">
+                    <button class="m-toggle active"><i :class="viewTypeIcon" class="mr-2"></i> List</button>
+                    <!-- UPDATED PLACEMENT TO 'right-start' FOR SCROLLABILITY -->
+                    <el-dropdown trigger="click" popper-class="display-popper-final" placement="right-start" :hide-on-click="false">
+                        <button class="m-toggle">Display</button>
+                        <template #dropdown>
+                            <div class="display-scroll-vfinal">
+                                <div class="st-content">
+                                    <div class="st-sect">
+                                        <div class="st-sect-header"><span>Display Properties</span><i class="fa-solid fa-chevron-up"></i></div>
+                                        <div class="st-chips">
+                                            <span v-for="p in ['ID', 'Assignee', 'Start date', 'Due date', 'Labels', 'Priority', 'State', 'Sub-work item count', 'Attachment count', 'Link', 'Estimate', 'Module', 'Cycle']" 
+                                                  :key="p" class="p-chip-st" :class="{ selected: displayProps.includes(p) }" @click.stop="toggleDisplayProp(p)">{{ p }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="st-sect">
+                                        <div class="st-sect-header"><span>Group by</span><i class="fa-solid fa-chevron-up"></i></div>
+                                        <div class="st-radios">
+                                            <label class="st-opt" v-for="g in ['States', 'Priority', 'Cycle', 'Module', 'Labels', 'Assignees', 'Created by', 'None']" :key="g">
+                                                <input type="radio" name="pop-groupby" :value="g" v-model="groupBy" />
+                                                <span class="st-dot"></span><span class="st-label">{{ g }}</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="st-sect">
+                                        <div class="st-sect-header"><span>Order by</span><i class="fa-solid fa-chevron-up"></i></div>
+                                        <div class="st-radios">
+                                            <label class="st-opt" v-for="o in ['Manual', 'Last created', 'Last updated', 'Start date', 'Due date', 'Priority']" :key="o">
+                                                <input type="radio" name="pop-orderby" :value="o" v-model="orderBy" />
+                                                <span class="st-dot"></span><span class="st-label">{{ o }}</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="divider"></div>
+                                    <div class="st-foot">
+                                        <label class="st-check">
+                                            <input type="checkbox" v-model="showSubItems" />
+                                            <span class="checkmark"></span>
+                                            <span class="st-label">Show sub-work items</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </el-dropdown>
+                </div>
+                <el-dropdown trigger="click" popper-class="filter-modal-popper" placement="bottom-start">
+                    <button class="filter-btn"><i class="fa-solid fa-filter-circle-plus mr-2"></i> Filters</button>
+                    <template #dropdown>
+                        <div class="filter-modal-dropdown">
+                            <div class="f-search">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                                <input type="text" placeholder="Search" />
+                            </div>
+                            <div class="f-options">
+                                <div class="f-opt" @click="addFilterOption('State', 'fa-regular fa-circle-dot')"><i class="fa-regular fa-circle-dot"></i> State</div>
+                                <div class="f-opt" @click="addFilterOption('State Group', 'fa-regular fa-circle-dot')"><i class="fa-regular fa-circle-dot"></i> State Group</div>
+                                <div class="f-opt" @click="addFilterOption('Assignees', 'fa-regular fa-user')"><i class="fa-regular fa-user"></i> Assignees</div>
+                                <div class="f-opt" @click="addFilterOption('Priority', 'fa-solid fa-signal')"><i class="fa-solid fa-signal"></i> Priority</div>
+                                <div class="f-opt" @click="addFilterOption('Mentions', 'fa-solid fa-at')"><i class="fa-solid fa-at"></i> Mentions</div>
+                                <div class="f-opt" @click="addFilterOption('Label', 'fa-solid fa-tag')"><i class="fa-solid fa-tag"></i> Label</div>
+                                <div class="f-opt" @click="addFilterOption('Cycle', 'fa-regular fa-circle-pause')"><i class="fa-regular fa-circle-pause"></i> Cycle</div>
+                                <div class="f-opt" @click="addFilterOption('Module', 'fa-solid fa-table-cells-large')"><i class="fa-solid fa-table-cells-large"></i> Module</div>
+                                <div class="f-opt" @click="addFilterOption('Start date', 'fa-regular fa-calendar-plus')"><i class="fa-regular fa-calendar-plus"></i> Start date</div>
+                                <div class="f-opt" @click="addFilterOption('Target date', 'fa-regular fa-calendar')"><i class="fa-regular fa-calendar"></i> Target date</div>
+                                <div class="f-opt" @click="addFilterOption('Created at', 'fa-regular fa-calendar')"><i class="fa-regular fa-calendar"></i> Created at</div>
+                                <div class="f-opt" @click="addFilterOption('Updated at', 'fa-regular fa-calendar')"><i class="fa-regular fa-calendar"></i> Updated at</div>
+                            </div>
+                        </div>
+                    </template>
+                </el-dropdown>
             </div>
-         </div>
+        </div>
+        <div class="modal-footer">
+            <button class="cancel-btn" @click="resetModal">Cancel</button>
+            <button class="create-btn" @click="createView" :disabled="!newView.name">Create View</button>
+        </div>
       </div>
     </div>
-    
-    <!-- Create View Modal Overlay -->
-    <div class="modal-overlay" v-if="showCreateModal" @click.self="resetModal">
-       <div class="create-view-modal">
-          <div class="cm-header">
-             <h2 class="cm-title">Create View</h2>
-          </div>
-          
-          <div class="cm-body">
-             <!-- Icon & Title Row -->
-             <div class="flex items-center bg-[#18191B] border border-[#27272A] rounded-md focus-within:border-blue-400 transition-colors">
-                <div class="px-3 border-r border-[#27272A] flex justify-center items-center h-full bg-[#1B1C20] rounded-l-md">
-                   <i class="fa-solid fa-layer-group text-gray-400"></i>
-                </div>
-                <input type="text" class="cm-input border-none flex-1 bg-transparent px-3 py-2 text-sm text-white focus:outline-none placeholder-gray-500 font-medium" placeholder="Title" autofocus />
-             </div>
-             
-             <!-- Description text area -->
-             <textarea class="cm-textarea mt-4 bg-[#18191B] border border-[#27272A] rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-400 transition-colors placeholder-gray-500 w-full resize-none" placeholder="Description" rows="4"></textarea>
-             
-             <!-- List / Display Toggles -->
-             <div class="mt-4 flex bg-[#16181D] w-max rounded px-1 py-1 border border-[#27272A]">
-                 <button class="toggle-btn px-4 py-1 text-xs rounded" :class="viewType === 'list' ? 'bg-[#27272A] text-white border border-gray-700 font-medium shadow-sm' : 'text-gray-400 hover:text-gray-200 border border-transparent'" @click="viewType = 'list'"><i class="fa-solid fa-bars mr-1"></i> List</button>
-                 <button class="toggle-btn px-4 py-1 text-xs rounded" :class="viewType === 'display' ? 'bg-[#27272A] text-white border border-gray-700 font-medium shadow-sm' : 'text-gray-400 hover:text-gray-200 border border-transparent'" @click="viewType = 'display'">Display</button>
-             </div>
-             
-             <!-- Filters section -->
-             <div class="mt-4 bg-[#141518] rounded-md border border-[#27272A] p-4 min-h-[80px]">
-                 <!-- Closed state -->
-                 <button v-if="!showFilters" class="cbr-btn outlined w-max text-xs font-medium px-3 py-1.5 focus:outline-none" @click="showFilters = true"><i class="fa-solid fa-filter mr-1.5 text-gray-400 text-[10px]"></i> Filters</button>
-                 
-                 <!-- Open state -->
-                 <div v-else class="filters-open-state w-full relative">
-                    <button class="absolute -top-2 right-0 px-3 py-1.5 rounded border border-gray-700 bg-transparent text-xs text-gray-300 font-medium hover:bg-gray-800 transition-colors" @click="showFilters = false">Clear all</button>
-                    
-                    <div class="flex flex-wrap gap-y-3 gap-x-2 w-10/12">
-                       <!-- Filter Chips -->
-                       <div class="f-chip">
-                          <i class="fa-regular fa-user"></i> Assignees
-                          <span>is</span>
-                          <span class="text-white"><div class="w-4 h-4 rounded-full bg-teal-700 flex justify-center items-center text-[8px] text-white mr-1 font-bold">D</div> dsa</span>
-                          <i class="fa-solid fa-xmark"></i>
-                       </div>
-                       
-                       <div class="f-chip">
-                          <i class="fa-solid fa-chart-simple"></i> Priority
-                          <span>is</span>
-                          <span class="text-white"><i class="fa-solid fa-arrow-down text-blue-500 mr-1"></i> Low</span>
-                          <i class="fa-solid fa-xmark"></i>
-                       </div>
-                       
-                       <div class="f-chip">
-                          <i class="fa-solid fa-cube text-gray-400"></i> Module
-                          <span>is</span>
-                          <span class="text-gray-500 font-bold tracking-widest pl-2">--</span>
-                          <i class="fa-solid fa-xmark"></i>
-                       </div>
-                       
-                       <div class="f-chip"><i class="fa-solid fa-tag"></i> Label <span>is</span> <span class="text-gray-500 font-bold tracking-widest pl-2">--</span> <i class="fa-solid fa-xmark"></i></div>
-                       <div class="f-chip"><i class="fa-solid fa-circle-half-stroke"></i> Cycle <span>is</span> <span class="text-gray-500 font-bold tracking-widest pl-2">--</span> <i class="fa-solid fa-xmark"></i></div>
-                       <div class="f-chip"><i class="fa-regular fa-calendar"></i> Created at <span>is</span> <span class="text-gray-500 font-bold tracking-widest pl-2">--</span> <i class="fa-solid fa-xmark"></i></div>
-                       
-                       <button class="cbr-btn outlined w-8 h-8 flex justify-center items-center text-gray-400"><i class="fa-solid fa-filter"></i><i class="fa-solid fa-plus text-[6px] absolute mb-2 mr-2"></i></button>
-                    </div>
-                 </div>
-             </div>
-          </div>
-          
-          <div class="cm-footer">
-             <button class="cm-btn-cancel" @click="resetModal">Cancel</button>
-             <button class="cm-btn-create" @click="resetModal">Create View</button>
-          </div>
-       </div>
-    </div>
-    
   </div>
 </template>
 
 <style scoped>
-.plane-views-wrapper {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  color: #E4E4E7;
-  font-family: inherit;
-  background: #0D0F11;
-  min-height: calc(100vh - 120px);
+/* Main Page Layout (Restored to Turn 9) */
+.views-page { display: flex; flex-direction: column; height: 100vh; background-color: #0D0F11; font-family: 'Inter', sans-serif; color: #E4E4E7; }
+.app-header { display: flex; justify-content: space-between; align-items: center; padding: 14px 24px; border-bottom: 1px solid rgba(255,255,255,0.03); }
+.breadcrumb-refined { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 500; }
+.sep { font-size: 8px; color: #3F3F46; }
+.v-name { color: #A1A1AA; cursor: pointer; transition: color 0.2s; }
+.v-name:hover { color: #fff; }
+
+.header-right { display: flex; align-items: center; gap: 8px; }
+.h-tool-btn { background: transparent; border: none; color: #A1A1AA; cursor: pointer; padding: 6px 12px; border-radius: 4px; font-size: 13px; }
+.h-tool-btn.outlined { border: 1px solid #1E1E22; }
+.add-view-primary { background: #0EA5E9; border: none; color: #fff; padding: 6px 16px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer; }
+
+/* Content List (Restored to Turn 9) */
+.views-content { flex: 1; padding: 12px 24px; }
+.view-item-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-radius: 8px; cursor: pointer; transition: background 0.2s; }
+.view-item-row:hover { background: #1E1E22; }
+.vi-left { display: flex; align-items: center; gap: 14px; }
+.vi-icon { color: #71717A; font-size: 14px; }
+.vi-name { font-size: 14px; color: #D4D4D8; }
+.vi-right { display: flex; align-items: center; gap: 16px; opacity: 0; }
+.view-item-row:hover .vi-right { opacity: 1; }
+.vi-avatar { width: 22px; height: 22px; border-radius: 50%; background: #0F766E; color: #fff; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+
+/* Modal (Restored to Premium layout) */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 2000; }
+.view-modal.premium { width: 700px; background: #16181D; border: 1px solid #2D2F36; border-radius: 16px; overflow: hidden; }
+.modal-header { padding: 20px 24px; border-bottom: 1px solid #2D2F36; font-size: 16px; font-weight: 600; }
+.modal-body { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+.m-filter-section { margin: 4px 0; }
+.input-row { display: flex; align-items: center; background: #0D0F11; border: 1px solid #27272A; border-radius: 8px; }
+.icon-box { padding: 0 16px; border-right: 1px solid #27272A; color: #71717A; }
+.title-input { flex: 1; background: transparent; border: none; padding: 14px; color: #fff; outline: none; }
+.desc-input { background: #0D0F11; border: 1px solid #27272A; border-radius: 8px; padding: 14px; color: #D4D4D8; outline: none; resize: none; }
+
+.modal-controls-bar { display: flex; justify-content: space-between; align-items: center; }
+.toggle-group { display: flex; background: #1B1C20; border: 1px solid #27272A; border-radius: 8px; padding: 3px; gap: 4px; }
+.m-toggle { background: transparent; border: none; color: #A1A1AA; padding: 6px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; }
+.m-toggle.active { background: #27272A; color: #fff; border: 1px solid #3F3F46; }
+.filter-btn { background: #1B1C20; border: 1px solid #27272A; color: #A1A1AA; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+
+.modal-footer { padding: 16px 24px; background: #0D0F11; border-top: 1px solid #2D2F36; display: flex; justify-content: flex-end; gap: 12px; }
+.cancel-btn { background: transparent; border: none; color: #A1A1AA; padding: 8px 16px; cursor: pointer; }
+.create-btn { background: #0EA5E9; border: none; color: #fff; font-weight: 700; padding: 8px 24px; border-radius: 6px; cursor: pointer; }
+
+/* REFINED DISPLAY DROPDOWN (ONLY PART EDITED) */
+.display-scroll-vfinal {
+    width: 330px; background: #1B1C20; border-radius: 12px; border: 1px solid #2D2F36;
+    max-height: 520px; overflow-y: auto; overflow-x: hidden;
+}
+.display-scroll-vfinal::-webkit-scrollbar { width: 5px; }
+.display-scroll-vfinal::-webkit-scrollbar-thumb { background: #3F3F46; border-radius: 10px; }
+
+.st-content { padding: 20px; padding-bottom: 30px; }
+.st-sect { margin-bottom: 24px; }
+.st-sect-header { display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: 700; color: #71717A; margin-bottom: 12px; }
+
+.st-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.p-chip-st { padding: 6px 10px; background: #27272A; border-radius: 6px; font-size: 12px; color: #D4D4D8; cursor: pointer; border: 1px solid transparent; }
+.p-chip-st.selected { background: #0EA5E9; color: #fff; border-color: #38BDF8; }
+
+.st-radios { display: flex; flex-direction: column; gap: 11px; }
+.st-opt { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+.st-opt input { display: none; }
+.st-dot { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid #3F3F46; position: relative; }
+.st-opt input:checked + .st-dot { border-color: #38BDF8; }
+.st-opt input:checked + .st-dot::after {
+    content: "\f00c"; font-family: "Font Awesome 6 Free"; font-weight: 900; font-size: 8px; color: #38BDF8;
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+}
+.st-label { font-size: 13px; color: #D4D4D8; }
+
+.divider { height: 1px; background: #2D2F36; margin: 16px 0; }
+.st-check { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.st-check input { display: none; }
+.checkmark { width: 15px; height: 15px; border: 1.5px solid #3F3F46; border-radius: 4px; position: relative; }
+.st-check input:checked + .checkmark { background: #0EA5E9; border-color: #0EA5E9; }
+.st-check input:checked + .checkmark::after {
+    content: ""; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px; border: solid white; border-width: 0 1.5px 1.5px 0; transform: rotate(45deg);
 }
 
-.hover-white:hover { color: #E4E4E7; }
-.flex-center { display: flex; align-items: center; justify-content: center; }
+:deep(.display-popper-final) { background: transparent !important; border: none !important; box-shadow: none !important; }
 
-.filter-action.outlined {
-  background: transparent;
-  border: 1px solid #27272A;
-  color: #E4E4E7;
-  padding: 4px 12px;
-  border-radius: 6px;
-  font-size: 13px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  transition: 0.2s;
+/* MODAL FILTER DROPDOWN REFINEMENT */
+.filter-modal-dropdown {
+    width: 240px; background: #1B1C20; border: 1px solid #2D2F36; border-radius: 8px; overflow: hidden;
 }
-.filter-action.outlined:hover { background: #1E2025; border-color: #3F3F46;}
+.f-search {
+    display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid #2D2F36;
+}
+.f-search i { font-size: 11px; color: #71717A; }
+.f-search input {
+    background: transparent; border: none; color: #fff; font-size: 13px; outline: none; width: 100%;
+}
+.f-options { padding: 4px; max-height: 400px; overflow-y: auto; }
+.f-opt {
+    display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 6px; cursor: pointer;
+    font-size: 13px; color: #D4D4D8; transition: background 0.2s;
+}
+.f-opt:hover { background: #27272A; color: #fff; }
+.f-opt i { font-size: 12px; width: 16px; text-align: center; color: #71717A; }
 
-
-/* Modal Overlay Create */
-.modal-overlay {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-}
-.create-view-modal {
-  width: 650px;
-  background: #1B1C20;
-  border: 1px solid #2D2F36;
-  border-radius: 12px;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.8);
-}
-.cm-header { padding: 24px 24px 16px 24px; }
-.cm-title { font-size: 18px; font-weight: 600; color: #E4E4E7; margin: 0; }
-.cm-body { padding: 0 24px 24px 24px; display: flex; flex-direction: column; }
-
-.cbr-btn.outlined { background: transparent; border: 1px solid #2D2F36; color: #E4E4E7; border-radius: 6px; cursor: pointer; transition: 0.2s; display: flex; align-items: center;}
-.cbr-btn.outlined:hover { background: #27272A; }
-
-.cm-footer {
-  padding: 16px 24px; border-top: 1px solid #2D2F36; display: flex; justify-content: flex-end; gap: 12px; background: #141518; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;
-}
-.cm-btn-cancel { background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 6px 16px; color: #E4E4E7; font-size: 13px; font-weight: 500; cursor: pointer; transition: background 0.2s; }
-.cm-btn-cancel:hover { background: #27272A; }
-.cm-btn-create { background: #0EA5E9; border: none; border-radius: 6px; padding: 6px 16px; color: white; font-size: 13px; font-weight: 500; cursor: pointer; transition: 0.2s; }
-.cm-btn-create:hover { background: #0284C7; }
-
-/* Filter Chips */
-.f-chip {
-  display: inline-flex;
-  align-items: center;
-  background: transparent;
-  border: 1px solid #2D2F36;
-  border-radius: 4px;
-  font-size: 11px;
-  color: #A1A1AA;
-}
-.f-chip i:first-child { padding: 6px 6px 6px 8px; color: #A1A1AA; }
-.f-chip > span:first-of-type { 
-  display: flex; align-items: center; padding-left: 8px; padding-right: 8px; border-left: 1px solid #2D2F36; height: 100%; border-right: 1px solid #2D2F36; 
-}
-.f-chip > span:last-of-type { 
-  display: flex; align-items: center; padding-left: 8px; padding-right: 8px; height: 100%; 
-}
-.f-chip > i.fa-xmark {
-  padding-left: 8px; padding-right: 8px; border-left: 1px solid #2D2F36; cursor: pointer; height: 100%; display: flex; align-items: center; justify-content: center; transition: color 0.2s;
-}
-.f-chip > i.fa-xmark:hover { color: #E4E4E7; background: #1E2025; }
-
-/* El-dropdown overriding wrapper classes, injected global style locally */
-:deep(.dark-dropdown) {
-  background-color: #1B1C20 !important;
-  border-color: #2D2F36 !important;
-  color: #E4E4E7 !important;
-}
-:deep(.el-dropdown-menu__item) {
-  color: #E4E4E7 !important;
-}
-:deep(.el-dropdown-menu__item:hover) {
-  background-color: #27272A !important;
-}
-
+:deep(.filter-modal-popper) { background: transparent !important; border: none !important; box-shadow: none !important; }
 </style>
+

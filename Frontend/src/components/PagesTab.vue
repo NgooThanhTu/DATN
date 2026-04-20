@@ -48,6 +48,13 @@ const showImageStaging = ref(false)
 
 let saveTimeout = null
 
+const sortBy = ref('date_modified')
+const sortOrder = ref('desc')
+const filterSearch = ref('')
+const filterFavorites = ref(false)
+const filterDateExpanded = ref(true)
+const filterByExpanded = ref(true)
+
 const filteredPages = computed(() => {
   let result = []
   if (activeTab.value === 'Archived') {
@@ -130,6 +137,7 @@ async function fetchPages() {
   loading.value = true
   try {
     const res = await axiosClient.get(`/projects/${props.projectId}/pages`)
+    // Note: Backend might need update to return archived pages for the Archived tab
     pages.value = res.data?.data || []
     const qPageId = route.query.pageId
     if (qPageId) {
@@ -432,14 +440,111 @@ function pageMenuItems(page) {
       </div>
 
       <div class="pages-toolbar">
-        <div class="pt-left" style="color: #71717A; font-size: 13px">{{ filteredPages.length }} pages</div>
-        <div class="pt-right">
-          <button class="icon-toggle"><i class="fa-solid fa-magnifying-glass"></i></button>
-          <button class="filter-btn outlined" @click="sortMode = sortMode === 'updated' ? 'title' : 'updated'">
-             <i class="fa-solid fa-arrow-down-wide-short"></i> {{ sortMode === 'updated' ? 'Date modified' : 'Title' }}
-          </button>
-          <button class="filter-btn outlined"><i class="fa-solid fa-filter"></i> Filters</button>
-        </div>
+         <div class="pt-left"></div>
+         <div class="pt-right">
+            <button class="icon-toggle"><i class="fa-solid fa-magnifying-glass"></i></button>
+            
+            <el-popover placement="bottom-end" trigger="click" :width="220" popper-class="custom-dark-popover sort-popover" :offset="8" :show-arrow="false">
+              <template #reference>
+                <button class="filter-btn outlined" style="padding-left: 10px; padding-right: 10px;">
+                  <i class="fa-solid fa-arrow-down-short-wide" style="font-size: 12px; margin-right: 2px;"></i> 
+                  {{ sortBy === 'name' ? 'Name' : (sortBy === 'date_created' ? 'Date created' : 'Date modified') }}
+                </button>
+              </template>
+              <div class="popover-menu-list">
+                <div class="pm-item" @click="sortBy = 'name'">
+                  <span class="pm-label">Name</span>
+                  <i v-if="sortBy === 'name'" class="fa-solid fa-check pm-check"></i>
+                </div>
+                <div class="pm-item" @click="sortBy = 'date_created'">
+                  <span class="pm-label">Date created</span>
+                  <i v-if="sortBy === 'date_created'" class="fa-solid fa-check pm-check"></i>
+                </div>
+                <div class="pm-item" @click="sortBy = 'date_modified'">
+                  <span class="pm-label">Date modified</span>
+                  <i v-if="sortBy === 'date_modified'" class="fa-solid fa-check pm-check"></i>
+                </div>
+                
+                <div class="pm-divider"></div>
+                
+                <div class="pm-item" @click="sortOrder = 'asc'">
+                  <span class="pm-label">Ascending</span>
+                  <i v-if="sortOrder === 'asc'" class="fa-solid fa-check pm-check"></i>
+                </div>
+                <div class="pm-item" @click="sortOrder = 'desc'">
+                  <span class="pm-label">Descending</span>
+                  <i v-if="sortOrder === 'desc'" class="fa-solid fa-check pm-check"></i>
+                </div>
+              </div>
+            </el-popover>
+
+            <el-popover placement="bottom-end" trigger="click" :width="280" popper-class="custom-dark-popover filter-popover" :offset="8" :show-arrow="false">
+              <template #reference>
+                <button class="filter-btn outlined"><i class="fa-solid fa-bars-staggered" style="font-size: 12px;"></i> Filters</button>
+              </template>
+              <div class="filter-menu-container">
+                <div class="fm-search">
+                  <i class="fa-solid fa-magnifying-glass fms-icon"></i>
+                  <input v-model="filterSearch" type="text" placeholder="Search" class="fms-input" />
+                </div>
+                
+                <div class="fm-section" style="margin-top: 12px">
+                  <label class="fm-checkbox-row">
+                    <input type="checkbox" v-model="filterFavorites" class="fm-checkbox" />
+                    <span class="fm-checkbox-label">Favorites</span>
+                  </label>
+                </div>
+                
+                <div class="pm-divider"></div>
+                
+                <!-- Created date collapsible -->
+                <div class="fm-collapsible">
+                  <div class="fm-col-header" @click="filterDateExpanded = !filterDateExpanded">
+                    <span class="fm-col-title">Created date</span>
+                    <i class="fa-solid fa-chevron-up fm-col-icon" :class="{'rotate-180': !filterDateExpanded}"></i>
+                  </div>
+                  <div class="fm-col-content" v-show="filterDateExpanded">
+                    <label class="fm-checkbox-row">
+                      <input type="checkbox" class="fm-checkbox" />
+                      <span class="fm-checkbox-label">1 week ago</span>
+                    </label>
+                    <label class="fm-checkbox-row">
+                      <input type="checkbox" class="fm-checkbox" />
+                      <span class="fm-checkbox-label">2 weeks ago</span>
+                    </label>
+                    <label class="fm-checkbox-row">
+                      <input type="checkbox" class="fm-checkbox" />
+                      <span class="fm-checkbox-label">1 month ago</span>
+                    </label>
+                    <label class="fm-checkbox-row">
+                      <input type="checkbox" class="fm-checkbox" />
+                      <span class="fm-checkbox-label">Custom</span>
+                    </label>
+                  </div>
+                </div>
+                
+                <div class="pm-divider"></div>
+                
+                <!-- Created by collapsible -->
+                <div class="fm-collapsible">
+                  <div class="fm-col-header" @click="filterByExpanded = !filterByExpanded">
+                    <span class="fm-col-title">Created by</span>
+                    <i class="fa-solid fa-chevron-up fm-col-icon" :class="{'rotate-180': !filterByExpanded}"></i>
+                  </div>
+                  <div class="fm-col-content" v-show="filterByExpanded">
+                    <label class="fm-checkbox-row">
+                      <input type="checkbox" class="fm-checkbox" />
+                      <div class="fm-user">
+                        <div class="fm-avatar">D</div>
+                        <span>You</span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+              </div>
+            </el-popover>
+         </div>
       </div>
 
       <div class="pages-list" v-loading="loading">

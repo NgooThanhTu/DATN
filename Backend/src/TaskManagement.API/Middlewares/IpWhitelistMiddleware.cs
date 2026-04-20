@@ -39,13 +39,30 @@ namespace TaskManagement.API.Middlewares
                     var tenantConfig = await dbContext.TenantConfigs.FirstOrDefaultAsync();
                     if (tenantConfig != null && !string.IsNullOrEmpty(tenantConfig.IpWhitelist))
                     {
-                        var ips = JsonSerializer.Deserialize<List<string>>(tenantConfig.IpWhitelist);
-                        if (ips != null)
+                      try{
+                        var jsonDoc = JsonDocument.Parse(tenantConfig.IpWhitelist);
+                        foreach (var el in jsonDoc.RootElement.EnumerateArray())
                         {
-                            whitelistedIps.AddRange(ips);
+                            if (el.ValueKind == JsonValueKind.String)
+                            {
+                                whitelistedIps.Add(el.GetString()!);
+                            }
+                            else if (el.ValueKind == JsonValueKind.Object && el.TryGetProperty("ip", out var ipProp) && ipProp.ValueKind == JsonValueKind.String)
+                            {
+                                var textIp = ipProp.GetString()!;
+                                if (!string.IsNullOrEmpty(textIp))
+                                {
+                                    whitelistedIps.Add(textIp);
+                                }
+                            }
                         }
                     }
+                    catch (JsonException)
+                    {
+                        // JSON parsing error or empty, ignore
+                    }
                 }
+              }
                 catch (Exception)
                 {
                     // Fallback: If DB is not ready or table is missing, don't crash the whole app.

@@ -11,23 +11,24 @@
 
 /* Default to dark theme styles for Admin Dashboard */
 :root, [data-theme='light'], [data-theme='dark'] {
-  --bg-layout: #130f26;
-  --bg-nav: rgba(31, 21, 51, 0.85);
-  --bg-sidebar: rgba(31, 21, 51, 0.85);
-  --bg-content: #130f26;
-  --bg-secondary: rgba(31, 21, 51, 0.8);
-  --bg-card: rgba(31, 21, 51, 0.8); /* #1f1533 with 80% opacity */
-  --text-primary: #f4f5f7;
-  --text-secondary: #d1d5db;
-  --text-muted: #9ca3af;
-  --border-color: #374151; /* gray-700 */
-  --hover-bg: rgba(45, 212, 191, 0.1);
-  --active-bg: rgba(20, 184, 166, 0.2);
+  --bg-layout: #0d0f11;
+  --bg-nav: #0d0f11;
+  --bg-sidebar: #0d0f11;
+  --bg-content: #0d0f11;
+  --bg-secondary: #16181d;
+  --bg-card: #16181d;
+  --text-primary: #e4e4e7;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+  --border-color: #1e2025;
+  --hover-bg: rgba(255, 255, 255, 0.05);
+  --active-bg: rgba(14, 165, 233, 0.15);
   --input-bg: rgba(0, 0, 0, 0.2);
   --scrollbar-bg: transparent;
-  --scrollbar-thumb: rgba(55, 65, 81, 0.7);
+  --scrollbar-thumb: rgba(39, 39, 42, 0.7);
   --bg-image: none;
   --glass-blur: 12px;
+  --bg-hover: #1e2025;
 }
 
 * {
