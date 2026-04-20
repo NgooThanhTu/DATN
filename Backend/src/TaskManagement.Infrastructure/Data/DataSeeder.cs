@@ -38,26 +38,34 @@ namespace TaskManagement.Infrastructure.Data
                 });
             }
 
-            var workspace = new Workspace
+            var existingWorkspace = await context.Workspaces.FirstOrDefaultAsync(w => w.Slug == "cybwf");
+            if (existingWorkspace == null)
             {
-                Id = workspaceId,
-                Name = "Cybwf Workspace",
-                Slug = "cybwf",
-                OwnerId = ownerId,
-                Timezone = "Asia/Ho_Chi_Minh",
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-            context.Workspaces.Add(workspace);
+                var workspace = new Workspace
+                {
+                    Id = workspaceId,
+                    Name = "Cybwf Workspace",
+                    Slug = "cybwf",
+                    OwnerId = ownerId,
+                    Timezone = "Asia/Ho_Chi_Minh",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                context.Workspaces.Add(workspace);
 
-            context.WorkspaceMembers.Add(new WorkspaceMember
+                context.WorkspaceMembers.Add(new WorkspaceMember
+                {
+                    WorkspaceId = workspaceId,
+                    UserId = ownerId,
+                    WorkspaceRole = "OWNER",
+                    JoinedAt = DateTime.UtcNow,
+                    IsActive = true
+                });
+            }
+            else
             {
-                WorkspaceId = workspaceId,
-                UserId = ownerId,
-                WorkspaceRole = "OWNER",
-                JoinedAt = DateTime.UtcNow,
-                IsActive = true
-            });
+                workspaceId = existingWorkspace.Id;
+            }
 
             // 3. Tạo Project
             var projectId = Guid.NewGuid();

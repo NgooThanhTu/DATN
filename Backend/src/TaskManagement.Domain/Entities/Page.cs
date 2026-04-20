@@ -32,6 +32,9 @@ namespace TaskManagement.Domain.Entities
         /// <summary>Trang có bị archive không</summary>
         public bool IsArchived { get; set; } = false;
 
+        public bool IsPrivate { get; set; } = false;
+        public bool IsStarred { get; set; } = false;
+
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
     }

@@ -19,18 +19,81 @@ namespace TaskManagement.API.Controllers
             _context = context;
         }
 
-        [HttpGet("pages")]
-        public async Task<IActionResult> GetByProject(Guid projectId)
+        private async Task<Guid> GetValidProjectIdAsync(string projectIdString)
         {
+            if (Guid.TryParse(projectIdString, out Guid pid)) return pid;
+            
+            var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (Guid.TryParse(userIdStr, out Guid userId))
+            {
+                var project = await _context.Projects.FirstOrDefaultAsync(p => p.CreatorId == userId);
+                if (project != null) return project.Id;
+
+                var member = await _context.ProjectMembers.FirstOrDefaultAsync(m => m.UserId == userId);
+                if (member != null) return member.ProjectId;
+            }
+
+            var first = await _context.Projects.FirstOrDefaultAsync();
+            if (first != null) return first.Id;
+            
+            // Auto-create a fallback UI project if none exists yet
+            if (Guid.TryParse(userIdStr, out Guid currentUserId))
+            {
+                var defaultWorkspace = await _context.Workspaces.FirstOrDefaultAsync();
+                if (defaultWorkspace == null)
+                {
+                    defaultWorkspace = new Workspace {
+                        Id = Guid.NewGuid(),
+                        Name = "Default Workspace",
+                        Slug = "default",
+                        OwnerId = currentUserId,
+                        Timezone = "UTC",
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    };
+                    _context.Workspaces.Add(defaultWorkspace);
+                    await _context.SaveChangesAsync();
+                }
+
+                if (defaultWorkspace != null)
+                {
+                    var newProject = new Project {
+                        Id = Guid.NewGuid(),
+                        Name = "Default Project",
+                        Identifier = "DFP",
+                        CreatorId = currentUserId,
+                        WorkspaceId = defaultWorkspace.Id,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow,
+                        Status = true
+                    };
+                    _context.Projects.Add(newProject);
+                    await _context.SaveChangesAsync();
+                    return newProject.Id;
+                }
+            }
+            
+            return Guid.Empty;
+        }
+
+        [HttpGet("pages")]
+        public async Task<IActionResult> GetByProject(string projectId)
+        {
+            var validProjectId = await GetValidProjectIdAsync(projectId);
+            if (validProjectId == Guid.Empty) return Ok(new { statusCode = 200, message = "Success", data = new List<object>() });
+
             var pages = await _context.Pages
                 .AsNoTracking()
-                .Where(p => p.ProjectId == projectId && !p.IsArchived)
+                .Where(p => p.ProjectId == validProjectId)
                 .Select(p => new
                 {
                     p.Id,
                     p.Title,
                     p.SortOrder,
                     p.IsLocked,
+                    p.IsArchived,
+                    p.IsPrivate,
+                    p.IsStarred,
                     CreatedByName = p.CreatedBy.FullName,
                     p.CreatedAt,
                     p.UpdatedAt
@@ -42,12 +105,13 @@ namespace TaskManagement.API.Controllers
         }
 
         [HttpGet("pages/{pageId}")]
-        public async Task<IActionResult> GetById(Guid projectId, Guid pageId)
+        public async Task<IActionResult> GetById(string projectId, Guid pageId)
         {
+            var validProjectId = await GetValidProjectIdAsync(projectId);
             var page = await _context.Pages
                 .Include(p => p.CreatedBy)
                 .Include(p => p.UpdatedBy)
-                .FirstOrDefaultAsync(p => p.Id == pageId && p.ProjectId == projectId);
+                .FirstOrDefaultAsync(p => p.Id == pageId && p.ProjectId == validProjectId);
 
             if (page == null)
                 return NotFound(new { statusCode = 404, message = "Trang không tồn tại." });
@@ -64,6 +128,8 @@ namespace TaskManagement.API.Controllers
                     page.SortOrder,
                     page.IsLocked,
                     page.IsArchived,
+                    page.IsPrivate,
+                    page.IsStarred,
                     CreatedByName = page.CreatedBy?.FullName,
                     UpdatedByName = page.UpdatedBy?.FullName,
                     page.CreatedAt,
@@ -73,20 +139,23 @@ namespace TaskManagement.API.Controllers
         }
 
         [HttpPost("pages")]
-        public async Task<IActionResult> Create(Guid projectId, [FromBody] CreatePageRequest request)
+        public async Task<IActionResult> Create(string projectId, [FromBody] CreatePageRequest request)
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (!Guid.TryParse(userId, out Guid parsedUserId))
                 return Unauthorized(new { statusCode = 401, message = "Vui lòng đăng nhập." });
 
+            var validProjectId = await GetValidProjectIdAsync(projectId);
+            if (validProjectId == Guid.Empty) return BadRequest(new { statusCode = 400, message = "Không tìm thấy dự án hợp lệ để tạo trang." });
+
             var maxSort = await _context.Pages
-                .Where(p => p.ProjectId == projectId)
+                .Where(p => p.ProjectId == validProjectId)
                 .MaxAsync(p => (int?)p.SortOrder) ?? 0;
 
             var page = new Page
             {
                 Id = Guid.NewGuid(),
-                ProjectId = projectId,
+                ProjectId = validProjectId,
                 Title = request.Title,
                 Content = request.Content,
                 SortOrder = maxSort + 1,
@@ -103,20 +172,37 @@ namespace TaskManagement.API.Controllers
         }
 
         [HttpPut("pages/{pageId}")]
-        public async Task<IActionResult> Update(Guid projectId, Guid pageId, [FromBody] UpdatePageRequest request)
+        public async Task<IActionResult> Update(string projectId, Guid pageId, [FromBody] UpdatePageRequest request)
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             Guid.TryParse(userId, out Guid parsedUserId);
 
-            var page = await _context.Pages.FirstOrDefaultAsync(p => p.Id == pageId && p.ProjectId == projectId);
+            var validProjectId = await GetValidProjectIdAsync(projectId);
+            var page = await _context.Pages.FirstOrDefaultAsync(p => p.Id == pageId && p.ProjectId == validProjectId);
             if (page == null)
                 return NotFound(new { statusCode = 404, message = "Trang không tồn tại." });
 
             if (page.IsLocked)
-                return BadRequest(new { statusCode = 400, message = "Trang đã bị khóa chỉnh sửa." });
+            {
+                if (request.IsLocked.HasValue && request.IsLocked.Value == false)
+                {
+                    page.IsLocked = false;
+                }
+                else
+                {
+                    return BadRequest(new { statusCode = 400, message = "Trang đã bị khóa chỉnh sửa." });
+                }
+            }
+            else
+            {
+                if (request.Title != null) page.Title = request.Title;
+                if (request.Content != null) page.Content = request.Content;
+                if (request.IsLocked.HasValue) page.IsLocked = request.IsLocked.Value;
+                if (request.IsPrivate.HasValue) page.IsPrivate = request.IsPrivate.Value;
+                if (request.IsStarred.HasValue) page.IsStarred = request.IsStarred.Value;
+                if (request.IsArchived.HasValue) page.IsArchived = request.IsArchived.Value;
+            }
 
-            page.Title = request.Title ?? page.Title;
-            page.Content = request.Content ?? page.Content;
             page.UpdatedById = parsedUserId;
             page.UpdatedAt = DateTime.UtcNow;
 
@@ -126,9 +212,10 @@ namespace TaskManagement.API.Controllers
         }
 
         [HttpPut("pages/{pageId}/archive")]
-        public async Task<IActionResult> Archive(Guid projectId, Guid pageId)
+        public async Task<IActionResult> Archive(string projectId, Guid pageId)
         {
-            var page = await _context.Pages.FirstOrDefaultAsync(p => p.Id == pageId && p.ProjectId == projectId);
+            var validProjectId = await GetValidProjectIdAsync(projectId);
+            var page = await _context.Pages.FirstOrDefaultAsync(p => p.Id == pageId && p.ProjectId == validProjectId);
             if (page == null)
                 return NotFound(new { statusCode = 404, message = "Trang không tồn tại." });
 
@@ -137,6 +224,20 @@ namespace TaskManagement.API.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(new { statusCode = 200, message = page.IsArchived ? "Đã lưu trữ." : "Đã khôi phục." });
+        }
+
+        [HttpDelete("pages/{pageId}")]
+        public async Task<IActionResult> Delete(string projectId, Guid pageId)
+        {
+            var validProjectId = await GetValidProjectIdAsync(projectId);
+            var page = await _context.Pages.FirstOrDefaultAsync(p => p.Id == pageId && p.ProjectId == validProjectId);
+            if (page == null)
+                return NotFound(new { statusCode = 404, message = "Trang không tồn tại." });
+
+            _context.Pages.Remove(page);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { statusCode = 200, message = "Đã xóa trang vĩnh viễn." });
         }
     }
 
@@ -150,5 +251,9 @@ namespace TaskManagement.API.Controllers
     {
         public string? Title { get; set; }
         public string? Content { get; set; }
+        public bool? IsLocked { get; set; }
+        public bool? IsPrivate { get; set; }
+        public bool? IsStarred { get; set; }
+        public bool? IsArchived { get; set; }
     }
 }

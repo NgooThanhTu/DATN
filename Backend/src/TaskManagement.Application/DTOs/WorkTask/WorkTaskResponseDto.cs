@@ -36,5 +36,7 @@ namespace TaskManagement.Application.DTOs.WorkTask
 
         /// <summary>Human-readable Issue ID, e.g., "CUN-42"</summary>
         public string? SequenceId { get; set; }
+
+        public bool IsSubscribed { get; set; }
     }
 }

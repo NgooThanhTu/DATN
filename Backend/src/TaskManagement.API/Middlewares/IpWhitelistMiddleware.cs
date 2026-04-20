@@ -33,13 +33,13 @@ namespace TaskManagement.API.Middlewares
 
             if (!_cache.TryGetValue(CacheKey, out List<string>? whitelistedIps))
             {
-                var tenantConfig = await dbContext.TenantConfigs.FirstOrDefaultAsync();
                 whitelistedIps = new List<string>();
-
-                if (tenantConfig != null && !string.IsNullOrEmpty(tenantConfig.IpWhitelist))
+                try
                 {
-                    try
+                    var tenantConfig = await dbContext.TenantConfigs.FirstOrDefaultAsync();
+                    if (tenantConfig != null && !string.IsNullOrEmpty(tenantConfig.IpWhitelist))
                     {
+                      try{
                         var jsonDoc = JsonDocument.Parse(tenantConfig.IpWhitelist);
                         foreach (var el in jsonDoc.RootElement.EnumerateArray())
                         {
@@ -57,10 +57,16 @@ namespace TaskManagement.API.Middlewares
                             }
                         }
                     }
-                    catch
+                    catch (JsonException)
                     {
                         // JSON parsing error or empty, ignore
                     }
+                }
+              }
+                catch (Exception)
+                {
+                    // Fallback: If DB is not ready or table is missing, don't crash the whole app.
+                    // We allow the request to proceed (no whitelist active).
                 }
 
                 var cacheEntryOptions = new MemoryCacheEntryOptions()

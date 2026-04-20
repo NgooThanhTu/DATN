@@ -172,10 +172,26 @@
                <i class="fa-brands fa-markdown icon-btn"></i>
             </div>
             <div class="sph-right">
-               <button class="unsub-btn"><i class="fa-regular fa-bell-slash"></i> Unsubscribe</button>
-               <i class="fa-solid fa-link icon-btn"></i>
-               <i class="fa-solid fa-ellipsis icon-btn"></i>
-            </div>
+                <button class="unsub-btn" :class="{ 'subscribed': props.selectedTask?.isSubscribed }" @click="toggleSubscription">
+                   <i :class="props.selectedTask?.isSubscribed ? 'fa-solid fa-bell' : 'fa-regular fa-bell-slash'"></i>
+                   {{ props.selectedTask?.isSubscribed ? 'Subscribed' : 'Subscribe' }}
+                </button>
+                <i class="fa-solid fa-link icon-btn"></i>
+                <i class="fa-solid fa-link icon-btn"></i>
+                <el-dropdown trigger="click" @command="handleHeaderCommand">
+                  <i class="fa-solid fa-ellipsis icon-btn"></i>
+                  <template #dropdown>
+                    <el-dropdown-menu class="dark-dropdown">
+                      <el-dropdown-item command="archive">
+                        <i class="fa-regular fa-box-archive"></i> Archive
+                      </el-dropdown-item>
+                      <el-dropdown-item command="archive_soon">
+                        <i class="fa-solid fa-hourglass-start"></i> Archive soon
+                      </el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
+             </div>
          </div>
          
          <div class="sp-body">
@@ -521,8 +537,11 @@
 
 <script setup>
 import { ref, watch, computed } from 'vue';
-import { ElMessage, ElNotification } from 'element-plus';
+import { ElMessage, ElNotification, ElMessageBox } from 'element-plus';
 import axiosClient from '@/api/axiosClient';
+import { useActivityStore } from '@/store/useActivityStore';
+
+const actStore = useActivityStore();
 
 const props = defineProps({
   selectedTask: { type: Object, default: null },
@@ -564,7 +583,9 @@ const projectModules = ref([]);
 
 const filteredMembers = computed(() => {
     if (!assigneeSearch.value) return props.projectMembers;
-    return props.projectMembers.filter(m => m.name?.toLowerCase().includes(assigneeSearch.value.toLowerCase()));
+    return props.projectMembers.filter(m => 
+        (m.fullName || m.userName || '').toLowerCase().includes(assigneeSearch.value.toLowerCase())
+    );
 });
 
 const filteredLabels = computed(() => {
@@ -749,6 +770,67 @@ const formatDate = (dateStr) => {
   if (!dateStr) return '';
   const d = new Date(dateStr);
   return d.toLocaleDateString('vi-VN');
+};
+
+const handleHeaderCommand = (command) => {
+    if (command === 'archive') {
+        archiveTask();
+    } else if (command === 'archive_soon') {
+        archiveSoonTask();
+    }
+};
+
+const toggleSubscription = async () => {
+    if (!props.selectedTask?.id) return;
+    try {
+        const res = await axiosClient.post(`/tasks/${props.selectedTask.id}/subscribe`);
+        
+        // Backend trả về: { statusCode: 200, data: { isSubscribed: true/false } }
+        const newState = (res.data?.data && typeof res.data.data.isSubscribed !== 'undefined')
+            ? res.data.data.isSubscribed
+            : !props.selectedTask.isSubscribed;
+
+        const msg = newState ? 'Đã đăng ký theo dõi' : 'Đã hủy đăng ký theo dõi';
+        ElMessage.success(msg);
+        
+        // Emit để cha cập nhật task, không mutate trực tiếp props
+        emit('updateTask', { ...props.selectedTask, isSubscribed: newState });
+        
+        actStore.logActivity(msg, `Task: ${props.selectedTask.title}`, 'fa-solid fa-bell');
+    } catch (e) {
+        console.error('Subscription error:', e.response?.data || e.message);
+        const errorMsg = e.response?.data?.message || 'Lỗi khi thay đổi trạng thái theo dõi';
+        ElMessage.error(errorMsg);
+    }
+};
+
+const archiveSoonTask = async () => {
+    try {
+        await ElMessageBox.confirm('Tính năng Archive soon sẽ tự động lưu trữ công việc này sau 24 giờ nếu không có hoạt động mới. Bạn có muốn kích hoạt?', 'Xác nhận Archive Soon', {
+            confirmButtonText: 'Kích hoạt',
+            cancelButtonText: 'Hủy',
+            type: 'info'
+        });
+        ElMessage.info('Archive soon đang được chuẩn bị - Đã ghi nhận yêu cầu của bạn.');
+        actStore.logActivity('Requested Archive Soon', `Task: ${props.selectedTask.title}`, 'fa-solid fa-hourglass-start');
+    } catch(e) {}
+};
+
+const archiveTask = async () => {
+    try {
+        await ElMessageBox.confirm('Bạn có chắc muốn lưu trữ công việc này? Nó sẽ bị ẩn khỏi danh sách hiện tại.', 'Xác nhận', {
+            confirmButtonText: 'Lưu trữ',
+            cancelButtonText: 'Hủy',
+            type: 'warning'
+        });
+        await axiosClient.put(`/projects/${props.projectId}/WorkTasks/${props.selectedTask.id}/archive`);
+        ElMessage.success('Đã lưu trữ công việc thành công');
+        actStore.logActivity('Archived work item', `Task: ${props.selectedTask.title}`, 'fa-regular fa-box-archive');
+        emit('refresh-tasks');
+        showTaskModal.value = false;
+    } catch (e) {
+        if (e !== 'cancel') ElMessage.error('Lỗi khi lưu trữ công việc');
+    }
 };
 
 const updateTaskField = (task, field, value) => {

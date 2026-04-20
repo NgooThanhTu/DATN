@@ -15,8 +15,34 @@
         </div>
       </header>
 
+      <!-- Content -->
+      <div v-if="loading" class="loading-wrap">
+        <el-skeleton :rows="5" animated />
+      </div>
+
+      <div v-else-if="archivedProjects.length > 0" class="archives-grid">
+        <div v-for="project in archivedProjects" :key="project.id" class="project-card">
+          <div class="pc-icon">
+            <i class="fa-solid fa-briefcase"></i>
+          </div>
+          <div class="pc-content">
+            <h4 class="pc-name">{{ project.name }}</h4>
+            <p class="pc-desc">{{ project.description || 'No description' }}</p>
+            <div class="pc-meta">
+               <span><i class="fa-solid fa-users"></i> {{ project.activeMemberCount }} members</span>
+               <span><i class="fa-solid fa-calendar"></i> {{ formatDate(project.createdAt) }}</span>
+            </div>
+          </div>
+          <div class="pc-actions">
+            <el-button link type="primary" @click="handleRestore(project)">
+              <i class="fa-solid fa-rotate-left"></i> Restore
+            </el-button>
+          </div>
+        </div>
+      </div>
+
       <!-- Empty State -->
-      <div class="empty-state">
+      <div v-else class="empty-state">
         <div class="empty-icon-wrap">
           <i class="fa-solid fa-box-archive empty-icon"></i>
         </div>
@@ -28,7 +54,54 @@
 </template>
 
 <script setup>
+import { ref, onMounted } from 'vue'
 import NexusLayout from '@/components/layout/NexusLayout.vue'
+import axiosClient from '@/api/axiosClient'
+import { ElMessage, ElMessageBox } from 'element-plus'
+
+const archivedProjects = ref([])
+const loading = ref(true)
+
+const fetchArchivedProjects = async () => {
+  loading.value = true
+  try {
+    const res = await axiosClient.get('/projects/archived')
+    archivedProjects.value = res.data.data || []
+  } catch (error) {
+    console.error('Failed to fetch archived projects:', error)
+    ElMessage.error('Không thể tải danh sách dự án lưu trữ')
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleRestore = async (project) => {
+  try {
+    await ElMessageBox.confirm(`Bạn có chắc muốn khôi phục dự án "${project.name}"?`, 'Xác nhận', {
+      confirmButtonText: 'Khôi phục',
+      cancelButtonText: 'Hủy',
+      type: 'info'
+    })
+    
+    await axiosClient.put(`/projects/${project.id}/restore`)
+    ElMessage.success(`Đã khôi phục dự án ${project.name}`)
+    fetchArchivedProjects()
+  } catch (err) {
+    if (err !== 'cancel') {
+      console.error('Restore failed:', err)
+      ElMessage.error('Lỗi khi khôi phục dự án')
+    }
+  }
+}
+
+const formatDate = (dateStr) => {
+  if (!dateStr) return 'N/A'
+  return new Date(dateStr).toLocaleDateString()
+}
+
+onMounted(() => {
+  fetchArchivedProjects()
+})
 </script>
 
 <style scoped>
@@ -85,6 +158,68 @@ import NexusLayout from '@/components/layout/NexusLayout.vue'
   gap: 6px;
 }
 .plane-toolbar-btn:hover { background: #1E2025; }
+
+.loading-wrap {
+  padding: 40px;
+}
+
+.archives-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.project-card {
+  background: #111315;
+  border: 1px solid #1E2025;
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  transition: border-color 0.2s, background 0.2s;
+  position: relative;
+}
+.project-card:hover {
+  border-color: #3F3F46;
+  background: #141619;
+}
+
+.pc-icon {
+  width: 40px; height: 40px;
+  background: #1E2025;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  color: #71717A;
+  flex-shrink: 0;
+}
+
+.pc-content {
+  flex: 1;
+}
+.pc-name {
+  margin: 0 0 4px 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.pc-desc {
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  color: #A1A1AA;
+}
+.pc-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: #71717A;
+}
+
+.pc-actions {
+  display: flex;
+  align-items: center;
+}
 
 .empty-state {
   flex: 1;

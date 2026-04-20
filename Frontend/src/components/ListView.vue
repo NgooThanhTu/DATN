@@ -62,13 +62,23 @@
                 </template>
               </el-dropdown>
               
-              <!-- Assignee omitted for brevity as it needs dynamic user list, wait, we can just show generic user icon if we don't pass projectMembers -->
-              <div class="pill pill-user cursor-not-allowed">
-                 <div class="avatar-xxs">
+              <el-dropdown trigger="click" @command="(val) => updateTaskProperty(task, 'assigneeId', val)">
+                <div class="pill pill-user cursor-pointer hover:bg-[#1E2025]">
+                  <div class="avatar-xxs">
                     <i class="fa-regular fa-user" v-if="!task.assigneeName"></i>
                     <span v-else>{{ task.assigneeName.substring(0,1).toUpperCase() }}</span>
-                 </div>
-              </div>
+                  </div>
+                  <span v-if="task.assigneeName" class="ml-1">{{ task.assigneeName }}</span>
+                </div>
+                <template #dropdown>
+                  <el-dropdown-menu class="plane-dropdown">
+                    <el-dropdown-item :command="null">Unassigned</el-dropdown-item>
+                    <el-dropdown-item v-for="m in projectMembers" :key="m.userId" :command="m.userId">
+                      {{ m.fullName || m.userName }}
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
             </div>
             <div class="row-action">
               <i class="fa-solid fa-ellipsis"></i>
@@ -137,7 +147,8 @@
 import { computed, ref, watch } from 'vue'
 
 const props = defineProps({
-  tasks: { type: Array, default: () => [] }
+  tasks: { type: Array, default: () => [] },
+  projectMembers: { type: Array, default: () => [] }
 })
 
 const emit = defineEmits(['task-click', 'task-created'])

@@ -81,6 +81,7 @@ namespace TaskManagement.Infrastructure.Data
         public DbSet<StickyNote> StickyNotes { get; set; }
         public DbSet<TaskDraft> TaskDrafts { get; set; }
         public DbSet<ProjectView> ProjectViews { get; set; }
+        public DbSet<TaskSubscriber> TaskSubscribers { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -119,6 +120,7 @@ namespace TaskManagement.Infrastructure.Data
             modelBuilder.Entity<WorkspaceMember>().HasKey(x => new { x.WorkspaceId, x.UserId });
             modelBuilder.Entity<IssueLabel>().HasKey(x => new { x.WorkTaskId, x.LabelId });
             modelBuilder.Entity<IssueModule>().HasKey(x => new { x.WorkTaskId, x.ModuleId });
+            modelBuilder.Entity<TaskSubscriber>().HasKey(x => new { x.WorkTaskId, x.UserId });
 
             // =============================================
             // 2. Unique Constraints
@@ -512,6 +514,19 @@ namespace TaskManagement.Infrastructure.Data
                 .WithMany(m => m.IssueModules)
                 .HasForeignKey(im => im.ModuleId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // TaskSubscriber -> WorkTask, User
+            modelBuilder.Entity<TaskSubscriber>()
+                .HasOne(ts => ts.WorkTask)
+                .WithMany(wt => wt.Subscribers)
+                .HasForeignKey(ts => ts.WorkTaskId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<TaskSubscriber>()
+                .HasOne(ts => ts.User)
+                .WithMany()
+                .HasForeignKey(ts => ts.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             // Intake -> Project, Users
             modelBuilder.Entity<Intake>()

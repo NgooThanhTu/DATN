@@ -1,5 +1,4 @@
 import { defineStore } from 'pinia'
-import axiosClient from '@/api/axiosClient'
 
 export const useActivityStore = defineStore('activityStore', {
   state: () => ({
@@ -7,31 +6,37 @@ export const useActivityStore = defineStore('activityStore', {
     loading: false,
   }),
   actions: {
-    async fetchRecentActivities() {
+    fetchRecentActivities() {
       this.loading = true
       try {
-        // Fallback: If we don't have a direct /activities endpoint, 
-        // we derive activities from /tasks/my-tasks for now to show real dynamic data.
-        const res = await axiosClient.get('/tasks/my-tasks')
-        const tasks = res.data?.data || []
-        
-        // Map tasks to simple activities for display
-        const mappedLogs = tasks.slice(0, 5).map(t => {
-          return {
-            id: 'act-' + t.id,
-            icon: 'fa-regular fa-bell',
-            text: `You were assigned to`,
-            bold: t.sequenceId || t.title,
-            time: 'Recently'
-          }
-        })
-        
-        this.activities = mappedLogs
+        const stored = localStorage.getItem('nexus_activities')
+        if (stored) {
+          this.activities = JSON.parse(stored)
+        } else {
+          // Initialize mock start log
+          this.activities = [
+            { id: Date.now().toString() + '1', icon: 'fa-regular fa-bell', text: 'Welcome! You can track your activity here.', bold: '', time: new Date().toLocaleString() }
+          ]
+          localStorage.setItem('nexus_activities', JSON.stringify(this.activities))
+        }
       } catch (err) {
         console.error('Failed to load activities', err)
       } finally {
         this.loading = false
       }
+    },
+    
+    logActivity(text, bold, icon = 'fa-regular fa-bell') {
+      const newAct = {
+        id: Date.now().toString() + Math.floor(Math.random() * 1000),
+        icon,
+        text,
+        bold,
+        time: new Date().toLocaleString()
+      }
+      this.activities.unshift(newAct)
+      if (this.activities.length > 50) this.activities.pop() // keep max 50 items
+      localStorage.setItem('nexus_activities', JSON.stringify(this.activities))
     }
   }
 })

@@ -1,24 +1,52 @@
 <script setup>
-import { ref, onMounted, watch, onBeforeUnmount } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import axiosClient from '@/api/axiosClient'
-import { ElNotification, ElMessageBox } from 'element-plus'
-import { useEditor, EditorContent } from '@tiptap/vue-3'
+import { ElMessageBox, ElNotification, ElMessage } from 'element-plus'
+import { EditorContent, useEditor } from '@tiptap/vue-3'
+import { useActivityStore } from '@/store/useActivityStore'
+
+const actStore = useActivityStore()
 import StarterKit from '@tiptap/starter-kit'
 import Image from '@tiptap/extension-image'
 import Underline from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
-import { computed } from 'vue'
-import dayjs from 'dayjs'
+import Placeholder from '@tiptap/extension-placeholder'
+import { TextStyle } from '@tiptap/extension-text-style'
+import { Color } from '@tiptap/extension-color'
+import { TaskItem } from '@tiptap/extension-task-item'
+import { TaskList } from '@tiptap/extension-task-list'
+import { Table } from '@tiptap/extension-table'
+import { TableRow } from '@tiptap/extension-table-row'
+import { TableCell } from '@tiptap/extension-table-cell'
+import { TableHeader } from '@tiptap/extension-table-header'
 
 const props = defineProps({
   projectId: { type: String, required: true }
 })
 
+const route = useRoute()
+const router = useRouter()
+
+const spaceName = 'CYBWF'
 const pages = ref([])
 const activePage = ref(null)
 const loading = ref(false)
 const saving = ref(false)
 const activeTab = ref('Public')
+const sortMode = ref('updated')
+const textColor = ref('#A1A1AA')
+const activePreviewColor = ref('#A1A1AA')
+const pendingColor = ref('#A1A1AA')
+const colorPickerVisible = ref(false)
+const tablePickerVisible = ref(false)
+const hoverTableRows = ref(0)
+const hoverTableCols = ref(0)
+const imageFileInput = ref(null)
+const stagedImages = ref([]) // { id, src, name }
+const showImageStaging = ref(false)
+
+let saveTimeout = null
 
 const sortBy = ref('date_modified')
 const sortOrder = ref('desc')
@@ -28,16 +56,82 @@ const filterDateExpanded = ref(true)
 const filterByExpanded = ref(true)
 
 const filteredPages = computed(() => {
-   if (activeTab.value === 'Archived') return pages.value.filter(p => p.isArchived)
-   if (activeTab.value === 'Private') return pages.value.filter(p => p.isPrivate && !p.isArchived)
-   return pages.value.filter(p => !p.isPrivate && !p.isArchived)
+  let result = []
+  if (activeTab.value === 'Archived') {
+    result = pages.value.filter(p => p.isArchived)
+  } else if (activeTab.value === 'Private') {
+    result = pages.value.filter(p => p.isPrivate && !p.isArchived)
+  } else {
+    result = pages.value.filter(p => !p.isPrivate && !p.isArchived)
+  }
+
+  const sorted = [...result]
+  sorted.sort((left, right) => {
+    if (sortMode.value === 'title') {
+      return (left.title || 'Untitled').localeCompare(right.title || 'Untitled')
+    }
+    const leftTime = new Date(left.updatedAt || left.createdAt || 0).getTime()
+    const rightTime = new Date(right.updatedAt || right.createdAt || 0).getTime()
+    return rightTime - leftTime
+  })
+  return sorted
 })
 
-let saveTimeout = null
+const editor = useEditor({
+  content: '',
+  extensions: [
+    StarterKit,
+    Image,
+    Underline,
+    TextStyle,
+    Color,
+    TaskList,
+    TaskItem.configure({ nested: true }),
+    Table.configure({ resizable: true }),
+    TableRow,
+    TableHeader,
+    TableCell,
+    TextAlign.configure({ types: ['heading', 'paragraph'] }),
+    Placeholder.configure({
+      placeholder: "Press '/' for commands..."
+    })
+  ],
+  editorProps: {
+    attributes: {
+      class: 'pages-editor prose prose-invert prose-sm max-w-none focus:outline-none'
+    }
+  },
+  onUpdate: ({ editor: currentEditor }) => {
+    if (!activePage.value || activePage.value.isLocked) return
+    if (saveTimeout) clearTimeout(saveTimeout)
+    saving.value = true
+    saveTimeout = setTimeout(() => {
+      activePage.value.content = currentEditor.getHTML()
+      void savePage()
+    }, 900)
+  }
+})
 
 onMounted(() => {
-  fetchPages()
+  void fetchPages()
 })
+
+onBeforeUnmount(() => {
+  if (saveTimeout) clearTimeout(saveTimeout)
+  if (editor.value) editor.value.destroy()
+})
+
+watch(
+  () => route.query.pageId,
+  async (pageId) => {
+    if (!pageId) {
+      activePage.value = null
+      return
+    }
+    if (String(activePage.value?.id || '') === String(pageId)) return
+    await openPage(pageId, false)
+  }
+)
 
 async function fetchPages() {
   loading.value = true
@@ -45,8 +139,14 @@ async function fetchPages() {
     const res = await axiosClient.get(`/projects/${props.projectId}/pages`)
     // Note: Backend might need update to return archived pages for the Archived tab
     pages.value = res.data?.data || []
+    const qPageId = route.query.pageId
+    if (qPageId) {
+       const exists = pages.value.some(p => String(p.id) === String(qPageId))
+       if (exists) await openPage(qPageId, false)
+    }
   } catch (error) {
     console.error(error)
+    ElNotification({ title: 'Lỗi', message: 'Không thể tải danh sách trang', type: 'error' })
   } finally {
     loading.value = false
   }
@@ -55,166 +155,290 @@ async function fetchPages() {
 async function createPage() {
   try {
     const res = await axiosClient.post(`/projects/${props.projectId}/pages`, {
-      title: 'Trang mới',
+      title: 'Untitled',
       content: ''
     })
     await fetchPages()
-    openPage(res.data.data.id)
+    const createdPageId = res.data?.data?.id
+    if (createdPageId) await openPage(createdPageId)
+    actStore.logActivity(`Created page "${res.data?.data?.title || 'Untitled'}"`, 'in Pages', 'fa-regular fa-file-lines')
+    ElNotification({ title: 'Thành công', message: 'Tạo trang mới thành công', type: 'success' })
   } catch (error) {
+    console.error(error)
     ElNotification({ title: 'Lỗi', message: 'Không thể tạo trang', type: 'error' })
   }
 }
 
-async function openPage(pageId) {
+async function openPage(pageId, syncRoute = true) {
   loading.value = true
   try {
     const res = await axiosClient.get(`/projects/${props.projectId}/pages/${pageId}`)
-    activePage.value = res.data?.data
-    if (editor.value) {
+    activePage.value = res.data?.data || null
+    if (editor.value && activePage.value) {
       editor.value.commands.setContent(activePage.value.content || '', false)
+      editor.value.setEditable(!activePage.value.isLocked)
+    }
+    if (syncRoute) {
+      await router.replace({ query: { ...route.query, pageId: pageId } })
     }
   } catch (error) {
+    console.error(error)
     ElNotification({ title: 'Lỗi', message: 'Không thể mở trang', type: 'error' })
   } finally {
     loading.value = false
   }
 }
 
-// === ACTIONS ===
-async function togglePrivacy(page) {
-  try {
-    // Mocking privacy toggle if backend is not ready
-    page.isPrivate = !page.isPrivate
-    await axiosClient.put(`/projects/${props.projectId}/pages/${page.id}`, {
-        isPrivate: page.isPrivate
-    })
-    ElNotification({ title: 'Thành công', message: page.isPrivate ? 'Đã chuyển sang riêng tư' : 'Đã chuyển sang công khai', type: 'success' })
-  } catch (error) {
-    console.error(error)
-  }
-}
-
-async function archivePage(pageId) {
-  try {
-    await ElMessageBox.confirm('Bạn có chắc muốn lưu trữ trang này?', 'Xác nhận', { 
-        confirmButtonText: 'Lưu trữ',
-        cancelButtonText: 'Hủy',
-        type: 'warning' 
-    })
-    await axiosClient.put(`/projects/${props.projectId}/pages/${pageId}/archive`)
-    if (activePage.value?.id === pageId) activePage.value = null
-    fetchPages()
-    ElNotification({ title: 'Thành công', message: 'Đã lưu trữ trang', type: 'success' })
-  } catch (e) {
-      if (e !== 'cancel') console.error(e)
-  }
-}
-
-async function restorePage(pageId) {
-  try {
-    await axiosClient.put(`/projects/${props.projectId}/pages/${pageId}/archive`)
-    fetchPages()
-    ElNotification({ title: 'Thành công', message: 'Đã khôi phục trang', type: 'success' })
-  } catch (error) {
-    console.error(error)
-  }
-}
-
-async function deletePage(pageId) {
-  try {
-    await ElMessageBox.confirm('Hành động này không thể hoàn tác. Bạn có chắc chắn muốn xóa vĩnh viễn trang này?', 'Cảnh báo', {
-        confirmButtonText: 'Xóa',
-        cancelButtonText: 'Hủy',
-        type: 'error'
-    })
-    await axiosClient.delete(`/projects/${props.projectId}/pages/${pageId}`)
-    fetchPages()
-    ElNotification({ title: 'Thành công', message: 'Đã xóa trang', type: 'success' })
-  } catch (e) {
-      if (e !== 'cancel') console.error(e)
-  }
-}
-
-function formatDate(date) {
-    if (!date) return 'N/A'
-    return dayjs(date).format('MMM D, YYYY [at] h:mm A')
-}
-
-// === TIPTAP EDITOR ===
-const editor = useEditor({
-  content: '',
-  extensions: [StarterKit, Image, Underline, TextAlign.configure({ types: ['heading', 'paragraph'] })],
-  editorProps: {
-    attributes: {
-      class: 'prose prose-sm sm:prose lg:prose-lg xl:prose-2xl mx-auto focus:outline-none text-gray-300'
-    }
-  },
-  onUpdate: ({ editor }) => {
-    if (activePage.value) {
-      activePage.value.content = editor.getHTML()
-      handleContentInput()
-    }
-  }
-})
-
-onBeforeUnmount(() => {
-  if (editor.value) {
-    editor.value.destroy()
-  }
-})
-
-function handleContentInput() {
-  if (saveTimeout) clearTimeout(saveTimeout)
-  saving.value = true
-  saveTimeout = setTimeout(() => {
-    savePage()
-  }, 1000)
-}
-
 async function savePage() {
-  if (!activePage.value) return
+  if (!activePage.value) {
+    saving.value = false
+    return
+  }
+  const content = editor.value ? editor.value.getHTML() : activePage.value.content || ''
+  activePage.value.content = content
   try {
     await axiosClient.put(`/projects/${props.projectId}/pages/${activePage.value.id}`, {
       title: activePage.value.title,
-      content: activePage.value.content
+      content
     })
-    const idx = pages.value.findIndex(p => p.id === activePage.value.id)
-    if (idx !== -1) pages.value[idx].title = activePage.value.title
+    patchPageInList(activePage.value.id, {
+      title: activePage.value.title,
+      content,
+      updatedAt: new Date().toISOString()
+    })
   } catch (error) {
+    console.error(error)
     ElNotification({ title: 'Lỗi', message: 'Lỗi khi lưu trang', type: 'error' })
   } finally {
     saving.value = false
   }
 }
+
+function handleContentInput() {
+  if (!activePage.value || activePage.value.isLocked) return
+  if (saveTimeout) clearTimeout(saveTimeout)
+  saving.value = true
+  saveTimeout = setTimeout(() => {
+    void savePage()
+  }, 900)
+}
+
+async function updatePageState(page, payload, successMessage) {
+  try {
+    await axiosClient.put(`/projects/${props.projectId}/pages/${page.id}`, payload)
+    patchPageInList(page.id, payload)
+    if (activePage.value?.id === page.id) {
+      activePage.value = { ...activePage.value, ...payload }
+      if (Object.prototype.hasOwnProperty.call(payload, 'isLocked')) {
+        editor.value?.setEditable(!payload.isLocked)
+      }
+    }
+    if (successMessage) ElNotification({ title: 'Thành công', message: successMessage, type: 'success' })
+  } catch (error) {
+    console.error(error)
+    ElNotification({ title: 'Lỗi', message: 'Không thể cập nhật trạng thái', type: 'error' })
+  }
+}
+
+async function toggleLock(page) {
+  const nextValue = !page.isLocked
+  await updatePageState(page, { isLocked: nextValue }, nextValue ? 'Đã khóa trang' : 'Đã mở khóa trang')
+}
+
+async function togglePrivacy(page) {
+  const nextValue = !page.isPrivate
+  await updatePageState(page, { isPrivate: nextValue }, nextValue ? 'Đã chuyển sang Private' : 'Đã chuyển sang Public')
+}
+
+async function toggleStar(page) {
+  const nextValue = !page.isStarred
+  await updatePageState(page, { isStarred: nextValue }, nextValue ? 'Đã gắn sao' : 'Đã bỏ sao')
+}
+
+async function archivePage(page) {
+  try {
+    await ElMessageBox.confirm(
+      page.isArchived ? 'Bạn có chắc muốn khôi phục trang này?' : 'Bạn có chắc muốn lưu trữ trang này?',
+      'Xác nhận',
+      { type: 'warning' }
+    )
+    await axiosClient.put(`/projects/${props.projectId}/pages/${page.id}/archive`)
+    actStore.logActivity(page.isArchived ? 'Restored page' : 'Archived page', `Page: ${page.title}`, 'fa-regular fa-box-archive')
+    if (activePage.value?.id === page.id && !page.isArchived) activePage.value = null
+    await fetchPages()
+    ElNotification({
+      title: 'Thành công',
+      message: page.isArchived ? 'Đã khôi phục trang' : 'Đã lưu trữ trang',
+      type: 'success'
+    })
+  } catch (error) { if (error !== 'cancel') console.error(error) }
+}
+
+async function deletePage(page) {
+  try {
+    await ElMessageBox.confirm('Bạn có chắc muốn xóa vĩnh viễn trang này?', 'Xác nhận xóa', { type: 'error' })
+    await axiosClient.delete(`/projects/${props.projectId}/pages/${page.id}`)
+    if (activePage.value?.id === page.id) activePage.value = null
+    await fetchPages()
+    ElNotification({ title: 'Thành công', message: 'Đã xóa trang', type: 'success' })
+  } catch (error) { if (error !== 'cancel') console.error(error) }
+}
+
+async function copyPage(page) {
+  try {
+    const detailRes = await axiosClient.get(`/projects/${props.projectId}/pages/${page.id}`)
+    const fullPage = detailRes.data?.data || {}
+    await axiosClient.post(`/projects/${props.projectId}/pages`, {
+      title: `${fullPage.title || 'Untitled'} copied`,
+      content: fullPage.content || ''
+    })
+    await fetchPages()
+    ElNotification({ title: 'Thành công', message: 'Đã tạo bản sao', type: 'success' })
+  } catch (error) {
+    console.error(error)
+    ElNotification({ title: 'Lỗi', message: 'Không thể tạo bản sao', type: 'error' })
+  }
+}
+
+function patchPageInList(pageId, patch) {
+  const index = pages.value.findIndex(p => String(p.id) === String(pageId))
+  if (index !== -1) {
+    pages.value[index] = { ...pages.value[index], ...patch, updatedAt: patch.updatedAt || new Date().toISOString() }
+  }
+}
+
+function setHeading(level) {
+  if (!editor.value) return
+  if (level === 'p') {
+    editor.value.chain().focus().setParagraph().run()
+  } else {
+    editor.value.chain().focus().toggleHeading({ level: Number(level) }).run()
+  }
+}
+
+function applyColor() {
+  if (!editor.value) return
+  const color = pendingColor.value
+  activePreviewColor.value = color
+  editor.value.chain().focus().setColor(color).run()
+  colorPickerVisible.value = false
+}
+
+function selectPendingColor(c) {
+  pendingColor.value = c
+}
+
+function insertTable(rows, cols) {
+  if (!editor.value) return
+  editor.value.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).run()
+  tablePickerVisible.value = false
+}
+
+async function handleImageUpload(e) {
+  const files = e.target.files
+  if (!files || !files.length) return
+  
+  for (const file of Array.from(files)) {
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      stagedImages.value.push({
+        id: Date.now() + Math.random(),
+        src: event.target.result,
+        name: file.name
+      })
+    }
+    reader.readAsDataURL(file)
+  }
+  showImageStaging.value = true
+  if (imageFileInput.value) imageFileInput.value.value = ''
+}
+
+function removeStagedImage(id) {
+  stagedImages.value = stagedImages.value.filter(img => img.id !== id)
+  if (stagedImages.value.length === 0) showImageStaging.value = false
+}
+
+function insertStagedImages() {
+  if (!editor.value) return
+  stagedImages.value.forEach(img => {
+    editor.value.chain().focus().setImage({ src: img.src }).run()
+  })
+  actStore.logActivity(`Inserted ${stagedImages.value.length} images`, `Page: ${activePage.value.title}`, 'fa-regular fa-image')
+  stagedImages.value = []
+  showImageStaging.value = false
+}
+
+async function handlePageCommand(command) {
+  const { action, page } = command
+  if (action === 'open') {
+    const target = router.resolve({ query: { pageId: page.id } })
+    window.open(target.href, '_blank')
+  } else if (action === 'copy-link') {
+    const url = new URL(window.location.href)
+    url.searchParams.set('pageId', page.id)
+    await navigator.clipboard.writeText(url.toString())
+    ElNotification({ title: 'Thành công', message: 'Đã copy link', type: 'success' })
+  } else if (action === 'copy') await copyPage(page)
+  else if (action === 'lock') await toggleLock(page)
+  else if (action === 'privacy') await togglePrivacy(page)
+  else if (action === 'archive') await archivePage(page)
+  else if (action === 'delete') await deletePage(page)
+}
+
+function getPageAvatar(page) {
+  const name = page.createdByName || page.title || 'P'
+  return name.charAt(0).toUpperCase()
+}
+
+function formatTimestamp(value) {
+  if (!value) return 'No date'
+  return new Intl.DateTimeFormat('vi-VN', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value))
+}
+
+function pageMenuItems(page) {
+  if (page.isArchived) {
+    return [
+      { label: 'Open in new tab', action: 'open', icon: 'fa-solid fa-up-right-from-square' },
+      { label: 'Copy link', action: 'copy-link', icon: 'fa-solid fa-link' },
+      { label: 'Make a copy', action: 'copy', icon: 'fa-regular fa-copy' },
+      { label: 'Restore', action: 'archive', icon: 'fa-solid fa-rotate-left' },
+      { label: 'Delete', action: 'delete', icon: 'fa-regular fa-trash-can' }
+    ]
+  }
+  return [
+    { label: 'Open in new tab', action: 'open', icon: 'fa-solid fa-up-right-from-square' },
+    { label: 'Copy link', action: 'copy-link', icon: 'fa-solid fa-link' },
+    { label: 'Make a copy', action: 'copy', icon: 'fa-regular fa-copy' },
+    { label: page.isLocked ? 'Unlock' : 'Lock', action: 'lock', icon: page.isLocked ? 'fa-solid fa-unlock' : 'fa-solid fa-lock' },
+    { label: page.isPrivate ? 'Make public' : 'Make private', action: 'privacy', icon: page.isPrivate ? 'fa-solid fa-globe' : 'fa-solid fa-lock' },
+    { label: 'Archive', action: 'archive', icon: 'fa-regular fa-box-archive' }
+  ]
+}
 </script>
 
 <template>
   <div class="plane-pages-wrapper">
-    <!-- List View -->
+    <!-- LIST VIEW -->
     <div v-if="!activePage" class="pages-list-view">
-      
-      <!-- Header -->
       <div class="pages-header">
-         <div class="ph-left">
-            <i class="fa-solid fa-certificate" style="color: #F59E0B"></i>
-            <span style="margin-left: 8px">CYBWF</span>
-            <i class="fa-solid fa-chevron-right" style="font-size: 9px; margin: 0 8px"></i>
-            <i class="fa-regular fa-file-lines" style="color: #A1A1AA"></i>
-            <span style="color: #E4E4E7; margin-left: 8px">Pages</span>
-         </div>
-         <div class="ph-right">
-            <button class="primary-action" @click="createPage">Add page</button>
-         </div>
+        <div class="ph-left">
+          <i class="fa-solid fa-certificate" style="color: #F59E0B"></i>
+          <span style="margin-left: 8px">{{ spaceName }}</span>
+          <i class="fa-solid fa-chevron-right" style="font-size: 9px; margin: 0 8px; color: #71717A"></i>
+          <i class="fa-regular fa-file-lines" style="color: #A1A1AA"></i>
+          <span style="color: #E4E4E7; margin-left: 8px">Pages</span>
+        </div>
+        <div class="ph-right">
+          <button class="primary-action" @click="createPage">Add page</button>
+        </div>
       </div>
 
-      <!-- Navigation Tabs -->
       <div class="pages-nav">
-         <div class="nav-tab" :class="{ 'active': activeTab === 'Public' }" @click="activeTab = 'Public'">Public</div>
-         <div class="nav-tab" :class="{ 'active': activeTab === 'Private' }" @click="activeTab = 'Private'">Private</div>
-         <div class="nav-tab" :class="{ 'active': activeTab === 'Archived' }" @click="activeTab = 'Archived'">Archived</div>
+        <div class="nav-tab" :class="{ 'active': activeTab === 'Public' }" @click="activeTab = 'Public'">Public</div>
+        <div class="nav-tab" :class="{ 'active': activeTab === 'Private' }" @click="activeTab = 'Private'">Private</div>
+        <div class="nav-tab" :class="{ 'active': activeTab === 'Archived' }" @click="activeTab = 'Archived'">Archived</div>
       </div>
 
-      <!-- Toolbar -->
       <div class="pages-toolbar">
          <div class="pt-left"></div>
          <div class="pt-right">
@@ -323,699 +547,280 @@ async function savePage() {
          </div>
       </div>
 
-      <!-- List -->
       <div class="pages-list" v-loading="loading">
-         <div v-if="filteredPages.length === 0" class="empty-state-full flex flex-col items-center justify-center py-24">
-            <div class="relative w-40 h-32 mb-6 opacity-70 flex items-center justify-center">
-               <div class="absolute w-24 h-12 border-2 border-[#2D2F36] rounded-[20%] bottom-0 skew-x-[30deg] -rotate-[15deg]"></div>
-               <div class="absolute w-24 h-12 border-2 border-[#1E2025] rounded-[20%] bottom-4 skew-x-[30deg] -rotate-[15deg]"></div>
-               <div class="absolute w-16 h-20 border-2 border-[#52525B] bg-[#16181D] rounded z-10 skew-x-[15deg] -rotate-[10deg] flex flex-col items-center pt-3 gap-2">
-                 <div class="w-8 h-1 bg-[#3F3F46] rounded-full"></div>
-                 <div class="w-6 h-1 bg-[#3F3F46] rounded-full self-start ml-3"></div>
-               </div>
-            </div>
-            
-            <h3 class="text-[16px] font-medium text-[#E4E4E7] mb-2">
-               {{ activeTab === 'Archived' ? 'No archived pages yet' : 'No pages yet' }}
-            </h3>
-            <p class="text-[13px] text-[#A1A1AA]">
-               {{ activeTab === 'Archived' ? 'Archive pages not on your radar. Access them here when needed.' : 'Create your first page to get started.' }}
-            </p>
-         </div>
-         
-         <div v-for="page in filteredPages" :key="page.id" class="page-row" @click="openPage(page.id)">
-            <div class="pr-left">
-               <i class="fa-regular fa-file-lines doc-icon"></i>
-               <span class="page-title">{{ page.title || 'Untitled' }}</span>
-            </div>
-            <div class="pr-right hover-actions-container">
-               <div class="avatar-xxs">P</div>
-               
-               <!-- Exclamation Info - Only shows tooltip on hover -->
-               <el-tooltip
-                 class="item"
-                 effect="dark"
-                 :content="'Created on: ' + formatDate(page.createdAt)"
-                 placement="top"
-               >
-                 <button class="icon-btn action-hide" @click.stop="">
-                    <i class="fa-solid fa-circle-exclamation"></i>
-                 </button>
-               </el-tooltip>
-
-               <button class="icon-btn action-hide"><i class="fa-regular fa-star"></i></button>
-
-               <!-- Dropdown Menu -->
-               <el-dropdown trigger="click" @click.stop>
-                  <button class="icon-btn action-hide btn-box" @click.stop>
-                    <i class="fa-solid fa-ellipsis"></i>
-                  </button>
-                  <template #dropdown>
-                    <el-dropdown-menu class="custom-dropdown-menu">
-                      <!-- Public Actions -->
-                      <template v-if="activeTab === 'Public'">
-                        <el-dropdown-item @click="togglePrivacy(page)">
-                          <i class="fa-solid fa-lock" style="margin-right: 8px"></i> Make private
-                        </el-dropdown-item>
-                        <el-dropdown-item @click="archivePage(page.id)">
-                          <i class="fa-solid fa-box-archive" style="margin-right: 8px"></i> Archive
-                        </el-dropdown-item>
-                      </template>
-
-                      <!-- Private Actions -->
-                      <template v-else-if="activeTab === 'Private'">
-                        <el-dropdown-item @click="togglePrivacy(page)">
-                          <i class="fa-solid fa-globe" style="margin-right: 8px"></i> Make public
-                        </el-dropdown-item>
-                        <el-dropdown-item @click="archivePage(page.id)">
-                          <i class="fa-solid fa-box-archive" style="margin-right: 8px"></i> Archive
-                        </el-dropdown-item>
-                      </template>
-
-                      <!-- Archived Actions -->
-                      <template v-else-if="activeTab === 'Archived'">
-                        <el-dropdown-item @click="restorePage(page.id)">
-                          <i class="fa-solid fa-rotate-left" style="margin-right: 8px"></i> Restore
-                        </el-dropdown-item>
-                        <el-dropdown-item @click="deletePage(page.id)" style="color: #EF4444">
-                          <i class="fa-solid fa-trash" style="margin-right: 8px"></i> Delete
-                        </el-dropdown-item>
-                      </template>
-                    </el-dropdown-menu>
-                  </template>
-               </el-dropdown>
-            </div>
-         </div>
-      </div>
-    </div>
-    
-    <!-- Word-like Editor View -->
-    <div v-else class="page-editor-view">
-       <!-- Editor Navigation Header -->
-       <div class="editor-header">
-          <div class="eh-left">
-             <div class="breadcrumb-item">
-               <i class="fa-solid fa-certificate" style="color: #F59E0B"></i>
-               <span style="margin-left: 8px; color: #E4E4E7; font-weight: 500;">CYBWF</span>
-               <i class="fa-solid fa-chevron-down" style="font-size: 10px; margin-left: 6px; color: #71717A"></i>
-             </div>
-             
-             <i class="fa-solid fa-chevron-right" style="font-size: 9px; margin: 0 4px; color: #3F3F46"></i>
-             
-             <div class="breadcrumb-item" @click="activePage = null">
-               <i class="fa-regular fa-file-lines" style="color: #A1A1AA"></i>
-               <span style="color: #A1A1AA; margin-left: 8px;">Pages</span>
-             </div>
-             
-             <i class="fa-solid fa-chevron-right" style="font-size: 9px; margin: 0 4px; color: #3F3F46"></i>
-             
-             <div class="breadcrumb-item active">
-               <i class="fa-regular fa-file-lines" style="color: #A1A1AA"></i>
-               <span style="color: #A1A1AA; margin-left: 8px;">{{ activePage.title || 'Untitled' }}</span>
-               <i class="fa-solid fa-chevron-down" style="font-size: 10px; margin-left: 6px; color: #71717A"></i>
-             </div>
-             
-             <span v-if="saving" class="status-saving">Saving...</span>
-             <span v-if="!saving" class="status-saved"><i class="fa-solid fa-check"></i></span>
-          </div>
-          <div class="eh-right">
-             <button class="icon-btn"><i class="fa-solid fa-lock-open" style="font-size: 13px;"></i></button>
-             <button class="icon-btn"><i class="fa-regular fa-star" style="font-size: 13px;"></i></button>
-             <button class="icon-btn"><i class="fa-solid fa-ellipsis" style="font-size: 13px;"></i></button>
-             <div style="width: 1px; height: 16px; background: #27272A; margin: 0 4px;"></div>
-             <button class="icon-btn"><i class="fa-solid fa-table-columns" style="font-size: 13px;"></i></button>
-          </div>
-       </div>
-
-       <!-- WYSIWYG Toolbar -->
-       <div class="wysiwyg-toolbar-wrapper">
-           <div class="wysiwyg-toolbar">
-              <div class="tb-group hover-bg" style="display:flex; align-items:center; gap: 8px">
-                  Text <i class="fa-solid fa-chevron-down" style="font-size: 10px; color: #71717A"></i>
-              </div>
-              <div class="v-divider-tb"></div>
-              
-              <div class="tb-group hover-bg" style="display:flex; align-items:center; gap: 4px">
-                  Color <span style="font-family: serif; font-style: italic; font-weight: bold">Aa</span>
-              </div>
-              <div class="v-divider-tb"></div>
-              
-              <div class="tb-group" v-if="editor">
-                 <button class="tb-btn" :class="{ 'text-white bg-[#27272A]': editor.isActive('bold') }" @click="editor.chain().focus().toggleBold().run()"><i class="fa-solid fa-bold"></i></button>
-                 <button class="tb-btn" :class="{ 'text-white bg-[#27272A]': editor.isActive('italic') }" @click="editor.chain().focus().toggleItalic().run()"><i class="fa-solid fa-italic"></i></button>
-                 <button class="tb-btn" :class="{ 'text-white bg-[#27272A]': editor.isActive('underline') }" @click="editor.chain().focus().toggleUnderline().run()"><i class="fa-solid fa-underline"></i></button>
-                 <button class="tb-btn" :class="{ 'text-white bg-[#27272A]': editor.isActive('strike') }" @click="editor.chain().focus().toggleStrike().run()"><i class="fa-solid fa-strikethrough"></i></button>
-              </div>
-              <div class="v-divider-tb"></div>
-              
-              <div class="tb-group" v-if="editor">
-                 <button class="tb-btn" :class="{ 'text-white bg-[#27272A]': editor.isActive({ textAlign: 'left' }) }" @click="editor.chain().focus().setTextAlign('left').run()"><i class="fa-solid fa-align-left"></i></button>
-                 <button class="tb-btn" :class="{ 'text-white bg-[#27272A]': editor.isActive({ textAlign: 'center' }) }" @click="editor.chain().focus().setTextAlign('center').run()"><i class="fa-solid fa-align-center"></i></button>
-                 <button class="tb-btn" :class="{ 'text-white bg-[#27272A]': editor.isActive({ textAlign: 'right' }) }" @click="editor.chain().focus().setTextAlign('right').run()"><i class="fa-solid fa-align-right"></i></button>
-              </div>
-              <div class="v-divider-tb"></div>
-              
-              <div class="tb-group" v-if="editor">
-                 <button class="tb-btn" :class="{ 'text-white bg-[#27272A]': editor.isActive('bulletList') }" @click="editor.chain().focus().toggleBulletList().run()"><i class="fa-solid fa-list-ul"></i></button>
-                 <button class="tb-btn" :class="{ 'text-white bg-[#27272A]': editor.isActive('orderedList') }" @click="editor.chain().focus().toggleOrderedList().run()"><i class="fa-solid fa-list-ol"></i></button>
-                 <button class="tb-btn"><i class="fa-solid fa-list-check"></i></button>
-              </div>
-              <div class="v-divider-tb"></div>
-              
-              <div class="tb-group" v-if="editor">
-                 <button class="tb-btn" :class="{ 'text-white bg-[#27272A]': editor.isActive('codeBlock') }" @click="editor.chain().focus().toggleCodeBlock().run()"><i class="fa-solid fa-code"></i></button>
-                 <button class="tb-btn" @click="() => { const url = prompt('Image URL:'); if (url) editor.chain().focus().setImage({ src: url }).run() }"><i class="fa-solid fa-image"></i></button>
-                 <button class="tb-btn"><i class="fa-solid fa-table"></i></button>
+        <div v-if="filteredPages.length === 0" class="empty-state-full flex flex-col items-center justify-center py-24">
+           <div class="relative w-40 h-32 mb-6 opacity-70 flex items-center justify-center">
+              <div class="absolute w-24 h-12 border-2 border-[#2D2F36] rounded-[20%] bottom-0 skew-x-[30deg] -rotate-[15deg]"></div>
+              <div class="absolute w-16 h-20 border-2 border-[#52525B] bg-[#16181D] rounded z-10 skew-x-[15deg] -rotate-[10deg] flex flex-col items-center pt-3 gap-2">
+                <div class="w-8 h-1 bg-[#3F3F46] rounded-full"></div>
+                <div class="w-6 h-1 bg-[#3F3F46] rounded-full self-start ml-3"></div>
               </div>
            </div>
-       </div>
+           <h3 class="text-[16px] font-medium text-[#E4E4E7] mb-2">{{ activeTab === 'Archived' ? 'No archived pages yet' : 'No pages yet' }}</h3>
+           <p class="text-[13px] text-[#A1A1AA] text-center max-w-[300px]">
+             {{ activeTab === 'Archived' ? 'Archive pages not on your radar. Access them here when needed.' : 'Create your first page to get started and keep your work organized.' }}
+           </p>
+        </div>
+        
+        <div v-for="page in filteredPages" :key="page.id" class="page-row" @click="openPage(page.id)">
+           <div class="pr-left">
+              <i class="fa-regular fa-file-lines doc-icon"></i>
+              <span class="page-title">{{ page.title || 'Untitled' }}</span>
+           </div>
+           <div class="pr-right hover-actions-container" @click.stop>
+              <div class="avatar-xxs">{{ getPageAvatar(page) }}</div>
+              <button class="icon-btn action-hide" :title="page.isPrivate ? 'Private' : 'Public'">
+                <i :class="page.isPrivate ? 'fa-solid fa-lock' : 'fa-solid fa-globe'"></i>
+              </button>
+              <el-tooltip placement="top" :content="'Created on ' + formatTimestamp(page.createdAt)">
+                <button class="icon-btn action-hide"><i class="fa-solid fa-circle-info"></i></button>
+              </el-tooltip>
+              <button class="icon-btn action-hide" @click="toggleStar(page)">
+                <i :class="page.isStarred ? 'fa-solid fa-star text-yellow-500' : 'fa-regular fa-star'"></i>
+              </button>
+              <el-dropdown trigger="click" @command="handlePageCommand">
+                <button class="icon-btn btn-box"><i class="fa-solid fa-ellipsis"></i></button>
+                <template #dropdown>
+                  <el-dropdown-menu class="pages-menu">
+                    <el-dropdown-item v-for="item in pageMenuItems(page)" :key="item.action" :command="{ action: item.action, page }">
+                      <i :class="item.icon"></i> <span>{{ item.label }}</span>
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+           </div>
+        </div>
+      </div>
+    </div>
 
-       <!-- Editor Canvas -->
-       <div class="editor-canvas">
-          <button class="add-icon-btn">
-             <i class="fa-regular fa-face-smile"></i> Icon
-          </button>
+    <!-- EDITOR VIEW -->
+    <div v-else class="page-editor-view">
+      <div class="editor-header">
+        <div class="eh-left">
+          <button class="back-btn" @click="activePage = null"><i class="fa-solid fa-chevron-left"></i></button>
+          <i class="fa-solid fa-certificate" style="color: #F59E0B"></i>
+          <span style="margin-left: 8px">{{ spaceName }}</span>
+          <i class="fa-solid fa-chevron-right" style="font-size: 8px; margin: 0 8px; color: #71717A"></i>
+          <i class="fa-regular fa-file-lines" style="color: #A1A1AA"></i>
+          <span style="color: #A1A1AA; margin-left: 8px">Pages</span>
+          <i class="fa-solid fa-chevron-right" style="font-size: 8px; margin: 0 8px; color: #71717A"></i>
+          <span style="color: #E4E4E7; margin-left: 8px">{{ activePage.title || 'Untitled' }}</span>
+          <span v-if="saving" class="status-saving">Saving...</span>
+          <span v-else class="status-saved"><i class="fa-solid fa-check"></i> Saved</span>
+        </div>
+        <div class="eh-right">
+           <button class="icon-btn" @click="toggleLock(activePage)">
+             <i :class="activePage.isLocked ? 'fa-solid fa-lock' : 'fa-solid fa-unlock-keyhole'"></i>
+           </button>
+           <button class="icon-btn" @click="handlePageCommand({ action: 'copy-link', page: activePage })"><i class="fa-solid fa-link"></i></button>
+           <button class="icon-btn"><i class="fa-solid fa-ellipsis"></i></button>
+           <div class="v-divider"></div>
+           <button class="icon-btn"><i class="fa-solid fa-table-columns"></i></button>
+        </div>
+      </div>
+
+      <div class="wysiwyg-toolbar-wrapper">
+        <div class="wysiwyg-toolbar" v-if="editor">
+          <el-dropdown trigger="click" @command="setHeading">
+             <div class="tb-group hover-bg">Text <i class="fa-solid fa-chevron-down" style="font-size: 10px"></i></div>
+             <template #dropdown>
+               <el-dropdown-menu class="plane-dropdown">
+                  <el-dropdown-item command="p">Paragraph</el-dropdown-item>
+                  <el-dropdown-item command="1">Heading 1</el-dropdown-item>
+                  <el-dropdown-item command="2">Heading 2</el-dropdown-item>
+                  <el-dropdown-item command="3">Heading 3</el-dropdown-item>
+               </el-dropdown-menu>
+             </template>
+          </el-dropdown>
+          <div class="v-divider-tb"></div>
           
-          <input 
-             class="editor-title-input" 
-             v-model="activePage.title" 
-             @input="handleContentInput"
-             placeholder="Untitled" 
+          <el-color-picker
+            v-model="pendingColor"
+            show-alpha
+            :predefine="['#F44336','#E91E63','#9C27B0','#673AB7','#3F51B5','#2196F3','#03A9F4','#00BCD4','#009688','#4CAF50','#8BC34A','#CDDC39','#FFEB3B','#FFC107','#FF9800','#FF5722','#795548','#9E9E9E','#607D8B','#A1A1AA']"
+            size="small"
+            @change="applyColor"
+            class="plane-color-picker"
           />
-          
-          <editor-content :editor="editor" class="editor-tiptap-content" />
-       </div>
+          <div class="v-divider-tb"></div>
+
+          <div class="tb-group">
+            <button class="tb-btn" :class="{ 'active': editor.isActive('bold') }" @click="editor.chain().focus().toggleBold().run()"><i class="fa-solid fa-bold"></i></button>
+            <button class="tb-btn" :class="{ 'active': editor.isActive('italic') }" @click="editor.chain().focus().toggleItalic().run()"><i class="fa-solid fa-italic"></i></button>
+            <button class="tb-btn" :class="{ 'active': editor.isActive('underline') }" @click="editor.chain().focus().toggleUnderline().run()"><i class="fa-solid fa-underline"></i></button>
+            <button class="tb-btn" :class="{ 'active': editor.isActive('strike') }" @click="editor.chain().focus().toggleStrike().run()"><i class="fa-solid fa-strikethrough"></i></button>
+          </div>
+          <div class="v-divider-tb"></div>
+
+          <div class="tb-group">
+            <button class="tb-btn" @click="editor.chain().focus().setTextAlign('left').run()"><i class="fa-solid fa-align-left"></i></button>
+            <button class="tb-btn" @click="editor.chain().focus().setTextAlign('center').run()"><i class="fa-solid fa-align-center"></i></button>
+            <button class="tb-btn" @click="editor.chain().focus().setTextAlign('right').run()"><i class="fa-solid fa-align-right"></i></button>
+          </div>
+          <div class="v-divider-tb"></div>
+
+          <div class="tb-group">
+            <button class="tb-btn" @click="editor.chain().focus().toggleBulletList().run()"><i class="fa-solid fa-list-ul"></i></button>
+            <button class="tb-btn" @click="editor.chain().focus().toggleOrderedList().run()"><i class="fa-solid fa-list-ol"></i></button>
+            <button class="tb-btn" @click="editor.chain().focus().toggleTaskList().run()"><i class="fa-solid fa-list-check"></i></button>
+          </div>
+          <div class="v-divider-tb"></div>
+
+          <div class="tb-group">
+            <button class="tb-btn" @click="editor.chain().focus().toggleCodeBlock().run()"><i class="fa-solid fa-code"></i></button>
+            <button class="tb-btn" @click="() => imageFileInput?.click()"><i class="fa-solid fa-image"></i></button>
+            <input type="file" ref="imageFileInput" style="display: none" accept="image/*" multiple @change="handleImageUpload" />
+            <el-popover v-model:visible="tablePickerVisible" trigger="click" placement="bottom" :width="200" popper-class="plane-popover dark">
+              <template #reference>
+                <button class="tb-btn"><i class="fa-solid fa-table"></i></button>
+              </template>
+              <div class="p-3">
+                <div class="text-[11px] text-gray-400 mb-2 text-center">{{ hoverTableRows || 0 }} x {{ hoverTableCols || 0 }} Table</div>
+                <div class="grid-picker" @mouseleave="hoverTableRows=0; hoverTableCols=0">
+                  <div v-for="r in 10" :key="'r'+r" class="flex gap-1 mb-1">
+                    <div v-for="c in 10" :key="'r'+r+'c'+c" 
+                         class="w-3.5 h-3.5 border border-gray-700 rounded-sm cursor-pointer transition-colors"
+                         :class="{ 'bg-blue-500 border-blue-400': r <= hoverTableRows && c <= hoverTableCols }"
+                         @mouseover="hoverTableRows=r; hoverTableCols=c"
+                         @click="insertTable(r, c)"></div>
+                  </div>
+                </div>
+              </div>
+            </el-popover>
+          </div>
+        </div>
+      </div>
+
+      <div class="editor-canvas">
+        <button class="add-icon-btn"><i class="fa-regular fa-face-smile"></i> Icon</button>
+        <input class="editor-title-input" v-model="activePage.title" @input="handleContentInput" placeholder="Untitled" />
+        <editor-content :editor="editor" class="editor-tiptap-content" />
+      </div>
+
+      <!-- IMAGE STAGING OVERLAY -->
+      <transition name="fade">
+        <div v-if="showImageStaging" class="image-staging-overlay">
+          <div class="image-staging-card">
+            <div class="is-header">
+              <h3>Confirm Images ({{ stagedImages.length }})</h3>
+              <button @click="showImageStaging = false; stagedImages = []" class="close-staging"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="is-body">
+              <div v-for="img in stagedImages" :key="img.id" class="staged-item">
+                <img :src="img.src" />
+                <button class="remove-staged" @click="removeStagedImage(img.id)"><i class="fa-solid fa-circle-xmark"></i></button>
+                <div class="staged-name text-ellipsis overflow-hidden whitespace-nowrap px-1 text-[10px] text-gray-400">{{ img.name }}</div>
+              </div>
+            </div>
+            <div class="is-footer">
+              <button class="btn-cancel-staging" @click="showImageStaging = false; stagedImages = []">Cancel</button>
+              <button class="btn-confirm-staging" @click="insertStagedImages">Insert into editor</button>
+            </div>
+          </div>
+        </div>
+      </transition>
     </div>
   </div>
 </template>
 
 <style scoped>
-.plane-pages-wrapper {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  color: #E4E4E7;
-  font-family: 'Inter', sans-serif;
-  background: #0D0F11;
-  min-height: calc(100vh - 120px);
-}
+.plane-pages-wrapper { min-height: 100vh; background: #0D0F11; color: #E4E4E7; font-family: 'Inter', sans-serif; }
 
-/* Base Utility Alignments */
-.pages-list-view { display: flex; flex-direction: column; }
-.page-editor-view { display: flex; flex-direction: column; height: 100%; flex: 1; }
+/* Header & Nav */
+.pages-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; border-bottom: 1px solid #1E2025; }
+.ph-left { display: flex; align-items: center; font-size: 14px; font-weight: 500; }
+.primary-action { background: #0EA5E9; color: white; border: none; padding: 6px 14px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; }
+.primary-action:hover { background: #0284C7; }
 
-.pages-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 24px 12px 24px;
-  border-bottom: 1px solid #1E2025;
-}
+.pages-nav { display: flex; gap: 24px; padding: 0 24px; border-bottom: 1px solid #1E2025; }
+.nav-tab { padding: 14px 0; font-size: 13px; font-weight: 500; color: #71717A; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.nav-tab.active { color: #38BDF8; border-bottom: 2px solid #38BDF8; }
 
-.ph-left {
-  display: flex;
-  align-items: center;
-  font-size: 13px;
-  font-weight: 500;
-  color: #A1A1AA;
-}
-
-.primary-action {
-  background: #38BDF8;
-  color: #0D0F11;
-  border: none;
-  border-radius: 6px;
-  padding: 6px 16px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.primary-action:hover { background: #7DD3FC; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(56, 189, 248, 0.2); }
-
-/* Nav Tabs */
-.pages-nav {
-  display: flex;
-  gap: 24px;
-  padding: 12px 24px 0;
-  border-bottom: 1px solid #1E2025;
-}
-.nav-tab {
-  font-size: 14px;
-  font-weight: 500;
-  color: #71717A;
-  padding-bottom: 12px;
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  transition: all 0.2s;
-}
-.nav-tab:hover { color: #E4E4E7; }
-.nav-tab.active {
-  color: #E4E4E7;
-  border-bottom: 2px solid #38BDF8;
-}
-
-/* Toolbar */
-.pages-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 24px;
-}
-.pt-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.icon-toggle {
-  background: transparent;
-  border: none;
-  color: #A1A1AA;
-  font-size: 14px;
-  cursor: pointer;
-}
-.icon-toggle:hover { color: #E4E4E7; }
-
-.filter-btn.outlined {
-  background: transparent;
-  border: 1px solid #27272A;
-  color: #E4E4E7;
-  padding: 4px 12px;
-  border-radius: 6px;
-  font-size: 13px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  transition: all 0.2s;
-}
-.filter-btn.outlined:hover { background: #1E2025; border-color: #3F3F46; }
+.pages-toolbar { display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; }
+.pt-right { display: flex; gap: 12px; }
+.filter-btn.outlined { background: transparent; border: 1px solid #27272A; color: #E4E4E7; padding: 6px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+.filter-btn:hover { background: #1E2025; }
 
 /* List */
-.pages-list {
-  display: flex;
-  flex-direction: column;
-  padding: 0 24px 24px;
-}
+.pages-list { padding: 0 24px 24px; }
+.page-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-radius: 8px; cursor: pointer; transition: background 0.2s; border-bottom: 1px solid #16181D; }
+.page-row:hover { background: #16181D; }
+.pr-left { display: flex; align-items: center; gap: 12px; }
+.doc-icon { color: #71717A; font-size: 18px; }
+.page-title { font-size: 14px; font-weight: 500; color: #E4E4E7; }
+.pr-right { display: flex; align-items: center; gap: 14px; }
 
-.page-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 16px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-  margin-bottom: 2px;
-}
-.page-row:hover { background: #16181D; transform: translateX(4px); }
+.avatar-xxs { width: 22px; height: 22px; border-radius: 50%; background: #0F766E; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: white; }
+.icon-btn { background: transparent; border: none; color: #A1A1AA; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.icon-btn:hover { color: #E4E4E7; }
+.action-hide { opacity: 1; transition: opacity 0.2s; }
+.btn-box { width: 28px; height: 28px; background: transparent; border: 1px solid transparent; border-radius: 4px; }
+.btn-box:hover { background: #27272A; border-color: #3F3F46; }
 
-.pr-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.doc-icon { color: #52525B; font-size: 16px; }
-.page-title { font-size: 14px; font-weight: 400; color: #D4D4D8; }
+/* Editor */
+.editor-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; border-bottom: 1px solid #1E2025; }
+.eh-left { display: flex; align-items: center; font-size: 13px; font-weight: 500; color: #71717A; }
+.back-btn { background: #1B1C20; border: 1px solid #27272A; border-radius: 4px; padding: 4px 8px; color: #A1A1AA; cursor: pointer; margin-right: 12px; }
+.status-saving { margin-left:16px; color:#F59E0B; font-size:12px; }
+.status-saved { margin-left:16px; color:#10B981; font-size:12px; opacity:0.7; }
+.v-divider { width:1px; height:16px; background:#27272A; margin:0 12px; }
 
-.pr-right {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-.avatar-xxs {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: #3F3F46;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-  font-weight: 600;
-  color: #E4E4E7;
-}
+.wysiwyg-toolbar-wrapper { display: flex; justify-content: center; padding: 12px 0; border-bottom: 1px solid #1E2025; background: #0D0F11; position: sticky; top: 0; z-index: 10; }
+.wysiwyg-toolbar { display: flex; align-items: center; background: #1B1C20; border: 1px solid #27272A; border-radius: 8px; padding: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+.tb-group { display: flex; align-items: center; gap: 2px; padding: 0 4px; }
+.tb-btn { background: transparent; border: none; width: 32px; height: 32px; border-radius: 4px; color: #A1A1AA; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.tb-btn:hover, .tb-btn.active { color: #E4E4E7; background: #27272A; }
+.v-divider-tb { width:1px; height:20px; background:#2D2F36; margin:0 4px; }
+.hover-bg:hover { background: #27272A; border-radius: 4px; }
+.toolbar-aa { font-family: serif; font-style: italic; font-weight: bold; margin-left: 4px; }
 
-.action-hide { opacity: 0; transition: opacity 0.2s; }
-.page-row:hover .action-hide { opacity: 1; }
+.editor-canvas { max-width: 800px; margin: 0 auto; width: 100%; padding: 64px 32px; flex: 1; }
+.editor-title-input { background: transparent; border: none; font-size: 48px; font-weight: 700; color: #E4E4E7; outline: none; margin-bottom: 24px; width: 100%; letter-spacing: -0.02em; }
+.add-icon-btn { background: transparent; border: none; color: #71717A; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding: 4px 8px; border-radius: 4px; }
+.add-icon-btn:hover { background: #16181D; color: #E4E4E7; }
 
-.icon-btn {
-  background: transparent;
-  border: none;
-  color: #A1A1AA;
-  font-size: 14px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 4px;
-  transition: all 0.2s;
-}
-.icon-btn:hover { color: #E4E4E7; background: #27272A; }
+.editor-tiptap-content :deep(.ProseMirror) { min-height: 500px; outline: none; font-size: 17px; line-height: 1.8; color: #D4D4D8; }
+.editor-tiptap-content :deep(.ProseMirror p.is-editor-empty:first-child::before) { content: attr(data-placeholder); float: left; color: #3F3F46; pointer-events: none; height: 0; }
+.editor-tiptap-content :deep(p) { margin-bottom: 1em; }
+.editor-tiptap-content :deep(h1) { font-size: 2em; margin: 1em 0 0.5em; color: #fff; }
+.editor-tiptap-content :deep(h2) { font-size: 1.5em; margin: 1em 0 0.5em; color: #fff; }
+.editor-tiptap-content :deep(ul) { list-style-type: disc; margin-left: 1.5em; margin-bottom: 1em; }
+.editor-tiptap-content :deep(ol) { list-style-type: decimal; margin-left: 1.5em; margin-bottom: 1em; }
+.editor-tiptap-content :deep(table) { border-collapse: collapse; table-layout: fixed; width: 100%; margin: 1em 0; overflow: hidden; border: 1px solid #27272A; }
+.editor-tiptap-content :deep(table td), .editor-tiptap-content :deep(table th) { min-width: 1em; border: 1px solid #27272A; padding: 6px 8px; vertical-align: top; box-sizing: border-box; }
+.editor-tiptap-content :deep(table th) { font-weight: bold; text-align: left; background: #16181D; }
+.editor-tiptap-content :deep(ul[data-type="taskList"]) { list-style: none; padding: 0; }
+.editor-tiptap-content :deep(ul[data-type="taskList"] li) { display: flex; gap: 8px; margin-bottom: 0.5em; }
+.editor-tiptap-content :deep(img) { border-radius: 8px; max-width: 100%; border: 1px solid #27272A; margin: 1.5em 0; }
 
-.btn-box {
-  background: #0D0F11;
-  border: 1px solid #27272A;
-}
+:deep(.pages-menu) { background: #151B1D; border: 1px solid #2A3236; border-radius: 10px; padding: 6px; }
+:deep(.el-dropdown-menu__item) { color: #E8ECEF; font-size: 13px; display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 6px; }
+:deep(.el-dropdown-menu__item:hover) { background: #232A2D !important; color: #fff !important; }
 
-/* Dropdown styling */
-:deep(.custom-dropdown-menu) {
-  background-color: #16181D !important;
-  border: 1px solid #27272A !important;
-  padding: 4px !important;
+/* Image Staging Styles */
+.image-staging-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.85); backdrop-filter: blur(4px);
+  z-index: 2000; display: flex; align-items: center; justify-content: center;
 }
+.image-staging-card {
+  width: 500px; max-width: 90vw; background: #1B1C20; border: 1px solid #27272A;
+  border-radius: 12px; display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.7);
+}
+.is-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid #27272A; }
+.is-header h3 { font-size: 16px; font-weight: 600; }
+.close-staging { background: transparent; border: none; color: #71717A; cursor: pointer; font-size: 18px; }
+.is-body { padding: 20px; display: grid; grid-template-cols: repeat(auto-fill, minmax(100px, 1fr)); gap: 16px; max-height: 350px; overflow-y: auto; }
+.staged-item { position: relative; border-radius: 6px; overflow: hidden; background: #0D0F11; border: 1px solid #27272A; aspect-ratio: 1; display: flex; flex-direction: column; }
+.staged-item img { width: 100%; height: 85px; object-fit: cover; }
+.remove-staged { position: absolute; top: 2px; right: 2px; background: transparent; border: none; color: #F87171; cursor: pointer; font-size: 18px; text-shadow: 0 0 4px rgba(0,0,0,0.8); }
+.is-footer { display: flex; justify-content: flex-end; gap: 12px; padding: 16px 20px; border-top: 1px solid #27272A; background: #16181D; }
+.btn-cancel-staging { background: transparent; border: 1px solid #27272A; color: #E4E4E7; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
+.btn-confirm-staging { background: #0EA5E9; border: none; color: white; padding: 8px 20px; border-radius: 6px; font-weight: 500; cursor: pointer; }
+.fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
 
-:deep(.el-dropdown-menu__item) {
-  color: #A1A1AA !important;
-  font-size: 13px !important;
-  border-radius: 4px !important;
-}
-
-:deep(.el-dropdown-menu__item:hover) {
-  background-color: #27272A !important;
-  color: #E4E4E7 !important;
-}
-
-/* Editor View */
-.editor-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 24px;
-  background: transparent;
-}
-
-.breadcrumb-item {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: 0.2s;
-}
-.breadcrumb-item:hover {
-  background: #1E2025;
-}
-
-.eh-left, .eh-right {
-  display: flex;
-  align-items: center;
-}
-.eh-left {
-  font-size: 13px;
-  font-weight: 500;
-  color: #A1A1AA;
-  gap: 2px;
-}
-.eh-right {
-  gap: 8px;
-}
-
-.status-saving { margin-left: 16px; color: #F59E0B; font-size: 12px; font-style: italic; }
-.status-saved { margin-left: 16px; color: #10B981; font-size: 12px; opacity: 0.5; }
-
-.v-divider {
-  width: 1px;
-  height: 16px;
-  background: #27272A;
-}
-.v-divider-tb {
-  width: 1px;
-  height: 20px;
-  background: #2D2F36;
-  margin: 0 4px;
-}
-
-/* Wysiwyg Toolbar */
-.wysiwyg-toolbar-wrapper {
-  display: flex;
-  justify-content: center;
-  padding: 16px 0 32px 0;
-}
-.wysiwyg-toolbar {
-  display: flex;
-  align-items: center;
-  background: #1B1C20;
-  border: 1px solid #27272A;
-  border-radius: 8px;
-  padding: 4px;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-}
-.tb-group {
-  display: flex;
-  align-items: center;
-  padding: 0 4px;
-  font-size: 13px;
-  color: #D4D4D8;
-  cursor: pointer;
-}
-.hover-bg { padding: 4px 8px; border-radius: 4px; transition: background 0.2s; }
-.hover-bg:hover { background: #27272A; }
-
-.tb-btn {
-  background: transparent;
-  border: none;
-  width: 32px;
-  height: 32px;
-  border-radius: 4px;
-  color: #A1A1AA;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: 0.2s;
-}
-.tb-btn:hover { color: #E4E4E7; background: #27272A; }
-
-/* Canvas */
-.editor-canvas {
-  max-width: 800px;
-  margin: 0 auto;
-  width: 100%;
-  padding: 0 32px 64px 32px;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-}
-
-.add-icon-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: transparent;
-  border: none;
-  color: #A1A1AA;
-  font-size: 14px;
-  cursor: pointer;
-  width: max-content;
-  padding: 4px 8px;
-  border-radius: 4px;
-  margin-bottom: 16px;
-  transition: 0.2s;
-}
-.add-icon-btn:hover { background: #27272A; color: #E4E4E7; }
-
-.editor-title-input {
-  background: transparent;
-  border: none;
-  font-size: 46px;
-  font-weight: 700;
-  color: #E4E4E7;
-  outline: none;
-  margin-bottom: 24px;
-  font-family: inherit;
-  letter-spacing: -0.02em;
-}
-.editor-title-input::placeholder { color: #52525B; }
-
-.editor-tiptap-content :deep(.ProseMirror) {
-  min-height: 500px;
-  outline: none;
-  font-size: 16px;
-  line-height: 1.7;
-  color: #D4D4D8;
-}
-</style>
-
-<style>
-.el-popover.custom-dark-popover {
-  background-color: #1B1C20 !important;
-  border: 1px solid #27272A !important;
-  padding: 8px 12px 12px 12px !important;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5) !important;
-  color: #E4E4E7 !important;
-  border-radius: 8px !important;
-}
-
-.el-popover.custom-dark-popover .el-popper__arrow {
-  display: none !important;
-}
-
-/* PM Items */
-.popover-menu-list {
-  display: flex;
-  flex-direction: column;
-}
-.pm-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 12px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 13px;
-  color: #E4E4E7;
-  transition: background 0.2s;
-  margin-bottom: 2px;
-}
-.pm-item:hover {
-  background-color: #27272A;
-}
-.pm-check {
-  font-size: 12px;
-  color: #E4E4E7;
-}
-.pm-divider {
-  height: 1px;
-  background-color: #27272A;
-  margin: 8px 0;
-}
-
-/* Filter Menu */
-.filter-menu-container {
-  display: flex;
-  flex-direction: column;
-}
-.fm-search {
-  position: relative;
-  display: flex;
-  align-items: center;
-  margin-top: 4px;
-}
-.fms-icon {
-  position: absolute;
-  left: 10px;
-  color: #71717A;
-  font-size: 12px;
-}
-.fms-input {
-  width: 100%;
-  background-color: #16181D;
-  border: 1px solid #27272A;
-  border-radius: 4px;
-  padding: 6px 10px 6px 30px;
-  color: #E4E4E7;
-  font-size: 13px;
-  outline: none;
-  font-family: inherit;
-  transition: 0.2s;
-}
-.fms-input:focus {
-  border-color: #3F3F46;
-}
-.fms-input::placeholder {
-  color: #71717A;
-}
-
-.fm-checkbox-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-  padding: 6px 8px;
-  border-radius: 4px;
-  margin-bottom: 2px;
-}
-.fm-checkbox-row:hover {
-  background-color: rgba(255,255,255,0.03);
-}
-.fm-checkbox {
-  appearance: none;
-  width: 14px;
-  height: 14px;
-  border: 1px solid #3F3F46;
-  border-radius: 3px;
-  background: transparent;
-  cursor: pointer;
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.fm-checkbox:checked {
-  background-color: #E4E4E7;
-  border-color: #E4E4E7;
-}
-.fm-checkbox:checked::after {
-  content: '';
-  position: absolute;
-  width: 3.5px;
-  height: 7px;
-  border: solid #0D0F11;
-  border-width: 0 1.5px 1.5px 0;
-  transform: rotate(45deg);
-  margin-top: -1px;
-}
-.fm-checkbox-label {
-  font-size: 13px;
-  color: #E4E4E7;
-}
-
-.fm-collapsible {
-  display: flex;
-  flex-direction: column;
-}
-.fm-col-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 8px;
-  cursor: pointer;
-  border-radius: 4px;
-}
-.fm-col-header:hover {
-  background-color: rgba(255,255,255,0.03);
-}
-.fm-col-title {
-  font-size: 12px;
-  font-weight: 500;
-  color: #A1A1AA;
-}
-.fm-col-icon {
-  font-size: 10px;
-  color: #71717A;
-  transition: transform 0.2s;
-}
-.fm-col-icon.rotate-180 {
-  transform: rotate(180deg);
-}
-
-.fm-col-content {
-  display: flex;
-  flex-direction: column;
-  padding: 4px 0 0 0;
-}
-
-.fm-user {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: #E4E4E7;
-}
-.fm-avatar {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background-color: #059669;
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-  font-weight: 600;
-}
+:deep(.plane-color-picker .el-color-picker__trigger) { border: 1px solid #27272A; background: transparent; border-radius: 4px; padding: 4px 8px; height: 32px; width: 44px; }
+:deep(.plane-color-picker .el-color-picker__color) { border: none; }
 </style>

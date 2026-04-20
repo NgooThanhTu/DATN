@@ -31,6 +31,7 @@ namespace TaskManagement.Domain.Entities
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
         public bool IsDeleted { get; set; } = false;
+        public bool IsArchived { get; set; } = false;
         public Guid? ProjectTemplateId { get; set; }
         public ProjectTemplate? ProjectTemplate { get; set; }
         public string? TemplateType { get; set; }
