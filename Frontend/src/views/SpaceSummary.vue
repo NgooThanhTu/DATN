@@ -485,6 +485,17 @@ const getTaskAssigneeIds = (task) => {
   return []
 }
 
+const getTaskAssigneeSummary = (task) => {
+  const ids = getTaskAssigneeIds(task)
+  if (!ids.length) return { label: '', avatar: '' }
+  if (ids.length === 1) {
+    const member = projectMembers.value.find(item => (item.userId || item.id) === ids[0])
+    const label = member?.fullName || member?.name || member?.email || task.assigneeName || 'Assignee'
+    return { label, avatar: label.substring(0, 1).toUpperCase() }
+  }
+  return { label: `${ids.length} assignees`, avatar: `${ids.length}` }
+}
+
 const topLevelTasks = computed(() => rawTasks.value.filter(task => !isSubtask(task)))
 const visibleTasks = computed(() => showSubtasks.value ? rawTasks.value : topLevelTasks.value)
 const taskStatusOptions = [
