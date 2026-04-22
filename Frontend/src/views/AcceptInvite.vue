@@ -97,7 +97,13 @@
           </el-button>
 
           <div class="resend-link">
-             <a href="#" @click.prevent="sendOtp">Chưa nhận được mã? Gửi lại email</a>
+            <span v-if="isSendingOtp" class="resend-loading">
+              <i class="fa-solid fa-spinner fa-spin"></i> Đang gửi lại...
+            </span>
+            <span v-else-if="otpCooldown > 0" class="resend-cooldown">
+              Gửi lại sau {{ otpCooldown }}s
+            </span>
+            <a v-else href="#" @click.prevent="sendOtp">Chưa nhận được mã? Gửi lại email</a>
           </div>
         </div>
 
@@ -136,7 +142,7 @@
                 placeholder="Tạo mật khẩu"
                 show-password
               />
-              <div class="password-hint">Mật khẩu phải có ít nhất 6 ký tự</div>
+              <div class="password-hint">Mật khẩu phải có ít nhất 6 ký tự, bao gồm 1 chữ hoa, 1 số và 1 ký tự đặc biệt (@$!%*?&)</div>
             </el-form-item>
 
             <div class="terms-note">
@@ -184,6 +190,20 @@ const step = ref(0)
 const otpDigits = ref(['', '', '', '', '', ''])
 const otpRefs = ref([])
 const isVerifyingOtp = ref(false)
+const isSendingOtp = ref(false)
+const otpCooldown = ref(0)
+let cooldownTimer = null
+
+const startCooldown = () => {
+  otpCooldown.value = 60
+  cooldownTimer = setInterval(() => {
+    otpCooldown.value--
+    if (otpCooldown.value <= 0) {
+      clearInterval(cooldownTimer)
+      cooldownTimer = null
+    }
+  }, 1000)
+}
 
 const maskedEmail = computed(() => {
   const email = invite.value?.email
@@ -226,20 +246,18 @@ const onOtpPaste = (e) => {
 }
 
 const sendOtp = async () => {
+  if (isSendingOtp.value || otpCooldown.value > 0) return
+  isSendingOtp.value = true
   try {
-    const loadingMessage = ElMessage({
-      message: 'Đang gửi mã xác nhận...',
-      type: 'info',
-      duration: 0
-    })
     await axiosClient.post('/auth/send-otp', { email: invite.value.email })
-    loadingMessage.close()
     ElMessage.success('Đã gửi mã xác nhận đến email của bạn.')
-    // Clear old OTP digits if regenerating
     otpDigits.value = ['', '', '', '', '', '']
     nextTick(() => otpRefs.value[0]?.focus())
+    startCooldown()
   } catch (err) {
     ElMessage.error(err.response?.data?.message || 'Không thể gửi mã xác nhận.')
+  } finally {
+    isSendingOtp.value = false
   }
 }
 
@@ -279,7 +297,17 @@ const rules = {
   ],
   password: [
     { required: true, message: 'Vui lòng tạo mật khẩu', trigger: 'blur' },
-    { min: 6, message: 'Mật khẩu phải có ít nhất 6 ký tự', trigger: 'blur' }
+    { min: 6, message: 'Mật khẩu phải có ít nhất 6 ký tự', trigger: 'blur' },
+    {
+      validator: (rule, value, callback) => {
+        if (!value) return callback()
+        if (!/(?=.*[A-Z])/.test(value)) return callback(new Error('Phải có ít nhất 1 chữ hoa'))
+        if (!/(?=.*\d)/.test(value)) return callback(new Error('Phải có ít nhất 1 chữ số'))
+        if (!/(?=.*[@$!%*?&])/.test(value)) return callback(new Error('Phải có ít nhất 1 ký tự đặc biệt (@$!%*?&)'))
+        callback()
+      },
+      trigger: 'blur'
+    }
   ]
 }
 
@@ -524,6 +552,12 @@ h1 {
 
 .resend-link a:hover {
   text-decoration: underline;
+}
+
+.resend-loading,
+.resend-cooldown {
+  color: #626f86;
+  font-size: 14px;
 }
 
 .verified-email {

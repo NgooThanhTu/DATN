@@ -12,8 +12,8 @@ using TaskManagement.Infrastructure.Data;
 namespace TaskManagement.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260418024137_MultiAssigneeProgress")]
-    partial class MultiAssigneeProgress
+    [Migration("20260422104345_AddUserCoverUrl")]
+    partial class AddUserCoverUrl
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -611,6 +611,12 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Property<bool>("IsLocked")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsPrivate")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsStarred")
+                        .HasColumnType("bit");
+
                     b.Property<Guid>("ProjectId")
                         .HasColumnType("uniqueidentifier");
 
@@ -752,6 +758,9 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Property<string>("Identifier")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("bit");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
@@ -1219,6 +1228,9 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Property<string>("PayloadJson")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("Title")
                         .HasMaxLength(255)
                         .HasColumnType("nvarchar(255)");
@@ -1231,7 +1243,9 @@ namespace TaskManagement.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("UserId", "UpdatedAt");
+
+                    b.HasIndex("UserId", "ProjectId", "UpdatedAt");
 
                     b.ToTable("TaskDrafts");
                 });
@@ -1260,6 +1274,24 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.HasIndex("ProjectId");
 
                     b.ToTable("TaskStatuses");
+                });
+
+            modelBuilder.Entity("TaskManagement.Domain.Entities.TaskSubscriber", b =>
+                {
+                    b.Property<Guid>("WorkTaskId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("SubscribedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("WorkTaskId", "UserId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("TaskSubscribers");
                 });
 
             modelBuilder.Entity("TaskManagement.Domain.Entities.TaskType", b =>
@@ -1397,6 +1429,9 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Property<string>("AvatarUrl")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("CoverUrl")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -1491,6 +1526,9 @@ namespace TaskManagement.Infrastructure.Migrations
 
                     b.Property<DateTime?>("DueDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("bit");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
@@ -2193,6 +2231,25 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Navigation("Project");
                 });
 
+            modelBuilder.Entity("TaskManagement.Domain.Entities.TaskSubscriber", b =>
+                {
+                    b.HasOne("TaskManagement.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TaskManagement.Domain.Entities.WorkTask", "WorkTask")
+                        .WithMany("Subscribers")
+                        .HasForeignKey("WorkTaskId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+
+                    b.Navigation("WorkTask");
+                });
+
             modelBuilder.Entity("TaskManagement.Domain.Entities.TaskType", b =>
                 {
                     b.HasOne("TaskManagement.Domain.Entities.Project", "Project")
@@ -2505,6 +2562,8 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Navigation("IssueModules");
 
                     b.Navigation("PredecessorDependencies");
+
+                    b.Navigation("Subscribers");
 
                     b.Navigation("SuccessorDependencies");
 

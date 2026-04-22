@@ -12,8 +12,8 @@ using TaskManagement.Infrastructure.Data;
 namespace TaskManagement.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260417133011_AiGeminiGamification")]
-    partial class AiGeminiGamification
+    [Migration("20260421112151_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -611,6 +611,12 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Property<bool>("IsLocked")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsPrivate")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsStarred")
+                        .HasColumnType("bit");
+
                     b.Property<Guid>("ProjectId")
                         .HasColumnType("uniqueidentifier");
 
@@ -752,6 +758,9 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Property<string>("Identifier")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("bit");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
@@ -1145,6 +1154,17 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Property<DateTime>("ActualStartDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("BlockReason")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("BlockedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<double>("ContributionWeight")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("float")
+                        .HasDefaultValue(1.0);
+
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
 
@@ -1154,6 +1174,12 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Property<int>("Priority")
                         .HasColumnType("int");
 
+                    b.Property<double>("ProgressPercent")
+                        .HasColumnType("float");
+
+                    b.Property<DateTime?>("ProgressUpdatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<bool>("Status")
                         .HasColumnType("bit");
 
@@ -1161,6 +1187,8 @@ namespace TaskManagement.Infrastructure.Migrations
                         .HasColumnType("float");
 
                     b.HasKey("WorkTaskId", "UserId");
+
+                    b.HasIndex("BlockedByUserId");
 
                     b.HasIndex("UserId");
 
@@ -1200,6 +1228,9 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Property<string>("PayloadJson")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("Title")
                         .HasMaxLength(255)
                         .HasColumnType("nvarchar(255)");
@@ -1212,7 +1243,9 @@ namespace TaskManagement.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("UserId", "UpdatedAt");
+
+                    b.HasIndex("UserId", "ProjectId", "UpdatedAt");
 
                     b.ToTable("TaskDrafts");
                 });
@@ -1241,6 +1274,24 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.HasIndex("ProjectId");
 
                     b.ToTable("TaskStatuses");
+                });
+
+            modelBuilder.Entity("TaskManagement.Domain.Entities.TaskSubscriber", b =>
+                {
+                    b.Property<Guid>("WorkTaskId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("SubscribedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("WorkTaskId", "UserId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("TaskSubscribers");
                 });
 
             modelBuilder.Entity("TaskManagement.Domain.Entities.TaskType", b =>
@@ -1472,6 +1523,9 @@ namespace TaskManagement.Infrastructure.Migrations
 
                     b.Property<DateTime?>("DueDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("bit");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
@@ -2110,6 +2164,11 @@ namespace TaskManagement.Infrastructure.Migrations
 
             modelBuilder.Entity("TaskManagement.Domain.Entities.TaskAssignment", b =>
                 {
+                    b.HasOne("TaskManagement.Domain.Entities.User", "BlockedByUser")
+                        .WithMany()
+                        .HasForeignKey("BlockedByUserId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("TaskManagement.Domain.Entities.User", "User")
                         .WithMany("TaskAssignments")
                         .HasForeignKey("UserId")
@@ -2121,6 +2180,8 @@ namespace TaskManagement.Infrastructure.Migrations
                         .HasForeignKey("WorkTaskId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("BlockedByUser");
 
                     b.Navigation("User");
 
@@ -2165,6 +2226,25 @@ namespace TaskManagement.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade);
 
                     b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("TaskManagement.Domain.Entities.TaskSubscriber", b =>
+                {
+                    b.HasOne("TaskManagement.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TaskManagement.Domain.Entities.WorkTask", "WorkTask")
+                        .WithMany("Subscribers")
+                        .HasForeignKey("WorkTaskId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+
+                    b.Navigation("WorkTask");
                 });
 
             modelBuilder.Entity("TaskManagement.Domain.Entities.TaskType", b =>
@@ -2479,6 +2559,8 @@ namespace TaskManagement.Infrastructure.Migrations
                     b.Navigation("IssueModules");
 
                     b.Navigation("PredecessorDependencies");
+
+                    b.Navigation("Subscribers");
 
                     b.Navigation("SuccessorDependencies");
 

@@ -11,7 +11,7 @@
       </button>
     </div>
 
-    <div class="nav-center">
+    <div class="nav-center" ref="searchWrapperRef">
       <div class="search-input-wrapper">
         <i class="fa-solid fa-magnifying-glass search-icon"></i>
         <input type="text" placeholder="Search work items..." v-model="searchQuery" @input="handleSearchInput" />
@@ -31,6 +31,9 @@
 
     <div class="nav-right">
       <NotificationsDropdown />
+      <button class="theme-toggle" @click="toggleTheme()" :title="currentTheme === 'dark' ? 'Chuyển sang sáng' : 'Chuyển sang tối'">
+        <i :class="currentTheme === 'dark' ? 'fa-solid fa-sun' : 'fa-solid fa-moon'"></i>
+      </button>
       <div class="help-btn" @click="$emit('toggle-ai')">
          <i class="fa-solid fa-robot"></i>
       </div>
@@ -40,12 +43,13 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import axiosClient from '@/api/axiosClient'
 import UserDropdown from '@/components/UserDropdown.vue'
 import NotificationsDropdown from '@/components/NotificationsDropdown.vue'
 import { useProjectStore } from '@/store/useProjectStore'
+import { toggleTheme, currentTheme } from '@/utils/theme'
 
 const router = useRouter()
 const route = useRoute()
@@ -53,13 +57,14 @@ const projectStore = useProjectStore()
 const searchQuery = ref('')
 const searchResults = ref([])
 const searching = ref(false)
+const searchWrapperRef = ref(null)
 let searchTimer = null
 
 const currentProjectId = computed(() => route.params.id || localStorage.getItem('currentProjectId') || '')
 const activeProject = computed(() => projectStore.allProjects.find(project => project.id === currentProjectId.value) || projectStore.currentProject)
 const workspaceName = computed(() => activeProject.value?.name || 'SprintA')
 const workspaceBadge = computed(() => activeProject.value?.icon || workspaceName.value.charAt(0).toUpperCase())
-const showSearchDropdown = computed(() => searching.value || searchResults.value.length > 0 || searchQuery.value.trim().length > 0)
+const showSearchDropdown = computed(() => searchQuery.value.trim().length > 0 && (searching.value || searchResults.value.length > 0))
 
 const runSearch = async () => {
   const keyword = searchQuery.value.trim()
@@ -91,11 +96,32 @@ const openSearchResult = (result) => {
   router.push(`/space/${result.projectId}?task=${result.id}`)
 }
 
+const handleClickOutside = (e) => {
+  if (searchWrapperRef.value && !searchWrapperRef.value.contains(e.target)) {
+    searchResults.value = []
+    searchQuery.value = ''
+  }
+}
+
+const handleEscKey = (e) => {
+  if (e.key === 'Escape') {
+    searchResults.value = []
+    searchQuery.value = ''
+  }
+}
+
 onMounted(() => {
   projectStore.fetchAllProjects().catch(() => {})
   if (currentProjectId.value) {
     projectStore.fetchProjectDetails(currentProjectId.value).catch(() => {})
   }
+  document.addEventListener('click', handleClickOutside)
+  document.addEventListener('keydown', handleEscKey)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
+  document.removeEventListener('keydown', handleEscKey)
 })
 </script>
 
@@ -258,6 +284,23 @@ onMounted(() => {
 }
 .help-btn:hover {
   color: #e4e4e7;
+}
+
+.theme-toggle {
+  background: transparent;
+  border: none;
+  color: #a1a1aa;
+  font-size: 15px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: color 0.2s, background 0.2s;
+  display: flex;
+  align-items: center;
+}
+.theme-toggle:hover {
+  color: #e4e4e7;
+  background: #1e2025;
 }
 
 @media (max-width: 1024px) {

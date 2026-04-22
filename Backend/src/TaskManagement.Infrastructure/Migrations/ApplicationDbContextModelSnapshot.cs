@@ -1240,11 +1240,9 @@ namespace TaskManagement.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId", "ProjectId", "UpdatedAt");
-
                     b.HasIndex("UserId", "UpdatedAt");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("UserId", "ProjectId", "UpdatedAt");
 
                     b.ToTable("TaskDrafts");
                 });
@@ -1426,6 +1424,9 @@ namespace TaskManagement.Infrastructure.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("AvatarUrl")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CoverUrl")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("CreatedAt")
