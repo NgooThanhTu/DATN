@@ -43,7 +43,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import axiosClient from '@/api/axiosClient'
 import UserDropdown from '@/components/UserDropdown.vue'
@@ -59,6 +59,8 @@ const searchResults = ref([])
 const searching = ref(false)
 const searchWrapperRef = ref(null)
 let searchTimer = null
+let searchAbortController = null
+let searchRequestId = 0
 
 const currentProjectId = computed(() => route.params.id || localStorage.getItem('currentProjectId') || '')
 const activeProject = computed(() => projectStore.allProjects.find(project => project.id === currentProjectId.value) || projectStore.currentProject)
@@ -69,19 +71,37 @@ const showSearchDropdown = computed(() => searchQuery.value.trim().length > 0 &&
 const runSearch = async () => {
   const keyword = searchQuery.value.trim()
   if (!keyword) {
+    searchAbortController?.abort()
     searchResults.value = []
     searching.value = false
     return
   }
 
+  searchAbortController?.abort()
+  const controller = new AbortController()
+  searchAbortController = controller
+  const requestId = searchRequestId + 1
+  searchRequestId = requestId
   searching.value = true
   try {
-    const response = await axiosClient.get('/worktasks', { params: { search: keyword } })
+    const response = await axiosClient.get('/worktasks', {
+      params: { search: keyword },
+      signal: controller.signal
+    })
+    if (requestId !== searchRequestId) {
+      return
+    }
     searchResults.value = response.data?.data || []
-  } catch {
+  } catch (error) {
+    if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') {
+      return
+    }
     searchResults.value = []
   } finally {
-    searching.value = false
+    if (requestId === searchRequestId) {
+      searching.value = false
+      searchAbortController = null
+    }
   }
 }
 
@@ -91,6 +111,7 @@ const handleSearchInput = () => {
 }
 
 const openSearchResult = (result) => {
+  searchAbortController?.abort()
   searchResults.value = []
   searchQuery.value = ''
   router.push(`/space/${result.projectId}?task=${result.id}`)
@@ -110,13 +131,25 @@ const handleEscKey = (e) => {
   }
 }
 
+watch(currentProjectId, (projectId) => {
+  if (!projectId) {
+    projectStore.clearProjectContext()
+    return
+  }
+
+  localStorage.setItem('currentProjectId', projectId)
+  projectStore.fetchProjectDetails(projectId).catch(() => {})
+}, { immediate: true })
+
 onMounted(() => {
   projectStore.fetchAllProjects().catch(() => {})
-  if (currentProjectId.value) {
-    projectStore.fetchProjectDetails(currentProjectId.value).catch(() => {})
-  }
   document.addEventListener('click', handleClickOutside)
   document.addEventListener('keydown', handleEscKey)
+})
+
+onBeforeUnmount(() => {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchAbortController?.abort()
 })
 
 onUnmounted(() => {

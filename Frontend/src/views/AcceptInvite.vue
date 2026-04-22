@@ -249,7 +249,16 @@ const sendOtp = async () => {
   if (isSendingOtp.value || otpCooldown.value > 0) return
   isSendingOtp.value = true
   try {
-    await axiosClient.post('/auth/send-otp', { email: invite.value.email })
+    const loadingMessage = ElMessage({
+      message: 'Đang gửi mã xác nhận...',
+      type: 'info',
+      duration: 0
+    })
+    await axiosClient.post('/auth/send-otp', {
+      email: invite.value.email,
+      purpose: 'invite'
+    })
+    loadingMessage.close()
     ElMessage.success('Đã gửi mã xác nhận đến email của bạn.')
     otpDigits.value = ['', '', '', '', '', '']
     nextTick(() => otpRefs.value[0]?.focus())
