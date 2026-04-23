@@ -43,7 +43,7 @@
 | Tổng User Stories | 67 |
 | Tổng Story Points | ~315 |
 | Số Sprint | 4 |
-| Test Cases | 85 |
+| Test Cases | 205 |
 | Backend Controllers | 24 |
 | Domain Entities | 47 |
 | Frontend Components | 24 |

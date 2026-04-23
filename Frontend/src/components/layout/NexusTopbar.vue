@@ -11,7 +11,7 @@
       </button>
     </div>
 
-    <div class="nav-center">
+    <div class="nav-center" ref="searchWrapperRef">
       <div class="search-input-wrapper">
         <i class="fa-solid fa-magnifying-glass search-icon"></i>
         <input type="text" placeholder="Search work items..." v-model="searchQuery" @input="handleSearchInput" />
@@ -31,6 +31,9 @@
 
     <div class="nav-right">
       <NotificationsDropdown />
+      <button class="theme-toggle" @click="toggleTheme()" :title="currentTheme === 'dark' ? 'Chuyển sang sáng' : 'Chuyển sang tối'">
+        <i :class="currentTheme === 'dark' ? 'fa-solid fa-sun' : 'fa-solid fa-moon'"></i>
+      </button>
       <div class="help-btn" @click="$emit('toggle-ai')">
          <i class="fa-solid fa-robot"></i>
       </div>
@@ -40,12 +43,13 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import axiosClient from '@/api/axiosClient'
 import UserDropdown from '@/components/UserDropdown.vue'
 import NotificationsDropdown from '@/components/NotificationsDropdown.vue'
 import { useProjectStore } from '@/store/useProjectStore'
+import { toggleTheme, currentTheme } from '@/utils/theme'
 
 const router = useRouter()
 const route = useRoute()
@@ -53,6 +57,7 @@ const projectStore = useProjectStore()
 const searchQuery = ref('')
 const searchResults = ref([])
 const searching = ref(false)
+const searchWrapperRef = ref(null)
 let searchTimer = null
 let searchAbortController = null
 let searchRequestId = 0
@@ -61,7 +66,7 @@ const currentProjectId = computed(() => route.params.id || localStorage.getItem(
 const activeProject = computed(() => projectStore.allProjects.find(project => project.id === currentProjectId.value) || projectStore.currentProject)
 const workspaceName = computed(() => activeProject.value?.name || 'SprintA')
 const workspaceBadge = computed(() => activeProject.value?.icon || workspaceName.value.charAt(0).toUpperCase())
-const showSearchDropdown = computed(() => searching.value || searchResults.value.length > 0 || searchQuery.value.trim().length > 0)
+const showSearchDropdown = computed(() => searchQuery.value.trim().length > 0 && (searching.value || searchResults.value.length > 0))
 
 const runSearch = async () => {
   const keyword = searchQuery.value.trim()
@@ -112,9 +117,19 @@ const openSearchResult = (result) => {
   router.push(`/space/${result.projectId}?task=${result.id}`)
 }
 
-onMounted(() => {
-  projectStore.fetchAllProjects().catch(() => {})
-})
+const handleClickOutside = (e) => {
+  if (searchWrapperRef.value && !searchWrapperRef.value.contains(e.target)) {
+    searchResults.value = []
+    searchQuery.value = ''
+  }
+}
+
+const handleEscKey = (e) => {
+  if (e.key === 'Escape') {
+    searchResults.value = []
+    searchQuery.value = ''
+  }
+}
 
 watch(currentProjectId, (projectId) => {
   if (!projectId) {
@@ -126,23 +141,34 @@ watch(currentProjectId, (projectId) => {
   projectStore.fetchProjectDetails(projectId).catch(() => {})
 }, { immediate: true })
 
+onMounted(() => {
+  projectStore.fetchAllProjects().catch(() => {})
+  document.addEventListener('click', handleClickOutside)
+  document.addEventListener('keydown', handleEscKey)
+})
+
 onBeforeUnmount(() => {
   if (searchTimer) clearTimeout(searchTimer)
   searchAbortController?.abort()
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
+  document.removeEventListener('keydown', handleEscKey)
 })
 </script>
 
 <style scoped>
 .plane-topbar {
   height: 52px;
-  background-color: #0d0f11;
+  background-color: var(--color-surface);
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 16px;
   flex-shrink: 0;
   z-index: 1001;
-  border-bottom: 1px solid #1e2025;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .nav-left {
@@ -157,36 +183,37 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 8px;
   padding: 4px 8px;
-  border-radius: 6px;
+  border-radius: 2px;
   cursor: pointer;
   transition: background 0.2s;
 }
 
 .workspace-switcher:hover {
-  background: #1e2025;
+  background: var(--color-surface-hover);
 }
 
 .ws-icon {
-  width: 20px;
-  height: 20px;
-  border-radius: 4px;
-  background: #0ea5e9;
-  color: white;
+  width: 22px;
+  height: 22px;
+  border-radius: 2px;
+  background: var(--color-accent);
+  color: var(--color-text-inverse);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .ws-name {
-  color: #e4e4e7;
+  color: var(--color-text-primary);
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 850; /* Extra bold for prominence */
+  letter-spacing: -0.02em;
 }
 
 .workspace-switcher i {
-  color: #71717a;
+  color: var(--color-text-muted);
   font-size: 10px;
   margin-left: 2px;
 }
@@ -195,7 +222,7 @@ onBeforeUnmount(() => {
   display: none;
   background: transparent;
   border: none;
-  color: #a1a1aa;
+  color: var(--color-text-muted);
   cursor: pointer;
   padding: 4px;
 }
@@ -211,9 +238,9 @@ onBeforeUnmount(() => {
   position: relative;
   display: flex;
   align-items: center;
-  background-color: #1e2025;
-  border: 1px solid #27272a;
-  border-radius: 6px;
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 2px;
   padding: 0 12px;
   width: 480px;
   height: 32px;
@@ -221,12 +248,12 @@ onBeforeUnmount(() => {
 }
 
 .search-input-wrapper:focus-within {
-  border-color: #3f3f46;
-  background-color: #181a1f;
+  border-color: var(--color-accent);
+  background-color: var(--color-surface);
 }
 
 .search-icon { 
-  color: #71717a; 
+  color: var(--color-text-muted); 
   font-size: 13px; 
   margin-right: 8px; 
 }
@@ -234,7 +261,7 @@ onBeforeUnmount(() => {
 .search-input-wrapper input { 
   background: transparent; 
   border: none; 
-  color: #e4e4e7; 
+  color: var(--color-text-primary); 
   font-size: 13px; 
   width: 100%; 
   outline: none; 
@@ -245,11 +272,11 @@ onBeforeUnmount(() => {
   top: calc(100% + 8px);
   left: 0;
   right: 0;
-  background: #111315;
-  border: 1px solid #27272a;
-  border-radius: 8px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 2px;
   overflow: hidden;
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--shadow-md);
 }
 
 .search-result,
@@ -259,7 +286,7 @@ onBeforeUnmount(() => {
   gap: 4px;
   text-align: left;
   padding: 12px 14px;
-  color: #e4e4e7;
+  color: var(--color-text-primary);
 }
 
 .search-result {
@@ -269,13 +296,18 @@ onBeforeUnmount(() => {
 }
 
 .search-result:hover {
-  background: #18181b;
+  background: var(--color-surface-hover);
 }
 
-.search-result span,
+.search-result span {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
 .search-result small,
 .search-state {
-  color: #a1a1aa;
+  color: var(--color-text-muted);
+  font-size: 11px;
 }
 
 .nav-right {
@@ -285,12 +317,29 @@ onBeforeUnmount(() => {
 }
 
 .help-btn {
-  color: #a1a1aa;
+  color: var(--color-text-muted);
   font-size: 15px;
   cursor: pointer;
 }
 .help-btn:hover {
-  color: #e4e4e7;
+  color: var(--color-text-primary);
+}
+
+.theme-toggle {
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 15px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 2px;
+  transition: color 0.2s, background 0.2s;
+  display: flex;
+  align-items: center;
+}
+.theme-toggle:hover {
+  color: var(--color-text-primary);
+  background: var(--color-surface-hover);
 }
 
 @media (max-width: 1024px) {

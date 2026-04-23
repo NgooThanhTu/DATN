@@ -85,6 +85,7 @@ namespace TaskManagement.API.Controllers
                     email = user.Email,
                     fullName = user.FullName,
                     avatarUrl = user.AvatarUrl,
+                    coverUrl = user.CoverUrl,
                     publicName = string.IsNullOrEmpty(extra.PublicName) ? user.FullName : extra.PublicName,
                     jobTitle = extra.JobTitle,
                     departmentName = activeDepartment?.Name ?? extra.DepartmentName,
@@ -350,6 +351,48 @@ namespace TaskManagement.API.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(new { statusCode = 200, message = "Cập nhật ảnh đại diện thành công.", data = new { avatarUrl = user.AvatarUrl } });
+        }
+
+        /// <summary>
+        /// PUT /api/users/cover — Upload cover/banner image
+        /// </summary>
+        [HttpPut("cover")]
+        public async Task<IActionResult> UploadCover([FromForm] IFormFile file, [FromServices] IWebHostEnvironment env)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out Guid userId))
+                return Unauthorized();
+
+            if (file == null || file.Length == 0)
+                return BadRequest(new { message = "Chưa chọn file." });
+
+            if (file.Length > 5 * 1024 * 1024)
+                return BadRequest(new { message = "File quá lớn (tối đa 5MB)." });
+
+            var allowedTypes = new[] { "image/jpeg", "image/png", "image/gif", "image/webp" };
+            if (!allowedTypes.Contains(file.ContentType))
+                return BadRequest(new { message = "Chỉ chấp nhận file ảnh (JPEG, PNG, GIF, WebP)." });
+
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null) return NotFound();
+
+            var uploadsDir = Path.Combine(env.ContentRootPath, "uploads", "covers");
+            if (!Directory.Exists(uploadsDir)) Directory.CreateDirectory(uploadsDir);
+
+            var ext = Path.GetExtension(file.FileName);
+            var uniqueName = $"{userId}_cover{ext}";
+            var filePath = Path.Combine(uploadsDir, uniqueName);
+
+            using (var stream = new FileStream(filePath, FileMode.Create))
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            user.CoverUrl = $"/uploads/covers/{uniqueName}";
+            user.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return Ok(new { statusCode = 200, message = "Cập nhật ảnh bìa thành công.", data = new { coverUrl = user.CoverUrl } });
         }
     }
 }
