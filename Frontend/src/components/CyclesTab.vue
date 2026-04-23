@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSprintStore } from '@/store/useSprintStore'
 import axiosClient from '@/api/axiosClient'
+import { subscribeAdminRealtime } from '@/utils/adminRealtime'
 
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
@@ -517,18 +518,36 @@ watch(
 )
 
 let cycleRefreshTimer = null
+let unsubscribeAdminRealtime = null
 onMounted(() => {
   cycleRefreshTimer = window.setInterval(() => {
     if (props.projectId) {
       loadCycles()
     }
   }, 60000)
+
+  unsubscribeAdminRealtime = subscribeAdminRealtime(async ({ type, payload }) => {
+    if (!props.projectId) return
+    if (payload?.projectId && `${payload.projectId}` !== `${props.projectId}`) return
+
+    if (
+      [
+        'project-settings-updated',
+        'project-settings-favorite-updated',
+        'project-settings-integrations-updated',
+        'project-administration-updated'
+      ].includes(type)
+    ) {
+      await loadCycles(true)
+    }
+  })
 })
 
 onUnmounted(() => {
   if (cycleRefreshTimer) {
     window.clearInterval(cycleRefreshTimer)
   }
+  unsubscribeAdminRealtime?.()
 })
 </script>
 
@@ -1075,7 +1094,6 @@ onUnmounted(() => {
   border-radius: 999px;
   padding: 4px 8px;
 }
-.task-count-badge { font-size: 12px; color: var(--color-text-muted); display: flex; align-items: center; gap: 6px; }
 
 .cc-grid { display: grid; grid-template-columns: 1fr 2fr 1.5fr; }
 .grid-panel { padding: 20px; border-right: 1px solid var(--color-border); }

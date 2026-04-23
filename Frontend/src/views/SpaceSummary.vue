@@ -166,80 +166,6 @@
                    </div>
                  </div>
                </div>
-
-               <div
-                 v-for="subtask in (visibleSubtasksByParent[task.id] || [])"
-                 :key="`${task.id}-${subtask.id}`"
-                 class="task-row subtask-row"
-                 @click="openTaskDetail(subtask)"
-               >
-                 <div class="tr-left">
-                   <span class="subtask-indent"><i class="fa-solid fa-turn-down"></i></span>
-                   <span class="task-id">{{ subtask.sequenceId || subtask.id.substring(0,8).toUpperCase() }}</span>
-                   <span class="task-title">
-                     {{ subtask.title }}
-                   </span>
-                 </div>
-                 <div class="tr-right" @click.stop>
-                   <div class="pill-group">
-                     <el-dropdown trigger="click" @command="(val) => updateTask(subtask, 'statusName', val, subtask.statusName)">
-                       <div class="pill pill-status cursor-pointer hover:bg-[var(--color-border)]">
-                         <i :class="getBoardStatusIcon(subtask.statusName)" :style="{ color: getStatusColor(subtask.statusName) }"></i>
-                         {{ normalizeStatusLabel(subtask.statusName) }}
-                       </div>
-                       <template #dropdown>
-                         <el-dropdown-menu class="plane-dropdown">
-                           <el-dropdown-item v-for="status in taskStatusOptions" :key="`${subtask.id}-${status.name}`" :command="status.name">
-                             <i :class="status.icon" :style="{ color: status.color }"></i>
-                             {{ status.label }}
-                           </el-dropdown-item>
-                         </el-dropdown-menu>
-                       </template>
-                     </el-dropdown>
-
-                     <el-dropdown trigger="click" @command="(val) => updateTask(subtask, 'priority', val, subtask.priority)">
-                       <div class="pill pill-priority cursor-pointer hover:bg-[var(--color-border)]">
-                         <i :class="getPriorityIcon(subtask.priority)"></i>
-                       </div>
-                       <template #dropdown>
-                         <el-dropdown-menu class="plane-dropdown">
-                           <el-dropdown-item :command="1"><i class="fa-solid fa-angles-up text-red-500"></i> Urgent</el-dropdown-item>
-                           <el-dropdown-item :command="2"><i class="fa-solid fa-chevron-up text-orange-500"></i> High</el-dropdown-item>
-                           <el-dropdown-item :command="3"><i class="fa-solid fa-minus text-blue-500"></i> Normal</el-dropdown-item>
-                           <el-dropdown-item :command="4"><i class="fa-solid fa-chevron-down text-gray-400"></i> Low</el-dropdown-item>
-                           <el-dropdown-item :command="0"><i class="fa-solid fa-ban text-gray-500"></i> None</el-dropdown-item>
-                         </el-dropdown-menu>
-                       </template>
-                     </el-dropdown>
-
-                     <el-popover placement="bottom" trigger="click" width="260" popper-class="plane-popover">
-                       <template #reference>
-                         <div class="pill pill-user cursor-pointer hover:bg-[var(--color-border)]">
-                           <div class="avatar-xxs">
-                             <i class="fa-regular fa-user" v-if="!getTaskAssigneeSummary(subtask).label"></i>
-                             <span v-else>{{ getTaskAssigneeSummary(subtask).avatar }}</span>
-                           </div>
-                           <span v-if="getTaskAssigneeSummary(subtask).label" class="pill-user-text">{{ getTaskAssigneeSummary(subtask).label }}</span>
-                         </div>
-                       </template>
-                       <div class="popover-content">
-                         <input type="text" class="plane-search-input" v-model="assigneeSearch" placeholder="Search members" />
-                         <div class="plane-list mt-2">
-                           <label
-                             class="plane-list-item"
-                             v-for="member in filteredProjectMembers"
-                             :key="`${subtask.id}-${member.userId || member.id}`"
-                             @click.stop="toggleTaskAssignee(subtask, member.userId || member.id)"
-                           >
-                             <input type="checkbox" :checked="getTaskAssigneeIds(subtask).includes(member.userId || member.id)" />
-                             {{ member.fullName || member.name || member.email }}
-                           </label>
-                         </div>
-                       </div>
-                     </el-popover>
-                   </div>
-                 </div>
-               </div>
                </template>
 
                <div class="add-row-placeholder" @click="openCreateTask(group.statusName)">
@@ -509,6 +435,7 @@ import { ref, onMounted, computed, defineAsyncComponent, watch, nextTick, onUnmo
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import axiosClient from '@/api/axiosClient'
+import { subscribeAdminRealtime } from '@/utils/adminRealtime'
 import NexusLayout from '@/components/layout/NexusLayout.vue'
 import draggable from 'vuedraggable'
 import TaskDetailModal from '@/components/TaskDetailModal.vue'
@@ -551,6 +478,7 @@ const project = ref({})
 const rawTasks = ref([])
 const allTasks = ref([])
 const projectMembers = ref([])
+const projectStatuses = ref([])
 const selectedTask = ref(null)
 const taskDetailHistory = ref([])
 const inlineCreateColId = ref(null)
@@ -641,7 +569,7 @@ const matchesTaskFilters = (task) => {
 const topLevelTasks = computed(() => rawTasks.value)
 const visibleTasks = computed(() => (showSubtasks.value ? (allTasks.value || []) : topLevelTasks.value))
 const visibleTopLevelTasks = computed(() => filteredTasksList.value.filter(task => !isSubtask(task)))
-const taskStatusOptions = [
+const defaultTaskStatusOptions = [
   { name: 'BACKLOG', label: 'Backlog', color: 'var(--color-text-muted)', icon: 'fa-regular fa-circle-dashed' },
   { name: 'TO DO', label: 'To Do', color: '#D4D4D8', icon: 'fa-regular fa-circle' },
   { name: 'IN PROGRESS', label: 'In Progress', color: '#3B82F6', icon: 'fa-solid fa-circle-half-stroke' },
@@ -652,6 +580,27 @@ const taskStatusOptions = [
 
 const normalizeText = (value) => `${value || ''}`.toLowerCase().trim()
 const normalizeStatus = (value) => `${value || 'BACKLOG'}`.toUpperCase().replace(/\s+/g, ' ').trim()
+const resolveStatusIcon = (value) => {
+  const status = normalizeStatus(value)
+  if (status.includes('CANCEL')) return 'fa-regular fa-circle-xmark'
+  if (status.includes('DONE') || status.includes('COMPLETE')) return 'fa-solid fa-circle-check'
+  if (status.includes('PROGRESS') || status.includes('ACTIVE')) return 'fa-solid fa-circle-half-stroke'
+  if (status.includes('REVIEW') || status.includes('TEST')) return 'fa-solid fa-eye'
+  if (status.includes('TODO') || status.includes('TO DO')) return 'fa-regular fa-circle'
+  return 'fa-regular fa-circle-dashed'
+}
+const taskStatusOptions = computed(() => {
+  if (projectStatuses.value.length) {
+    return projectStatuses.value.map((status, index) => ({
+      name: normalizeStatus(status.name),
+      label: status.displayName || status.name,
+      color: status.colorCode || defaultTaskStatusOptions[index % defaultTaskStatusOptions.length]?.color || 'var(--color-text-muted)',
+      icon: resolveStatusIcon(status.name)
+    }))
+  }
+
+  return defaultTaskStatusOptions
+})
 const normalizeDateOnly = (value) => {
   if (!value) return null
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value
@@ -672,7 +621,7 @@ const normalizeDateOnly = (value) => {
 }
 const normalizeStatusLabel = (value) => {
   const status = normalizeStatus(value)
-  return taskStatusOptions.find(item => item.name === status)?.label || status
+  return taskStatusOptions.value.find(item => item.name === status)?.label || status
 }
 const analyticsStatusBucket = (statusName) => {
   const normalized = normalizeStatus(statusName)
@@ -682,8 +631,8 @@ const analyticsStatusBucket = (statusName) => {
   if (normalized === 'CANCELLED') return 'cancelled'
   return 'unstarted'
 }
-const getBoardStatusIcon = (value) => taskStatusOptions.find(item => item.name === normalizeStatus(value))?.icon || 'fa-regular fa-circle-dashed'
-const getStatusColor = (value) => taskStatusOptions.find(item => item.name === normalizeStatus(value))?.color || 'var(--color-text-muted)'
+const getBoardStatusIcon = (value) => taskStatusOptions.value.find(item => item.name === normalizeStatus(value))?.icon || 'fa-regular fa-circle-dashed'
+const getStatusColor = (value) => taskStatusOptions.value.find(item => item.name === normalizeStatus(value))?.color || 'var(--color-text-muted)'
 const getPriorityIcon = (priority) => {
   if (priority === 1) return 'fa-solid fa-angles-up text-red-500'
   if (priority === 2) return 'fa-solid fa-chevron-up text-orange-500'
@@ -937,7 +886,7 @@ const analyticsBreakdownRows = computed(() => {
   }
 
   if (analyticsInsightMode.value === 'status') {
-    return taskStatusOptions.map(option => ({
+    return taskStatusOptions.value.map(option => ({
       label: option.label,
       count: rawTasks.value.filter(task => normalizeStatus(task.statusName) === option.name).length,
       color: option.color
@@ -1027,14 +976,14 @@ const insightChartOptions = computed(() => ({
 }))
 
 const kanbanColumns = computed(() => {
-  const groups = [
-    { id: 'backlog', name: 'BACKLOG', color: 'var(--color-text-muted)', icon: 'fa-regular fa-circle-dashed', priorityValue: null, items: [] },
-    { id: 'todo', name: 'TO DO', color: 'var(--color-text-secondary)', icon: 'fa-regular fa-circle', priorityValue: null, items: [] },
-    { id: 'inprogress', name: 'IN PROGRESS', color: '#3B82F6', icon: 'fa-solid fa-circle-half-stroke', priorityValue: null, items: [] },
-    { id: 'review', name: 'IN REVIEW', color: '#F59E0B', icon: 'fa-solid fa-eye', priorityValue: null, items: [] },
-    { id: 'done', name: 'DONE', color: '#10B981', icon: 'fa-solid fa-circle-check', priorityValue: null, items: [] },
-    { id: 'cancelled', name: 'CANCELLED', color: '#EF4444', icon: 'fa-regular fa-circle-xmark', priorityValue: null, items: [] }
-  ];
+  const groups = taskStatusOptions.value.map((status, index) => ({
+    id: `${status.name.toLowerCase().replace(/\s+/g, '-')}-${index}`,
+    name: status.name,
+    color: status.color,
+    icon: status.icon,
+    priorityValue: null,
+    items: []
+  }));
 
   const pGroups = [
     { id: 'p1', name: 'Urgent', color: '#EF4444', icon: 'fa-solid fa-angles-up', priorityValue: 1, items: [] },
@@ -1056,13 +1005,7 @@ const kanbanColumns = computed(() => {
      validTasks.forEach(t => {
        const s = (t.statusName || 'BACKLOG').toUpperCase().trim();
        let col;
-       if (s === 'BACKLOG') col = groups[0];
-       else if (s === 'TODO' || s === 'TO DO') col = groups[1];
-       else if (s === 'IN PROGRESS' || s === 'INPROGRESS') col = groups[2];
-       else if (s === 'IN REVIEW' || s === 'REVIEW') col = groups[3];
-       else if (s === 'DONE') col = groups[4];
-       else if (s === 'CANCELLED' || s === 'CANCELED') col = groups[5];
-       else col = groups[0]; // fallback to backlog
+       col = groups.find(group => group.name === normalizeStatus(s)) || groups[0];
        
        col.items.push(t);
      });
@@ -1071,14 +1014,14 @@ const kanbanColumns = computed(() => {
 });
 
 const listViewGroups = computed(() => {
-  const groups = [
-    { id: 'backlog', name: 'Backlog', statusName: 'BACKLOG', icon: 'fa-regular fa-circle-dashed', color: 'var(--color-text-muted)', items: [] },
-    { id: 'todo', name: 'To Do', statusName: 'TO DO', icon: 'fa-regular fa-circle', color: 'var(--color-text-secondary)', items: [] },
-    { id: 'inprogress', name: 'In Progress', statusName: 'IN PROGRESS', icon: 'fa-solid fa-circle-half-stroke', color: '#3B82F6', items: [] },
-    { id: 'review', name: 'In Review', statusName: 'IN REVIEW', icon: 'fa-solid fa-eye', color: '#F59E0B', items: [] },
-    { id: 'done', name: 'Done', statusName: 'DONE', icon: 'fa-solid fa-circle-check', color: '#10B981', items: [] },
-    { id: 'cancelled', name: 'Cancelled', statusName: 'CANCELLED', icon: 'fa-regular fa-circle-xmark', color: '#EF4444', items: [] }
-  ]
+  const groups = taskStatusOptions.value.map((status, index) => ({
+    id: `${status.name.toLowerCase().replace(/\s+/g, '-')}-${index}`,
+    name: status.label,
+    statusName: status.name,
+    icon: status.icon,
+    color: status.color,
+    items: []
+  }))
 
   filteredTasksList.value.forEach(task => {
     const status = normalizeStatus(task.statusName)
@@ -1130,11 +1073,19 @@ const loadInitialData = async () => {
     projectMembers.value = []
     project.value = {}
     carryOverTaskIds.value = []
-    const pRes = await axiosClient.get(`/projects/${pid}`)
+    const [pRes, mRes, statusesRes] = await Promise.all([
+      axiosClient.get(`/projects/${pid}`),
+      axiosClient.get(`/projects/${pid}/members`),
+      axiosClient.get(`/projects/${pid}/task-statuses`).catch(() => ({ data: { data: [] } }))
+    ])
     project.value = pRes.data.data
-
-    const mRes = await axiosClient.get(`/projects/${pid}/members`)
     projectMembers.value = mRes.data.data || []
+    projectStatuses.value = (statusesRes.data?.data || []).map((status) => ({
+      ...status,
+      name: normalizeStatus(status.name),
+      displayName: status.displayName || status.name,
+      colorCode: status.colorCode || ''
+    }))
 
     if (activeCarryOverSprintId.value) {
       const carryOverRes = await axiosClient.get(`/projects/${pid}/sprints/${activeCarryOverSprintId.value}/carry-over-tasks`)
@@ -1468,6 +1419,27 @@ onMounted(() => {
   window.addEventListener('global-create-task', handleGlobalCreate)
 })
 
+let unsubscribeAdminRealtime = null
+
+onMounted(() => {
+  unsubscribeAdminRealtime = subscribeAdminRealtime(async ({ type, payload }) => {
+    const pid = getProjectId()
+    if (!pid) return
+    if (payload?.projectId && `${payload.projectId}` !== `${pid}`) return
+
+    if (
+      [
+        'project-settings-updated',
+        'project-settings-favorite-updated',
+        'project-settings-integrations-updated',
+        'project-administration-updated'
+      ].includes(type)
+    ) {
+      await loadInitialData()
+    }
+  })
+})
+
 watch(currentProjectId, (projectId, previousProjectId) => {
   if (!projectId || projectId === previousProjectId) {
     return
@@ -1504,6 +1476,7 @@ watch(
 
 onUnmounted(() => {
   window.removeEventListener('global-create-task', handleGlobalCreate)
+  unsubscribeAdminRealtime?.()
 })
 </script>
 

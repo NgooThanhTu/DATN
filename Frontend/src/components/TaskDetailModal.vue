@@ -327,7 +327,7 @@
                  <i class="fa-solid fa-wand-magic-sparkles"></i>
                  {{ isAiBreakingDown ? 'AI is creating...' : 'AI split into subtasks' }}
                </button>
-              
+               
                <button class="s-btn" @click="triggerDescriptionFileUpload"><i class="fa-solid fa-paperclip"></i> Attach</button>
             </div>
             <div v-if="isCreatingSubtask" class="quick-subtask-box">
@@ -1693,24 +1693,20 @@ const fetchAdditionalProjectData = async () => {
             userId: member.userId || member.id,
             fullName: member.fullName || member.name || member.email
         }));
-        const desiredOrder = ['BACKLOG', 'TO DO', 'IN PROGRESS', 'IN REVIEW', 'DONE', 'CANCELLED'];
-        const statusMap = new Map();
-        for (const status of (statusesRes.data?.data || [])) {
-            const normalized = normalizeStatusName(status.name);
-            if (!statusMap.has(normalized)) {
-                statusMap.set(normalized, {
-                    ...status,
-                    name: normalized,
-                    displayName: normalized
-                });
-            }
-        }
-        desiredOrder.forEach((name, index) => {
-            if (!statusMap.has(name)) {
-                statusMap.set(name, { id: `fallback-${index}`, name, displayName: name });
-            }
-        });
-        projectStatuses.value = desiredOrder.map(name => statusMap.get(name)).filter(Boolean);
+        const fallbackStatuses = [
+          { id: 'fallback-backlog', name: 'BACKLOG', displayName: 'Backlog' },
+          { id: 'fallback-todo', name: 'TO DO', displayName: 'To Do' },
+          { id: 'fallback-progress', name: 'IN PROGRESS', displayName: 'In Progress' },
+          { id: 'fallback-review', name: 'IN REVIEW', displayName: 'In Review' },
+          { id: 'fallback-done', name: 'DONE', displayName: 'Done' },
+          { id: 'fallback-cancelled', name: 'CANCELLED', displayName: 'Cancelled' }
+        ];
+        const incomingStatuses = (statusesRes.data?.data || []).map((status) => ({
+            ...status,
+            name: status.name,
+            displayName: status.displayName || status.name
+        }));
+        projectStatuses.value = incomingStatuses.length ? incomingStatuses : fallbackStatuses;
     } catch(e) {}
 };
 
@@ -2706,10 +2702,6 @@ watch(() => props.selectedTask, (newTask) => {
   backdrop-filter: blur(2px);
 }
 
-[data-theme='dark'] .task-modal-overlay {
-  background: rgba(0, 0, 0, 0.6);
-}
-
 /* UTILITIES */
 .flex-wrapper { display: flex; align-items: center; }
 .flex-center { display: flex; align-items: center; }
@@ -2738,6 +2730,12 @@ watch(() => props.selectedTask, (newTask) => {
 .icon-hover.is-active {
   background: #1D4ED8;
   color: #FFFFFF;
+}
+
+[data-theme='dark'] .task-modal-overlay {
+  background: rgba(0, 0, 0, 0.6);
+}
+
 [data-theme='light'] .task-modal-overlay {
   background: rgba(0, 0, 0, 0.3);
 }
@@ -2987,8 +2985,6 @@ watch(() => props.selectedTask, (newTask) => {
   padding: 6px 10px;
   border-radius: 4px;
   cursor: pointer;
-  font-weight: 600;
-  color: var(--color-text-primary);
 }
 
 .activity-feed {

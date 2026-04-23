@@ -226,6 +226,12 @@ onUnmounted(() => {
   outline: none;
 }
 
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 ::v-deep(.admin-table th.el-table__cell) {
   background-color: transparent !important;
   color: var(--text-primary) !important;
@@ -239,20 +245,10 @@ onUnmounted(() => {
 ::v-deep(.admin-table td.el-table__cell) {
   padding: 16px 0;
   color: var(--text-primary);
-  background-color: transparent !important;
-  font-size: 14px;
-  border-bottom: 1px solid var(--border-color);
-  white-space: pre-line;
 }
 
 ::v-deep(.el-table), ::v-deep(.el-table__inner-wrapper), ::v-deep(.el-table tr) {
   background-color: transparent !important;
-}
-=======
-.filter-group {
-  display: flex;
-  align-items: center;
-  gap: 12px;
 }
 
 .realtime-toggle {
@@ -283,6 +279,12 @@ onUnmounted(() => {
 
 .timestamp-text { font-size: 13px; color: var(--text-secondary); }
 
+.status-dot.warning { background-color: #f59e0b; }
+.warning-text { color: #f59e0b; font-weight: 500; }
+
+.status-dot.error { background-color: #ef4444; }
+.error-text { color: #ef4444; font-weight: 500; }
+
 /* Custom Radio Group matching image */
 ::v-deep(.custom-radio-group .el-radio-button__inner) {
   border: none !important;
@@ -304,6 +306,7 @@ onUnmounted(() => {
   color: #0d9488;
   box-shadow: none;
   border: 1px solid #0d9488 !important;
+}
 .action-tag {
   font-size: 11px;
   font-weight: 700;

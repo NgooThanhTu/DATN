@@ -9,11 +9,6 @@
         </div>
         <button class="refresh-btn" type="button" :disabled="loading" @click="loadRewards">
           <i class="fa-solid fa-rotate"></i> {{ loading ? 'Refreshing...' : 'Refresh' }}
-          <h1 class="text-hero">Rewards</h1>
-          <p class="text-desc">Review and track your career level, contribution share, and early completion bonuses.</p>
-        </div>
-        <button class="btn-secondary" type="button" :disabled="loading" @click="loadRewards">
-          <i class="fa-solid fa-rotate"></i> Refresh
         </button>
       </header>
 

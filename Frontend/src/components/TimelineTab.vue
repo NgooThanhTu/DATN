@@ -660,10 +660,6 @@ function getWeekNumber(value) {
   min-height: 100%;
   background: #0d0f11;
   color: #e4e4e7;
-  height: 100%;
-  min-height: calc(100vh - 80px);
-  background: var(--color-bg);
-  color: var(--color-text-primary);
   overflow: hidden;
 }
 

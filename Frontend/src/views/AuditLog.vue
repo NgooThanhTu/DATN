@@ -362,10 +362,6 @@ const handleSidebarSaved = (prefs) => {
 .pagination-footer { padding: 16px; display: flex; justify-content: flex-end; border-top: 1px solid var(--border-color); }
 
 /* Custom Element Plus theme styles local to this component */
-::v-deep(.el-table) {
-  --el-table-bg-color: var(--bg-card);
-  --el-table-tr-bg-color: var(--bg-card);
-  --el-table-header-bg-color: var(--bg-layout);
 :deep(.el-table) {
   --el-table-bg-color: var(--table-bg);
   --el-table-tr-bg-color: var(--table-bg);
@@ -376,8 +372,6 @@ const handleSidebarSaved = (prefs) => {
   --el-table-row-hover-bg-color: var(--hover-bg);
 }
 
-::v-deep(.el-input__wrapper), ::v-deep(.el-select__wrapper) {
-  background-color: var(--bg-secondary) !important;
 :deep(.el-input__wrapper), :deep(.el-select__wrapper) {
   background-color: var(--input-bg) !important;
   box-shadow: 0 0 0 1px var(--border-color) inset !important;

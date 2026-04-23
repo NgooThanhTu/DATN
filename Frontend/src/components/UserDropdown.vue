@@ -1,14 +1,12 @@
 <template>
   <el-dropdown trigger="click" popper-class="user-dropdown-popper" @command="handleCommand" :teleported="true">
-    <div class="header-avatar" :style="{ backgroundColor: avatarColor }">
-  {{ userInitial }}
-</div>
+    <div class="user-avatar-trigger" :style="{ backgroundColor: avatarColor }">
+      {{ userInitial }}
+    </div>
     <template #dropdown>
       <el-dropdown-menu class="jira-user-menu">
         <div class="user-menu-header">
-          <div class="user-avatar-trigger" :style="{ backgroundColor: avatarColor }">
-  {{ userInitial }}
-</div>
+          <div class="header-avatar" :style="{ backgroundColor: avatarColor }">{{ userInitial }}</div>
           <div class="header-info">
             <div class="user-display-name">{{ userDisplayName }}</div>
             <div class="user-email">{{ userEmail }}</div>
@@ -92,6 +90,7 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { currentTheme, toggleTheme } from '@/utils/theme'
 import { getStoredUser, hasSystemAdminAccess } from '@/utils/permissions'
+import { openNamedAppWindow, PROJECT_ADMIN_WINDOW_NAME } from '@/utils/windowTabs'
 
 const router = useRouter()
 const themeSubVisible = ref(false)
@@ -100,7 +99,6 @@ const canAccessAdmin = computed(() => hasSystemAdminAccess(currentUser.value))
 const userDisplayName = computed(() => currentUser.value?.fullName || currentUser.value?.name || currentUser.value?.email?.split('@')?.[0] || 'User')
 const userEmail = computed(() => currentUser.value?.email || 'user@example.com')
 const userInitial = computed(() => userDisplayName.value.charAt(0).toUpperCase() || 'U')
-
 const avatarColor = computed(() => {
   const colors = ['#579dff', '#c97cf4', '#00b8d9', '#22a06b', '#f5cd47', '#e2483d']
   const index = userDisplayName.value.length % colors.length
@@ -116,7 +114,7 @@ const handleCommand = async (cmd) => {
     router.push('/profile')
   } else if (cmd === 'admin') {
     const routeData = router.resolve('/admin')
-    window.open(routeData.href, '_blank', 'noopener')
+    openNamedAppWindow(routeData.href, PROJECT_ADMIN_WINDOW_NAME)
   } else if (cmd === 'logout') {
     try {
       const { default: axiosClient } = await import('@/api/axiosClient')
@@ -145,26 +143,26 @@ const selectTheme = (theme) => {
 .jira-user-menu {
   width: 300px;
   background-color: var(--color-surface);
-  border-radius: 2px; /* Sharp UI */
+  border-radius: 2px;
   padding: 8px 0;
   border: 1px solid var(--color-border);
   box-shadow: var(--shadow-xl);
 }
 .user-menu-header { display: flex; padding: 12px 16px; gap: 12px; align-items: center; border-bottom: 1px solid var(--color-border); margin-bottom: 4px; }
-.header-avatar { 
-  width: 40px; height: 40px; 
-  border-radius: 50%; 
-  display: flex; align-items: center; justify-content: center; 
-  font-size: 16px; font-weight: 700; color: #fff; 
+.header-avatar {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 700; color: #fff;
 }
 .user-display-name { font-size: 14px; font-weight: 700; color: var(--color-text-primary); }
 .user-email { font-size: 12px; color: var(--color-text-muted); }
 
-.menu-item-inner { 
-  display: flex; 
-  align-items: center; 
-  gap: 12px; 
-  color: var(--color-text-primary) !important; /* Ensure high contrast */
+.menu-item-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--color-text-primary) !important;
   font-size: 13px;
   font-weight: 500;
 }
@@ -176,38 +174,37 @@ const selectTheme = (theme) => {
 .theme-trigger-item { padding: 10px 16px; cursor: pointer; transition: all 0.2s; }
 .theme-trigger-item:hover { background-color: var(--color-surface-hover); }
 
-.theme-expanded-menu { 
-  margin: 8px 12px; 
-  background-color: var(--color-bg); 
-  border-radius: 4px; 
-  padding: 4px 0; 
-  border: 1px solid var(--color-border); 
+.theme-expanded-menu {
+  margin: 8px 12px;
+  background-color: var(--color-bg);
+  border-radius: 4px;
+  padding: 4px 0;
+  border: 1px solid var(--color-border);
 }
-.theme-option { 
-  display: flex; 
-  align-items: center; 
-  padding: 8px 12px; 
-  gap: 12px; 
-  cursor: pointer; 
-  color: var(--color-text-secondary); 
-  transition: all 0.2s;
+.theme-option {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  gap: 12px;
+  cursor: pointer;
+  color: var(--color-text-secondary);
 }
-.theme-option:hover { 
-  background-color: var(--color-surface-hover); 
+.theme-option:hover {
+  background-color: var(--color-surface-hover);
   color: var(--color-text-primary);
 }
-.theme-option.active { 
-  background-color: color-mix(in srgb, var(--color-accent) 15%, transparent); 
-  color: var(--color-accent); 
+.theme-option.active {
+  background-color: color-mix(in srgb, var(--color-accent) 15%, transparent);
+  color: var(--color-accent);
 }
 .option-label { font-size: 12px; font-weight: 600; }
 .radio-indicator { color: var(--color-accent); font-size: 12px; }
 .arrow-icon { margin-left: auto; transition: transform 0.2s; color: var(--color-text-muted); font-size: 10px !important; }
 .arrow-icon.rotated { transform: rotate(90deg); }
 
-.theme-preview-box { 
-  width: 36px; height: 24px; border-radius: 2px; border: 1px solid var(--color-border); 
-  overflow: hidden; display: flex; flex-direction: column; 
+.theme-preview-box {
+  width: 36px; height: 24px; border-radius: 2px; border: 1px solid var(--color-border);
+  overflow: hidden; display: flex; flex-direction: column;
 }
 .light.theme-preview-box { background: #ffffff; }
 .dark.theme-preview-box { background: #0f172a; border-color: #334155; }
@@ -219,33 +216,33 @@ const selectTheme = (theme) => {
 .p-content { flex: 1; background: #ffffff; }
 .dark .p-content { background: #0f172a; }
 
-.user-avatar-trigger { 
-  width: 30px; height: 30px; 
-  color: #fff; border-radius: 50%; 
-  display: flex; align-items: center; justify-content: center; 
-  font-weight: 700; font-size: 11px; cursor: pointer; 
+.user-avatar-trigger {
+  width: 30px; height: 30px;
+  color: #fff; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 11px; cursor: pointer;
   border: 1px solid rgba(255,255,255,0.1);
 }
 </style>
 
 <style>
-.user-dropdown-popper.el-popper { 
-  background: var(--color-surface) !important; 
-  border: 1px solid var(--color-border) !important; 
-  border-radius: 12px !important; 
-  padding: 0 !important; 
-  box-shadow: var(--shadow-xl) !important; 
+.user-dropdown-popper.el-popper {
+  background: var(--color-surface) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 12px !important;
+  padding: 0 !important;
+  box-shadow: var(--shadow-xl) !important;
 }
-.user-dropdown-popper .el-dropdown-menu__item { 
-  padding: 10px 16px !important; 
-  background-color: transparent !important; 
-  color: var(--color-text-primary) !important; 
+.user-dropdown-popper .el-dropdown-menu__item {
+  padding: 10px 16px !important;
+  background-color: transparent !important;
+  color: var(--color-text-primary) !important;
 }
-.user-dropdown-popper .el-dropdown-menu__item:hover { 
-  background-color: var(--color-surface-hover) !important; 
+.user-dropdown-popper .el-dropdown-menu__item:hover {
+  background-color: var(--color-surface-hover) !important;
 }
-.user-dropdown-popper .el-popper__arrow::before { 
-  background: var(--color-surface) !important; 
-  border: 1px solid var(--color-border) !important; 
+.user-dropdown-popper .el-popper__arrow::before {
+  background: var(--color-surface) !important;
+  border: 1px solid var(--color-border) !important;
 }
 </style>

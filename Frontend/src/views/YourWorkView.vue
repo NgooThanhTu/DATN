@@ -338,52 +338,7 @@ const downloadWordActivity = () => {
               <div class="lr-right">
                 <div class="lr-badge cursor-not-allowed">
                   <i class="fa-regular fa-clock"></i> {{ activity.time }}
-  </div>
-           </div>
-
-           <!-- Two cols for charts -->
-           <div class="yw-two-cols mt-4">
-              <div class="chart-col">
-                 <h3 class="section-title">Work items by Priority</h3>
-                 <div class="empty-chart" v-if="myTasks.length === 0">
-                    <i class="fa-solid fa-chart-simple chart-icon"></i>
-                    <span>No work item assigned yet</span>
-                 </div>
-                 <div v-else class="text-sm p-4 text-gray-400 border border-[var(--color-border)] rounded-lg mt-2 bg-[var(--color-surface)]">
-                    <div class="flex justify-between mb-2"><span>Urgent</span> <span class="text-white">{{ myTasks.filter(t=>t.priority===1).length }}</span></div>
-                    <div class="flex justify-between mb-2"><span>High</span> <span class="text-white">{{ myTasks.filter(t=>t.priority===2).length }}</span></div>
-                    <div class="flex justify-between mb-2"><span>Medium</span> <span class="text-white">{{ myTasks.filter(t=>t.priority===3).length }}</span></div>
-                    <div class="flex justify-between"><span>Low</span> <span class="text-white">{{ myTasks.filter(t=>t.priority===4).length }}</span></div>
-                 </div>
-              </div>
-              <div class="chart-col">
-                 <h3 class="section-title">Work items by state</h3>
-                 <div class="empty-chart" v-if="myTasks.length === 0">
-                    <i class="fa-solid fa-chart-column chart-icon"></i>
-                    <span>No work item assigned yet</span>
-                 </div>
-                 <div v-else class="text-sm p-4 text-gray-400 border border-[var(--color-border)] rounded-lg mt-2 bg-[var(--color-surface)]">
-                    <div class="flex justify-between mb-2"><span>Backlog</span> <span class="text-white">{{ workload.backlog }}</span></div>
-                    <div class="flex justify-between mb-2"><span>Not Started</span> <span class="text-white">{{ workload.notStarted }}</span></div>
-                    <div class="flex justify-between mb-2"><span>In Progress</span> <span class="text-white">{{ workload.workingOn }}</span></div>
-                    <div class="flex justify-between"><span>Completed</span> <span class="text-white">{{ workload.completed }}</span></div>
-                 </div>
-              </div>
-           </div>
-
-           <!-- Recent activity -->
-           <h3 class="section-title mt-4">Recent activity</h3>
-           <div class="list-body">
-              <div class="list-row" style="cursor: default;" v-for="act in recentActivity" :key="act.id">
-                 <div class="lr-left">
-                    <span class="lr-id" style="min-width: 30px;"><i class="fa-solid fa-clock-rotate-left" style="color: var(--color-text-muted)"></i></span>
-                    <span class="lr-title">{{ act.text }}</span>
-                 </div>
-                 <div class="lr-right">
-                    <div class="lr-badge cursor-not-allowed">
-                       <i class="fa-regular fa-clock"></i> {{ act.time }}
-                    </div>
-                 </div>
+                </div>
               </div>
             </div>
           </div>
@@ -550,9 +505,9 @@ const downloadWordActivity = () => {
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
 }
+.tab-btn:hover { color: var(--color-text-primary); }
+.tab-btn.active { color: var(--color-accent); border-bottom: 2px solid var(--color-accent); }
 
-.tab-btn:hover { color: #E4E4E7; }
-.tab-btn.active { color: #38BDF8; border-bottom: 2px solid #38BDF8; }
 .yw-scrollable {
   padding-bottom: 40px;
 }
@@ -575,9 +530,9 @@ const downloadWordActivity = () => {
   align-items: center;
   gap: 16px;
 }
-.card-icon { font-size: 18px; color: #71717A; width: 24px; text-align: center; }
-.card-lbl { font-size: 11px; color: #71717A; margin-bottom: 4px; }
-.card-val { font-size: 18px; font-weight: 600; color: #E4E4E7; }
+.card-icon { font-size: 18px; color: var(--color-text-muted); width: 24px; text-align: center; }
+.card-lbl { font-size: 11px; color: var(--color-text-muted); margin-bottom: 4px; }
+.card-val { font-size: 18px; font-weight: 600; color: var(--color-text-primary); }
 
 .yw-workload-row {
   display: grid;
@@ -595,15 +550,15 @@ const downloadWordActivity = () => {
   justify-content: space-between;
   height: 60px;
 }
-
-.wl-lbl { font-size: 12px; font-weight: 500; color: #A1A1AA; display: flex; align-items: center; gap: 6px; }
+.wl-lbl { font-size: 12px; font-weight: 500; color: var(--color-text-muted); display: flex; align-items: center; gap: 6px; }
 .dbox { width: 8px; height: 8px; border-radius: 2px; }
-.bg-gray { background: #A1A1AA; }
-.bg-blue { background: #3B82F6; }
-.bg-orange { background: #F59E0B; }
-.bg-green { background: #10B981; }
-.bg-red { background: #EF4444; }
-.wl-val { font-size: 18px; font-weight: 600; color: #E4E4E7; margin-top: auto; }
+.bg-gray { background: var(--color-text-muted); }
+.bg-blue { background: var(--color-accent); }
+.bg-orange { background: var(--color-warning); }
+.bg-green { background: var(--color-success); }
+.bg-red { background: var(--color-danger); }
+.wl-val { font-size: 18px; font-weight: 600; color: var(--color-text-primary); margin-top: auto;}
+
 .yw-two-cols {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -636,23 +591,10 @@ const downloadWordActivity = () => {
 .list-header { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: #E4E4E7; }
 .f-icon { color: #A1A1AA; font-size: 12px; }
 .lh-count { font-size: 12px; font-weight: 400; color: #71717A; }
-}
-.activity-item {
-  display: flex;
-  align-items: center;
-  padding: 16px;
-  border-bottom: 1px solid var(--color-border);
-  gap: 12px;
-}
-.activity-item:last-child { border-bottom: none; }
-.avatar-sm { width: 24px; height: 24px; background: var(--color-accent); color: var(--color-text-primary); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; border-radius: 50%; }
-.act-text { font-size: 13px; font-weight: 500; color: var(--color-text-primary); }
-.act-time { font-size: 11px; color: var(--color-text-muted); margin-top: 4px; }
-
-/* List View styles */
 .list-header { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--color-text-primary); }
 .f-icon { color: var(--color-text-muted); font-size: 12px; }
 .lh-count { font-size: 12px; font-weight: 400; color: var(--color-text-muted); }
+
 .list-body { border-top: 1px solid var(--color-border); }
 .list-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--color-border); transition: background 0.2s; cursor: pointer; }
 .list-row:hover { background: var(--color-surface); }
@@ -700,9 +642,10 @@ const downloadWordActivity = () => {
   background: rgba(0, 0, 0, 0.5);
   border: none;
   color: #E4E4E7;
+  border-radius: 2px;
+  color: var(--color-text-primary);
   width: 24px;
   height: 24px;
-  border-radius: 4px;
   cursor: pointer;
   display: flex;
   align-items: center;
