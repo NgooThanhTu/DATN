@@ -138,6 +138,103 @@
               <span>{{ t('No project role mappings yet.', 'Chưa có mapping vai trò theo dự án.') }}</span>
             </div>
           </section>
+          <section class="admin-subcard">
+            <div class="subcard-header">
+              <div>
+                <h3>{{ t('System roles', 'Vai trò hệ thống') }}</h3>
+                <p>{{ t('Create custom roles, keep Admin and PM protected from structural edits, and assign roles to users.', 'Tạo vai trò tùy chỉnh, khóa cấu trúc của Admin và PM, và cấp vai trò cho người dùng.') }}</p>
+              </div>
+              <div class="department-actions">
+                <button type="button" class="neutral-btn" @click="router.push('/admin/roles')">
+                  <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                  {{ t('Open role management', 'Mở quản lý vai trò') }}
+                </button>
+                <button type="button" class="primary-btn" @click="saveRoleDraft">
+                  <i class="fa-solid fa-shield-halved"></i>
+                  {{ editingRoleId ? t('Update role', 'Cập nhật vai trò') : t('Add role', 'Thêm vai trò') }}
+                </button>
+              </div>
+            </div>
+
+            <div class="assignment-grid">
+              <input v-model="roleDraft.name" type="text" :placeholder="t('Role name', 'Tên vai trò')" />
+              <input v-model="roleDraft.description" type="text" :placeholder="t('Description', 'Mô tả')" />
+              <el-select
+                v-model="roleDraft.permissionIds"
+                multiple
+                collapse-tags
+                collapse-tags-tooltip
+                :placeholder="t('Permissions', 'Quyền')"
+                popper-class="admin-project-dropdown"
+              >
+                <el-option
+                  v-for="permission in permissions"
+                  :key="permission.id"
+                  :label="`${permission.module} / ${permission.code}`"
+                  :value="permission.id"
+                ></el-option>
+              </el-select>
+            </div>
+
+            <div class="assignment-grid role-assignment-grid">
+              <el-select
+                v-model="roleAssignment.userId"
+                clearable
+                filterable
+                :placeholder="t('Select user', 'Chọn người dùng')"
+                popper-class="admin-project-dropdown"
+              >
+                <el-option
+                  v-for="user in users"
+                  :key="user.id"
+                  :label="`${getDisplayName(user)} (${user.email})`"
+                  :value="user.id"
+                ></el-option>
+              </el-select>
+              <el-select
+                v-model="roleAssignment.roleIds"
+                multiple
+                collapse-tags
+                collapse-tags-tooltip
+                :placeholder="t('Assign roles', 'Cấp vai trò')"
+                popper-class="admin-project-dropdown"
+              >
+                <el-option
+                  v-for="role in roles"
+                  :key="role.id"
+                  :label="role.name"
+                  :value="role.id"
+                ></el-option>
+              </el-select>
+              <button type="button" class="secondary-btn" @click="assignRolesToSelectedUser">
+                {{ t('Assign roles', 'Cấp vai trò') }}
+              </button>
+            </div>
+
+            <div v-if="roles.length" class="assignment-list">
+              <div v-for="role in roles" :key="role.id" class="assignment-item role-item">
+                <div class="assignment-copy">
+                  <strong>{{ role.name }}</strong>
+                  <span>{{ role.description || t('No description', 'Chưa có mô tả') }}</span>
+                  <small>{{ role.memberCount }} {{ t('members', 'thành viên') }} · {{ (role.permissions || []).length }} {{ t('permissions', 'quyền') }}</small>
+                </div>
+                <div class="department-actions">
+                  <button type="button" class="plain-action" @click="editRole(role)">{{ t('Edit', 'Sửa') }}</button>
+                  <button
+                    type="button"
+                    class="plain-action danger-action"
+                    :disabled="role.isProtected"
+                    @click="removeRole(role)"
+                  >
+                    {{ role.isProtected ? t('Protected', 'Được khóa') : t('Delete', 'Xóa') }}
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div v-else class="table-state compact-state">
+              <span>{{ t('No system roles loaded yet.', 'Chưa tải được vai trò hệ thống.') }}</span>
+            </div>
+          </section>
         </div>
 
         <section class="filters-row" aria-label="User filters">
@@ -539,7 +636,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AdminLayout from '@/components/layout/AdminLayout.vue'
@@ -553,7 +650,7 @@ const nowTime = ref(Date.now())
 let timeInterval = null
 
 const adminUserStore = useAdminUserStore()
-const { users, loading, departments, projectRoleAssignments, availableProjects } = storeToRefs(adminUserStore)
+const { users, loading, departments, projectRoleAssignments, availableProjects, roles, permissions } = storeToRefs(adminUserStore)
 
 const fallbackOrganization = {
   organizationName: 'Global Organization',
@@ -577,6 +674,16 @@ const departmentRoleDraft = ref({
   departmentId: null,
   roleName: ''
 })
+const roleDraft = ref({
+  name: '',
+  description: '',
+  permissionIds: []
+})
+const roleAssignment = ref({
+  userId: null,
+  roleIds: []
+})
+const editingRoleId = ref(null)
 const searchQuery = ref('')
 const inviteEmails = ref([])
 const inviteDraft = ref('')
@@ -791,7 +898,8 @@ const refreshAdminConfig = async () => {
   await Promise.all([
     adminUserStore.fetchDepartments(),
     adminUserStore.fetchProjectRoleAssignments(),
-    adminUserStore.fetchAccessibleProjects()
+    adminUserStore.fetchAccessibleProjects(),
+    adminUserStore.fetchRoles()
   ])
 }
 
@@ -1204,6 +1312,100 @@ const removeDepartmentProjectRole = async (assignment) => {
   }
 }
 
+const resetRoleDraft = () => {
+  editingRoleId.value = null
+  roleDraft.value = {
+    name: '',
+    description: '',
+    permissionIds: []
+  }
+}
+
+const editRole = (role) => {
+  editingRoleId.value = role.id
+  roleDraft.value = {
+    name: role.name || '',
+    description: role.description || '',
+    permissionIds: [...(role.permissionIds || [])]
+  }
+}
+
+const saveRoleDraft = async () => {
+  if (!roleDraft.value.name.trim()) {
+    ElMessage.warning(t('Enter a role name.', 'Vui lòng nhập tên vai trò.'))
+    return
+  }
+
+  try {
+    const payload = {
+      name: roleDraft.value.name.trim(),
+      description: roleDraft.value.description.trim(),
+      permissionIds: roleDraft.value.permissionIds
+    }
+
+    if (editingRoleId.value) {
+      await adminUserStore.updateRole(editingRoleId.value, payload)
+      ElMessage.success(t('Role updated.', 'Đã cập nhật vai trò.'))
+    } else {
+      await adminUserStore.createRole(payload)
+      ElMessage.success(t('Role created.', 'Đã tạo vai trò.'))
+    }
+
+    resetRoleDraft()
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || t('Could not save role.', 'Không thể lưu vai trò.'))
+  }
+}
+
+const removeRole = (role) => {
+  ElMessageBox.confirm(
+    t(`Delete ${role.name}?`, `Xóa ${role.name}?`),
+    t('Delete role', 'Xóa vai trò'),
+    {
+      confirmButtonText: t('Delete', 'Xóa'),
+      cancelButtonText: t('Cancel', 'Hủy'),
+      type: 'warning'
+    }
+  ).then(async () => {
+    try {
+      await adminUserStore.deleteRole(role.id)
+      ElMessage.success(t('Role deleted.', 'Đã xóa vai trò.'))
+      if (editingRoleId.value === role.id) {
+        resetRoleDraft()
+      }
+    } catch (error) {
+      ElMessage.error(error.response?.data?.message || t('Could not delete role.', 'Không thể xóa vai trò.'))
+    }
+  }).catch(() => {})
+}
+
+const assignRolesToSelectedUser = async () => {
+  if (!roleAssignment.value.userId) {
+    ElMessage.warning(t('Select a user first.', 'Vui lòng chọn người dùng trước.'))
+    return
+  }
+
+  try {
+    await adminUserStore.assignUserRoles(roleAssignment.value.userId, roleAssignment.value.roleIds)
+    ElMessage.success(t('User roles updated.', 'Đã cập nhật vai trò người dùng.'))
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || t('Could not update user roles.', 'Không thể cập nhật vai trò người dùng.'))
+  }
+}
+
+watch(() => roleAssignment.value.userId, (userId) => {
+  const selectedUser = users.value.find(user => user.id === userId)
+  if (!selectedUser) {
+    roleAssignment.value.roleIds = []
+    return
+  }
+
+  const normalizedUserRoles = (selectedUser.roles || []).map(role => String(role).trim().toLowerCase())
+  roleAssignment.value.roleIds = roles.value
+    .filter(role => normalizedUserRoles.includes(String(role.name || '').trim().toLowerCase()))
+    .map(role => role.id)
+})
+
 const submitInvite = async () => {
   addDraftEmails()
 
@@ -1482,6 +1684,10 @@ onUnmounted(() => {
   margin-bottom: 14px;
 }
 
+.role-assignment-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .department-form input,
 .assignment-grid input {
   min-height: 36px;
@@ -1520,6 +1726,13 @@ onUnmounted(() => {
 .assignment-copy strong,
 .assignment-copy span {
   display: block;
+}
+
+.assignment-copy small {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-tertiary, #94a3b8);
+  font-size: 12px;
 }
 
 .department-copy strong,
@@ -2478,9 +2691,9 @@ onUnmounted(() => {
   border-radius: 2px !important;
 }
 
-:deep(.invite-panel .el-input__wrapper),
-:deep(.invite-panel .el-textarea__inner),
-:deep(.invite-panel .el-select__wrapper) {
+::v-deep(.invite-panel .el-input__wrapper),
+::v-deep(.invite-panel .el-textarea__inner),
+::v-deep(.invite-panel .el-select__wrapper) {
   background-color: #ffffff !important;
   box-shadow: 0 0 0 1px #8590a2 inset !important;
 }

@@ -226,6 +226,29 @@ onUnmounted(() => {
   outline: none;
 }
 
+::v-deep(.admin-table th.el-table__cell) {
+  background-color: transparent !important;
+  color: var(--text-primary) !important;
+  opacity: 0.8;
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  border-bottom: 2px solid var(--border-color);
+}
+
+::v-deep(.admin-table td.el-table__cell) {
+  padding: 16px 0;
+  color: var(--text-primary);
+  background-color: transparent !important;
+  font-size: 14px;
+  border-bottom: 1px solid var(--border-color);
+  white-space: pre-line;
+}
+
+::v-deep(.el-table), ::v-deep(.el-table__inner-wrapper), ::v-deep(.el-table tr) {
+  background-color: transparent !important;
+}
+=======
 .filter-group {
   display: flex;
   align-items: center;
@@ -260,6 +283,27 @@ onUnmounted(() => {
 
 .timestamp-text { font-size: 13px; color: var(--text-secondary); }
 
+/* Custom Radio Group matching image */
+::v-deep(.custom-radio-group .el-radio-button__inner) {
+  border: none !important;
+  background-color: var(--bg-hover);
+  box-shadow: none;
+  color: var(--text-primary);
+  border-radius: 6px !important;
+  margin-left: 8px;
+  font-weight: 500;
+  border: 1px solid var(--border-color) !important;
+}
+
+::v-deep(.custom-radio-group .el-radio-button:first-child .el-radio-button__inner) {
+  margin-left: 0;
+}
+
+::v-deep(.custom-radio-group .el-radio-button__original-radio:checked + .el-radio-button__inner) {
+  background-color: rgba(13, 148, 136, 0.2);
+  color: #0d9488;
+  box-shadow: none;
+  border: 1px solid #0d9488 !important;
 .action-tag {
   font-size: 11px;
   font-weight: 700;

@@ -16,6 +16,16 @@ namespace TaskManagement.API.Controllers
     [Authorize]
     public class SecurityController : ControllerBase
     {
+        private static readonly string[] AdminAccessRoles =
+        {
+            "superadmin",
+            "admin",
+            "system admin",
+            "organization admin",
+            "accessadmin",
+            "access admin"
+        };
+
         private readonly ApplicationDbContext _context;
 
         public SecurityController(ApplicationDbContext context)
@@ -34,7 +44,7 @@ namespace TaskManagement.API.Controllers
         [HttpGet("ip-whitelist")]
         public async Task<IActionResult> GetIpWhitelist()
         {
-            if (!CurrentUserHasAdminAccess())
+            if (!await CurrentUserHasAdminAccessAsync())
             {
                 return Forbid();
             }
@@ -88,7 +98,7 @@ namespace TaskManagement.API.Controllers
         [HttpPut("ip-whitelist")]
         public async Task<IActionResult> UpdateIpWhitelist([FromBody] UpdateIpWhitelistRequest request)
         {
-            if (!CurrentUserHasAdminAccess())
+            if (!await CurrentUserHasAdminAccessAsync())
             {
                 return Forbid();
             }
@@ -172,21 +182,19 @@ namespace TaskManagement.API.Controllers
             });
         }
 
-        private bool CurrentUserHasAdminAccess()
+        private async Task<bool> CurrentUserHasAdminAccessAsync()
         {
-            return User.Claims
-                .Where(claim => claim.Type == ClaimTypes.Role || claim.Type == "role")
-                .Select(claim => claim.Value.Trim().ToLowerInvariant())
-                .Any(role => role is
-                    "superadmin" or
-                    "admin" or
-                    "system admin" or
-                    "organization admin" or
-                    "accessadmin" or
-                    "access admin" or
-                    "pm" or
-                    "po" or
-                    "project_manager");
+            var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+            {
+                return false;
+            }
+
+            return await _context.Users
+                .AsNoTracking()
+                .Where(user => user.Id == userId && user.IsActive && !user.IsDeleted)
+                .SelectMany(user => user.UserRoles.Select(ur => ur.Role.Name))
+                .AnyAsync(role => AdminAccessRoles.Contains(role.Trim().ToLowerInvariant()));
         }
     }
 }

@@ -42,8 +42,14 @@
       </ul>
 
       <!-- Favorites Division -->
-      <div class="nav-section-title" v-if="favoriteSprints.length > 0">Favorites</div>
-      <ul class="nav-menu" v-if="favoriteSprints.length > 0">
+      <div class="nav-section-title" v-if="favoriteProjects.length > 0 || favoriteSprints.length > 0">Favorites</div>
+      <ul class="nav-menu" v-if="favoriteProjects.length > 0 || favoriteSprints.length > 0">
+        <li class="nav-item" v-for="project in favoriteProjects" :key="`favorite-project-${project.id}`">
+          <router-link :to="`/space/${project.id}`" class="nav-link">
+             <i class="fa-solid fa-star text-yellow-400"></i>
+             <span class="truncate">{{ project.name }}</span>
+          </router-link>
+        </li>
         <li class="nav-item" v-for="fs in favoriteSprints" :key="fs.id">
           <router-link :to="`/space/${fs.projectId}/cycles`" class="nav-link">
              <i class="fa-solid fa-arrows-spin fav-icon"></i>
@@ -158,6 +164,7 @@ const emit = defineEmits(['close-mobile'])
 
 const sprintStore = useSprintStore()
 const projectTree = computed(() => projectStore.projectTree)
+const favoriteProjects = computed(() => projectStore.favoriteProjects)
 const favoriteSprints = computed(() => {
    if (!sprintStore.sprints) return [];
    return sprintStore.sprints.filter(s => s.isFavorite);

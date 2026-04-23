@@ -98,7 +98,7 @@
              </div>
 
              <div class="group-content" v-show="!collapsedListGroups[group.id]">
-               <template v-for="task in group.items" :key="task.id">
+              <template v-for="task in group.items" :key="task.id">
                <div class="task-row" @click="openTaskDetail(task)">
                  <div class="tr-left">
                    <span class="task-id">{{ task.sequenceId || task.id.substring(0,8).toUpperCase() }}</span>
@@ -375,7 +375,10 @@
       :selectedTask="selectedTask"
       :projectId="getProjectId()"
       :projectMembers="projectMembers"
+      :canGoBack="taskDetailHistory.length > 0"
       @close="closeTaskDetail"
+      @back="goBackTaskDetail"
+      @open-task="openTaskDetailFromModal"
       @updateTask="updateTask"
       @refresh-tasks="fetchTasks"
     />
@@ -535,7 +538,7 @@ const showDisplayDropdown = ref(false)
 const showAnalyticsSidebar = ref(false)
 const isAnalyticsExpanded = ref(false)
 const showFilterPanel = ref(false)
-const showSubtasks = ref(true)
+const showSubtasks = ref(false)
 const collapsedListGroups = ref({})
 const assigneeSearch = ref('')
 
@@ -546,8 +549,10 @@ const store = useWorkTaskStore();
 
 const project = ref({})
 const rawTasks = ref([])
+const allTasks = ref([])
 const projectMembers = ref([])
 const selectedTask = ref(null)
+const taskDetailHistory = ref([])
 const inlineCreateColId = ref(null)
 const inlineTaskTitle = ref('')
 
@@ -560,16 +565,46 @@ const groupBy = ref('status')
 const analyticsInsightMode = ref('priority')
 const activeSprintFilterId = computed(() => route.query.sprintId || route.params.cycleId || null)
 const activeModuleFilterId = computed(() => route.query.moduleId || null)
+const activeCarryOverSprintId = computed(() => route.query.carryOverFromSprintId || null)
+const carryOverTaskIds = ref([])
 const projectBadge = computed(() => project.value?.icon || project.value?.identifier?.charAt(0)?.toUpperCase() || project.value?.name?.charAt(0)?.toUpperCase() || 'P')
-const shouldHideSubtasksInScopedView = computed(() => Boolean(activeSprintFilterId.value || activeModuleFilterId.value))
+const getShowSubtasksStorageKey = (projectId = currentProjectId.value || getProjectId()) => `space-summary:${projectId || 'default'}:show-subtasks`
+const loadShowSubtasksPreference = (projectId = currentProjectId.value || getProjectId()) => {
+  try {
+    return localStorage.getItem(getShowSubtasksStorageKey(projectId)) === 'true'
+  } catch {
+    return false
+  }
+}
+const persistShowSubtasksPreference = (value, projectId = currentProjectId.value || getProjectId()) => {
+  try {
+    localStorage.setItem(getShowSubtasksStorageKey(projectId), value ? 'true' : 'false')
+  } catch {
+    // ignore storage failures
+  }
+}
 
-const isSubtask = (task) => Boolean(task?.parentTaskId || task?.parentId)
+const getParentTaskLinkId = (task) => (
+  task?.parentTaskId ||
+  task?.parentId ||
+  task?.ParentTaskId ||
+  task?.ParentId ||
+  null
+)
+
+const isSubtask = (task) => Boolean(
+  getParentTaskLinkId(task) ||
+  task?.parentTaskTitle ||
+  task?.parentTitle ||
+  task?.parentName
+)
 
 const getTaskAssigneeIds = (task) => {
-  if (Array.isArray(task.assigneeIds) && task.assigneeIds.length) return task.assigneeIds
-  if (Array.isArray(task.assignees) && task.assignees.length) return task.assignees.map(item => item.userId || item.id).filter(Boolean)
-  if (task.assignedUserId) return [task.assignedUserId]
-  return []
+  return Array.from(new Set([
+    ...(Array.isArray(task.assigneeIds) ? task.assigneeIds : []),
+    ...(Array.isArray(task.assignees) ? task.assignees.map(item => item.userId || item.id).filter(Boolean) : []),
+    ...(task.assignedUserId ? [task.assignedUserId] : [])
+  ]))
 }
 
 const getTaskAssigneeSummary = (task) => {
@@ -584,25 +619,28 @@ const getTaskAssigneeSummary = (task) => {
   return { label: `${ids.length} assignees`, avatar: `${ids.length}` }
 }
 
-const topLevelTasks = computed(() => rawTasks.value.filter(task => !isSubtask(task)))
-const visibleTasks = computed(() => (showSubtasks.value && !shouldHideSubtasksInScopedView.value) ? rawTasks.value : topLevelTasks.value)
+const matchesTaskFilters = (task) => {
+  if (!task) return false
+
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase()
+    const title = task.title?.toLowerCase?.() || ''
+    const sequenceId = task.sequenceId?.toLowerCase?.() || ''
+    if (!title.includes(query) && !sequenceId.includes(query)) {
+      return false
+    }
+  }
+
+  if (activeFilters.value.assignee) {
+    return getTaskAssigneeIds(task).includes(activeFilters.value.assignee.userId)
+  }
+
+  return true
+}
+
+const topLevelTasks = computed(() => rawTasks.value)
+const visibleTasks = computed(() => (showSubtasks.value ? (allTasks.value || []) : topLevelTasks.value))
 const visibleTopLevelTasks = computed(() => filteredTasksList.value.filter(task => !isSubtask(task)))
-const visibleSubtasksByParent = computed(() => {
-  if (!showSubtasks.value || shouldHideSubtasksInScopedView.value) return {}
-
-  const grouped = {}
-  filteredTasksList.value
-    .filter(task => isSubtask(task))
-    .forEach(task => {
-      const parentId = task.parentTaskId || task.parentId
-      if (!parentId) return
-      if (!grouped[parentId]) grouped[parentId] = []
-      grouped[parentId].push(task)
-    })
-
-  Object.values(grouped).forEach(items => items.sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0)))
-  return grouped
-})
 const taskStatusOptions = [
   { name: 'BACKLOG', label: 'Backlog', color: 'var(--color-text-muted)', icon: 'fa-regular fa-circle-dashed' },
   { name: 'TO DO', label: 'To Do', color: '#D4D4D8', icon: 'fa-regular fa-circle' },
@@ -614,6 +652,24 @@ const taskStatusOptions = [
 
 const normalizeText = (value) => `${value || ''}`.toLowerCase().trim()
 const normalizeStatus = (value) => `${value || 'BACKLOG'}`.toUpperCase().replace(/\s+/g, ' ').trim()
+const normalizeDateOnly = (value) => {
+  if (!value) return null
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value)) return value.slice(0, 10)
+  if (value instanceof Date) {
+    const year = value.getFullYear()
+    const month = `${value.getMonth() + 1}`.padStart(2, '0')
+    const day = `${value.getDate()}`.padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return null
+  const year = parsed.getFullYear()
+  const month = `${parsed.getMonth() + 1}`.padStart(2, '0')
+  const day = `${parsed.getDate()}`.padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
 const normalizeStatusLabel = (value) => {
   const status = normalizeStatus(value)
   return taskStatusOptions.find(item => item.name === status)?.label || status
@@ -671,13 +727,20 @@ const taskMatchesSprintScope = (task, sprintId) => {
   if (!sprintId) return true
   if (task.sprintId === sprintId) return true
   if (isSubtask(task)) return false
-  return rawTasks.value.some(candidate => isSubtask(candidate) && (candidate.parentTaskId === task.id || candidate.parentId === task.id) && candidate.sprintId === sprintId)
+  return allTasks.value.some(candidate => isSubtask(candidate) && getParentTaskLinkId(candidate) === task.id && candidate.sprintId === sprintId)
 }
 const taskMatchesModuleScope = (task, moduleId) => {
   if (!moduleId) return true
   if (taskHasModuleMatch(task, moduleId)) return true
   if (isSubtask(task)) return false
-  return rawTasks.value.some(candidate => isSubtask(candidate) && (candidate.parentTaskId === task.id || candidate.parentId === task.id) && taskHasModuleMatch(candidate, moduleId))
+  return allTasks.value.some(candidate => isSubtask(candidate) && getParentTaskLinkId(candidate) === task.id && taskHasModuleMatch(candidate, moduleId))
+}
+
+const taskMatchesCarryOverScope = (task, taskIds) => {
+  if (!taskIds.length) return true
+  if (taskIds.includes(task.id)) return true
+  if (isSubtask(task)) return false
+  return allTasks.value.some(candidate => isSubtask(candidate) && getParentTaskLinkId(candidate) === task.id && taskIds.includes(candidate.id))
 }
 const prioritySortWeight = (priority) => {
   if (priority === 1) return 0
@@ -814,23 +877,22 @@ const filteredProjectMembers = computed(() => {
 const filteredTasksList = computed(() => {
   let filteredTasks = [...visibleTasks.value];
 
-  if (searchQuery.value) {
-     filteredTasks = filteredTasks.filter(t => t.title.toLowerCase().includes(searchQuery.value.toLowerCase()) || (t.sequenceId && t.sequenceId.toLowerCase().includes(searchQuery.value.toLowerCase())));
-  }
-  if (activeFilters.value.assignee) {
-     filteredTasks = filteredTasks.filter(t => getTaskAssigneeIds(t).includes(activeFilters.value.assignee.userId));
-  }
+  filteredTasks = filteredTasks.filter(matchesTaskFilters)
   if (activeSprintFilterId.value) {
      filteredTasks = filteredTasks.filter(t => taskMatchesSprintScope(t, activeSprintFilterId.value));
   }
   if (activeModuleFilterId.value) {
      filteredTasks = filteredTasks.filter(t => taskMatchesModuleScope(t, activeModuleFilterId.value));
   }
+  if (carryOverTaskIds.value.length) {
+     filteredTasks = filteredTasks.filter(t => taskMatchesCarryOverScope(t, carryOverTaskIds.value));
+  }
   if (activeTaskFilters.value.length) {
      filteredTasks = filteredTasks.filter(task => activeTaskFilters.value.every(filter => taskMatchesFilter(task, filter)));
   }
 
-  return sortTasksByDisplayOrder(filteredTasks);
+  const shouldIncludeSubtasks = showSubtasks.value
+  return sortTasksByDisplayOrder(shouldIncludeSubtasks ? filteredTasks : filteredTasks.filter(task => !isSubtask(task)));
 });
 
 const createdResolvedOptions = computed(() => {
@@ -1018,7 +1080,7 @@ const listViewGroups = computed(() => {
     { id: 'cancelled', name: 'Cancelled', statusName: 'CANCELLED', icon: 'fa-regular fa-circle-xmark', color: '#EF4444', items: [] }
   ]
 
-  visibleTopLevelTasks.value.forEach(task => {
+  filteredTasksList.value.forEach(task => {
     const status = normalizeStatus(task.statusName)
     const target = groups.find(group => group.statusName === status) || groups[0]
     target.items.push(task)
@@ -1035,7 +1097,7 @@ const toggleTaskAssignee = (task, memberId) => {
   const currentIds = getTaskAssigneeIds(task)
   const nextIds = currentIds.includes(memberId)
     ? currentIds.filter(id => id !== memberId)
-    : [...currentIds, memberId]
+    : Array.from(new Set([...currentIds, memberId]))
 
   task.assigneeIds = nextIds
   task.assignedUserId = nextIds[0] || null
@@ -1061,15 +1123,23 @@ const loadInitialData = async () => {
   try {
     localStorage.setItem('currentProjectId', pid)
     localStorage.setItem('lastProjectId', pid)
+    showSubtasks.value = loadShowSubtasksPreference(pid)
     rawTasks.value = []
+    allTasks.value = []
     selectedTask.value = null
     projectMembers.value = []
     project.value = {}
+    carryOverTaskIds.value = []
     const pRes = await axiosClient.get(`/projects/${pid}`)
     project.value = pRes.data.data
 
     const mRes = await axiosClient.get(`/projects/${pid}/members`)
     projectMembers.value = mRes.data.data || []
+
+    if (activeCarryOverSprintId.value) {
+      const carryOverRes = await axiosClient.get(`/projects/${pid}/sprints/${activeCarryOverSprintId.value}/carry-over-tasks`)
+      carryOverTaskIds.value = (carryOverRes.data?.data || []).map(task => task.id)
+    }
 
     await fetchTasks({ reset: false })
   } catch (error) {
@@ -1081,23 +1151,40 @@ const fetchTasks = async (options = {}) => {
   const pid = getProjectId()
   if(!pid) return
   try {
-    const tasks = await store.fetchTasks(pid, options);
-    rawTasks.value = Array.isArray(tasks) ? tasks : []
-    
-    // Auto update selectedTask if open
-    if (selectedTask.value) {
-      const updatedTask = rawTasks.value.find(t => t.id === selectedTask.value.id);
-      if (updatedTask) selectedTask.value = updatedTask;
-    }
+      const tasks = await store.fetchTasks(pid, options);
+      allTasks.value = Array.isArray(tasks) ? tasks : []
+      
+      // Auto update selectedTask if open
+      if (selectedTask.value) {
+        const updatedTask = allTasks.value.find(t => t.id === selectedTask.value.id);
+        if (updatedTask) selectedTask.value = updatedTask;
+      }
   } catch(error) {
     console.error('Lỗi load tasks:', error)
   }
 }
 
 const openTaskDetail = (task) => {
+  taskDetailHistory.value = []
   selectedTask.value = task;
 }
+const openTaskDetailFromModal = (task, options = {}) => {
+  const previousTask = options?.fromTask || selectedTask.value
+  if (previousTask?.id && previousTask.id !== task?.id) {
+    const cachedPrevious = allTasks.value.find(item => item.id === previousTask.id) || previousTask
+    taskDetailHistory.value = [...taskDetailHistory.value, cachedPrevious]
+  }
+  selectedTask.value = task
+}
+const goBackTaskDetail = () => {
+  const history = [...taskDetailHistory.value]
+  const previousTask = history.pop()
+  if (!previousTask) return
+  taskDetailHistory.value = history
+  selectedTask.value = allTasks.value.find(item => item.id === previousTask.id) || previousTask
+}
 const closeTaskDetail = () => {
+  taskDetailHistory.value = []
   selectedTask.value = null;
 }
 
@@ -1123,37 +1210,57 @@ const buildPutTaskPayload = (task, overrides = {}) => {
     priority: mergedTask.priority ?? 0,
     storyPoints: mergedTask.storyPoints ?? 0,
     assignedUserId: mergedTask.assignedUserId ?? mergedTask.assigneeId ?? null,
-    plannedStartDate: mergedTask.plannedStartDate || null,
-    plannedEndDate: mergedTask.plannedEndDate || null,
-    dueDate: mergedTask.dueDate || null,
+    plannedStartDate: normalizeDateOnly(mergedTask.plannedStartDate) || null,
+    plannedEndDate: normalizeDateOnly(mergedTask.plannedEndDate) || null,
+    dueDate: normalizeDateOnly(mergedTask.dueDate) || null,
     sprintId: mergedTask.sprintId || null,
     taskTypeId: mergedTask.taskTypeId || '00000000-0000-0000-0000-000000000000',
     rowVersion: mergedTask.rowVersion || null
   }
 }
 
-const updateTask = async (task, field, value, previousValue = task ? task[field] : undefined) => {
-   try {
-      const pid = getProjectId();
-      if (!pid || !task?.id) return;
-      
-      task[field] = value;
-      const usesPutUpdate = putBackedTaskFields.has(field);
-      const payload = usesPutUpdate
-        ? buildPutTaskPayload(task, { [field]: value })
-        : { [field]: value };
+const syncTopLevelTasks = () => {
+  rawTasks.value = (allTasks.value || []).filter(task => !isSubtask(task))
+}
 
-      await store.updateTask(pid, task.id, payload, { method: usesPutUpdate ? 'put' : 'patch' });
-      await fetchTasks();
-   } catch (error) {
-      console.error('Failed to update task:', error);
-      if (task) task[field] = previousValue;
-      ElMessage.error(error.response?.data?.message || 'Khong the cap nhat cong viec');
-      await fetchTasks();
-   }
+watch(allTasks, syncTopLevelTasks, { deep: true, immediate: true })
+
+const updateTask = async (task, field, value, previousValue = task ? task[field] : undefined) => {
+  const pid = getProjectId()
+  if (!pid || !task?.id) return
+
+  const isBatchPayload = field && typeof field === 'object' && !Array.isArray(field)
+  const payloadOverrides = isBatchPayload ? field : { [field]: value }
+  const previousValues = Object.fromEntries(
+    Object.keys(payloadOverrides).map(key => [key, task?.[key]])
+  )
+
+  try {
+    Object.entries(payloadOverrides).forEach(([key, nextValue]) => {
+      task[key] = nextValue
+    })
+
+    const usesPutUpdate = !isBatchPayload && putBackedTaskFields.has(field)
+    const payload = usesPutUpdate
+      ? buildPutTaskPayload(task, payloadOverrides)
+      : payloadOverrides
+
+    await store.updateTask(pid, task.id, payload, { method: usesPutUpdate ? 'put' : 'patch' })
+    await fetchTasks()
+  } catch (error) {
+    console.error('Failed to update task:', error)
+    if (task) {
+      Object.entries(previousValues).forEach(([key, rollbackValue]) => {
+        task[key] = rollbackValue
+      })
+    }
+    ElMessage.error(error.response?.data?.message || 'Khong the cap nhat cong viec')
+    await fetchTasks()
+  }
 }
 
 const openCreateTask = (statusName, defaults = {}) => {
+   taskDetailHistory.value = []
    selectedTask.value = {
      isNew: true,
      title: '',
@@ -1372,16 +1479,27 @@ watch(currentProjectId, (projectId, previousProjectId) => {
   loadInitialData()
 }, { immediate: false })
 
+watch(showSubtasks, (value) => {
+  persistShowSubtasksPreference(value)
+})
+
 watch(
-  () => [route.query.tab, route.query.sprintId, route.query.moduleId, route.params.cycleId],
+  () => [route.query.tab, route.query.sprintId, route.query.moduleId, route.params.cycleId, route.query.carryOverFromSprintId],
   () => {
-    if (route.query.tab === 'spreadsheet' || activeSprintFilterId.value || activeModuleFilterId.value) {
+    if (route.query.tab === 'spreadsheet' || activeSprintFilterId.value || activeModuleFilterId.value || activeCarryOverSprintId.value) {
       currentTab.value = 'spreadsheet'
     } else if (route.query.tab === 'board') {
       currentTab.value = 'board'
     }
   },
   { immediate: true }
+)
+
+watch(
+  () => route.query.carryOverFromSprintId,
+  () => {
+    loadInitialData()
+  }
 )
 
 onUnmounted(() => {
@@ -1401,6 +1519,12 @@ onUnmounted(() => {
   color: var(--color-text-primary);
   font-family: 'Inter', sans-serif;
   overflow: hidden;
+}
+
+.timeline-wrapper {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 
 /* ── PLANE HEADER ── */
@@ -1790,6 +1914,13 @@ onUnmounted(() => {
   color: var(--color-text-primary);
 }
 
+.list-wrapper {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
 .list-group {
   margin-bottom: 24px;
 }
@@ -1810,10 +1941,15 @@ onUnmounted(() => {
 
 .gh-left,
 .gh-right,
-.group-content,
 .pill-group {
   display: flex;
   align-items: center;
+}
+
+.group-content {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
 }
 
 .gh-left {

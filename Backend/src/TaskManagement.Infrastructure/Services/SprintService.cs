@@ -33,6 +33,7 @@ namespace TaskManagement.Infrastructure.Services
                     CompletedTaskCount = s.WorkTasks.Count(wt => !wt.IsDeleted && wt.ParentTaskId == null && (wt.TaskStatus.Name.Contains("Done") || wt.TaskStatus.Name.Contains("Complete"))),
                     InProgressTaskCount = s.WorkTasks.Count(wt => !wt.IsDeleted && wt.ParentTaskId == null && (wt.TaskStatus.Name.Contains("Progress") || wt.TaskStatus.Name.Contains("Active"))),
                     BacklogTaskCount = s.WorkTasks.Count(wt => !wt.IsDeleted && wt.ParentTaskId == null && (wt.TaskStatus.Name.Contains("Backlog") || wt.TaskStatus.Name.Contains("Todo") || wt.TaskStatus.Name.Contains("To Do"))),
+                    IsFavorite = s.IsFavorite,
                     CreatedAt = s.CreatedAt
                 })
                 .ToListAsync();
@@ -71,6 +72,7 @@ namespace TaskManagement.Infrastructure.Services
                     CompletedTaskCount = s.WorkTasks.Count(wt => !wt.IsDeleted && wt.ParentTaskId == null && (wt.TaskStatus.Name.Contains("Done") || wt.TaskStatus.Name.Contains("Complete"))),
                     InProgressTaskCount = s.WorkTasks.Count(wt => !wt.IsDeleted && wt.ParentTaskId == null && (wt.TaskStatus.Name.Contains("Progress") || wt.TaskStatus.Name.Contains("Active"))),
                     BacklogTaskCount = s.WorkTasks.Count(wt => !wt.IsDeleted && wt.ParentTaskId == null && (wt.TaskStatus.Name.Contains("Backlog") || wt.TaskStatus.Name.Contains("Todo") || wt.TaskStatus.Name.Contains("To Do"))),
+                    IsFavorite = s.IsFavorite,
                     CreatedAt = s.CreatedAt
                 })
                 .FirstOrDefaultAsync();
@@ -170,7 +172,7 @@ namespace TaskManagement.Infrastructure.Services
         /// <summary>
         /// 5.5 Close Sprint + Roll-over Tasks (bọc trong Transaction)
         /// </summary>
-        public async Task CloseAsync(Guid sprintId, CloseSprintDto dto)
+        public async Task CloseAsync(Guid sprintId, CloseSprintDto dto, Guid actorUserId)
         {
             var sprint = await _context.Sprints
                 .FirstOrDefaultAsync(s => s.Id == sprintId);
@@ -208,8 +210,19 @@ namespace TaskManagement.Infrastructure.Services
 
                 foreach (var task in unfinishedTasks)
                 {
+                    var nextLocation = dto.TargetSprintId?.ToString() ?? "BACKLOG";
                     task.SprintId = dto.TargetSprintId; // null = backlog
                     task.UpdatedAt = DateTime.UtcNow;
+                    _context.AuditLogs.Add(new AuditLog
+                    {
+                        Id = Guid.NewGuid(),
+                        WorkTaskId = task.Id,
+                        UserId = actorUserId,
+                        FieldChanged = "SPRINT_CARRY_OVER",
+                        OldValue = sprintId.ToString(),
+                        NewValue = nextLocation,
+                        CreatedAt = DateTime.UtcNow
+                    });
                 }
 
                 // Đóng sprint

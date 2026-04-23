@@ -77,7 +77,7 @@
                <div class="avatar-group">
                  <div class="avatar">{{ space.leadName ? space.leadName.charAt(0).toUpperCase() : 'U' }}</div>
                </div>
-               <button class="card-icon-btn" type="button" @click="goToAdmin(space.id)" :disabled="!canManageSpace" :title="canManageSpace ? 'Project settings' : 'You do not have permission'">
+               <button v-if="showProjectSettingsButton(space)" class="card-icon-btn" type="button" @click="goToAdmin(space)" title="Project settings">
                  <i class="fa-solid fa-gear"></i>
                </button>
             </div>
@@ -99,6 +99,7 @@ import NexusLayout from '@/components/layout/NexusLayout.vue'
 import CreateSpaceModal from '@/components/CreateSpaceModal.vue'
 import { ElMessage } from 'element-plus'
 import { useProjectStore } from '@/store/useProjectStore'
+import { canAccessProjectSettings, getProjectSettingsDeniedMessage, hasSystemAdminAccess } from '@/utils/permissions'
 
 const router = useRouter()
 const projectStore = useProjectStore()
@@ -111,17 +112,17 @@ const visibilityFilter = ref('all')
 const isCreateModalVisible = ref(false)
 
 const currentUser = JSON.parse(localStorage.getItem('user') || '{}')
-const systemRoles = currentUser.systemRoles || []
-const canManageSpace = computed(() => {
-  return systemRoles.includes('System Admin') || systemRoles.includes('Admin') || systemRoles.includes('PM') || systemRoles.includes('PO') || systemRoles.includes('admin')
-})
+const canManageSpace = (space) => canAccessProjectSettings(space, currentUser)
+const isSystemAdmin = hasSystemAdminAccess(currentUser)
+const showProjectSettingsButton = () => isSystemAdmin
 
-const goToAdmin = (projectId) => {
-  if (!canManageSpace.value) {
-    ElMessage.warning('You do not have permission to configure this project.')
+const goToAdmin = (space) => {
+  if (!canManageSpace(space)) {
+    ElMessage.warning(getProjectSettingsDeniedMessage())
     return
   }
-  router.push(`/space/${projectId}/settings`)
+  const routeData = router.resolve(`/space/${space.id}/settings`)
+  window.open(routeData.href, '_blank', 'noopener')
 }
 
 const toggleSort = () => {
@@ -171,6 +172,8 @@ const fetchSpaces = async () => {
       starred: Boolean(p.isFavorite),
       name: p.name,
       key: p.key || p.identifier || p.name.substring(0, 4).toUpperCase(),
+      myRole: p.myRole || p.MyRole || null,
+      projectRole: p.projectRole || p.ProjectRole || null,
       leadName: p.leadName || p.reporterName || 'Admin',
       cover: p.cover,
       icon: p.icon,

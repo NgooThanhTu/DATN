@@ -105,6 +105,7 @@ namespace TaskManagement.Infrastructure.Services
                     DueDate = wt.DueDate,
                     PlannedStartDate = wt.PlannedStartDate,
                     PlannedEndDate = wt.PlannedEndDate,
+                    ParentTaskId = wt.ParentTaskId,
                     CreatedAt = wt.CreatedAt,
                     UpdatedAt = wt.UpdatedAt,
                     RowVersion = wt.RowVersion,

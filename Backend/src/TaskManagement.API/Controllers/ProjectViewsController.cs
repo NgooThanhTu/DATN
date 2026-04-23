@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using TaskManagement.API.Filters;
 using TaskManagement.Application.DTOs.Common;
 using TaskManagement.Domain.Entities;
 using TaskManagement.Infrastructure.Data;
@@ -11,6 +12,7 @@ namespace TaskManagement.API.Controllers
     [ApiController]
     [Route("api/projects/{projectId}/views")]
     [Authorize]
+    [ProjectAuthorize("")]
     public class ProjectViewsController : ControllerBase
     {
         private readonly ApplicationDbContext _context;

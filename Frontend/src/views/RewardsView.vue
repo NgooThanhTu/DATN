@@ -4,6 +4,11 @@
       <header class="rewards-header">
         <div>
           <p class="eyebrow">Gamification</p>
+          <h1>Rewards</h1>
+          <p class="muted">Track points, career level, contribution share, and early completion bonuses.</p>
+        </div>
+        <button class="refresh-btn" type="button" :disabled="loading" @click="loadRewards">
+          <i class="fa-solid fa-rotate"></i> {{ loading ? 'Refreshing...' : 'Refresh' }}
           <h1 class="text-hero">Rewards</h1>
           <p class="text-desc">Review and track your career level, contribution share, and early completion bonuses.</p>
         </div>
@@ -26,7 +31,7 @@
         <div class="wallet-card wide">
           <div class="wallet-card-head">
             <span class="label">Level progress</span>
-            <span class="unit">{{ career.nextThreshold - wallet.totalPoints }} pts to next</span>
+            <span class="unit">{{ pointsToNext }} pts to next</span>
           </div>
           <div class="progress-track"><div class="progress-fill" :style="{ width: `${career.progressPercent}%` }"></div></div>
         </div>
@@ -40,23 +45,28 @@
           </div>
           <div class="formula-grid">
             <div class="formula-cell">
-              <span>Gia tri</span>
+              <span>Value</span>
               <strong>{{ formula.sample.value }}</strong>
             </div>
             <div class="formula-cell">
-              <span>Anh huong</span>
+              <span>Impact</span>
               <strong>{{ formula.sample.impact }}</strong>
             </div>
             <div class="formula-cell">
-              <span>So ngay</span>
+              <span>Days</span>
               <strong>{{ formula.sample.days }}</strong>
             </div>
             <div class="formula-cell total">
-              <span>Tong diem</span>
+              <span>Total points</span>
               <strong>{{ formula.sample.total }}</strong>
             </div>
           </div>
           <p class="helper-copy">{{ formula.sample.note }}</p>
+          <div class="policy-list">
+            <div class="summary-row"><span>Actual rule</span><strong>{{ formula.actualHoursRule }}</strong></div>
+            <div class="summary-row"><span>Multi-assignee</span><strong>{{ formula.policy?.multiAssignee }}</strong></div>
+            <div class="summary-row"><span>Carry-over</span><strong>{{ formula.policy?.carryOver }}</strong></div>
+          </div>
         </div>
 
         <div class="panel">
@@ -68,6 +78,9 @@
             <div class="summary-row"><span>Completed tasks</span><strong>{{ summary.completedTasks }}</strong></div>
             <div class="summary-row"><span>Early bonuses</span><strong>{{ summary.earlyBonuses }}</strong></div>
             <div class="summary-row"><span>Contribution share</span><strong>{{ summary.contributionPercent }}%</strong></div>
+            <div class="summary-row"><span>Estimated hours</span><strong>{{ summary.estimatedHours }}h</strong></div>
+            <div class="summary-row"><span>Actual hours</span><strong>{{ summary.actualHours }}h</strong></div>
+            <div class="summary-row"><span>Logged hours</span><strong>{{ summary.loggedHours }}h</strong></div>
             <div class="summary-row"><span>Rollback points</span><strong>{{ summary.rollbackPoints }}</strong></div>
           </div>
         </div>
@@ -76,15 +89,17 @@
       <main class="rewards-grid">
         <section class="panel">
           <div class="panel-head"><h2>Spotlight tasks</h2><span>Top value</span></div>
-          <div v-if="!spotlightTasks.length" class="empty">Chua co task nao du de tinh spotlight.</div>
+          <div v-if="!spotlightTasks.length" class="empty">No tasks are ready for spotlight scoring yet.</div>
           <article v-for="task in spotlightTasks" :key="task.id" class="spotlight-row">
             <div class="spotlight-main">
               <strong>{{ task.sequenceId || 'TASK' }}</strong>
               <div class="spotlight-title">{{ task.title }}</div>
-              <small>{{ task.estimatedDays }} day x share {{ task.contributionShare }}%</small>
+              <small>{{ task.estimatedDays }} day · {{ task.estimatedHours }}h est / {{ task.actualHours }}h actual · share {{ task.contributionShare }}%</small>
             </div>
             <div class="spotlight-side">
-              <span class="chip">{{ task.formulaPoints }} pts</span>
+              <span class="chip">{{ task.fairPoints }} pts</span>
+              <span class="chip muted">eff x{{ task.efficiency }}</span>
+              <span class="chip muted">quality x{{ task.qualityModifier }}</span>
               <span class="chip muted">{{ task.progressPercent }}%</span>
             </div>
           </article>
@@ -92,7 +107,7 @@
 
         <section class="panel">
           <div class="panel-head"><h2>Recent achievements</h2><span>{{ recentAchievements.length }}</span></div>
-          <div v-if="!recentAchievements.length" class="empty">Chua co achievement moi.</div>
+          <div v-if="!recentAchievements.length" class="empty">No recent achievements yet.</div>
           <article v-for="item in recentAchievements" :key="item.id" class="achievement-row">
             <div>
               <strong>{{ item.title }}</strong>
@@ -107,7 +122,7 @@
         <section class="panel">
           <div class="panel-head"><h2>Point history</h2><span>{{ transactions.length }}</span></div>
           <div v-if="loading" class="empty">Loading rewards...</div>
-          <div v-else-if="!transactions.length" class="empty">Chua co giao dich diem nao.</div>
+          <div v-else-if="!transactions.length" class="empty">No point transactions yet.</div>
           <article v-for="tx in transactions" :key="tx.id" class="tx-row">
             <div class="tx-icon" :class="{ negative: tx.amount < 0 }">
               <i :class="tx.amount >= 0 ? 'fa-solid fa-plus' : 'fa-solid fa-minus'"></i>
@@ -123,7 +138,7 @@
 
         <section class="panel">
           <div class="panel-head"><h2>Leaderboard</h2><span>Top 20</span></div>
-          <div v-if="!leaderboard.length" class="empty">Chua co bang xep hang.</div>
+          <div v-if="!leaderboard.length" class="empty">No leaderboard data yet.</div>
           <article v-for="(item, index) in leaderboard" :key="item.userId" class="leader-row">
             <span class="rank">#{{ index + 1 }}</span>
             <span class="avatar">{{ getInitials(item.userName) }}</span>
@@ -140,7 +155,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import NexusLayout from '@/components/layout/NexusLayout.vue'
 import axiosClient from '@/api/axiosClient'
@@ -148,14 +163,20 @@ import axiosClient from '@/api/axiosClient'
 const loading = ref(false)
 const wallet = ref({ totalPoints: 0, level: 1, nextLevelAt: 1000 })
 const career = ref({ level: 1, title: 'Contributor', progressPercent: 0, nextThreshold: 1000 })
-const formula = ref({ expression: 'Gia tri x Anh huong x So ngay', sample: { value: 0, impact: 0, days: 0, total: 0, note: '' } })
-const summary = ref({ completedTasks: 0, earlyBonuses: 0, contributionPercent: 0, rollbackPoints: 0 })
+const formula = ref({
+  expression: 'Base effort x Efficiency x Quality x Contribution share',
+  actualHoursRule: '',
+  policy: {},
+  sample: { value: 0, impact: 0, days: 0, total: 0, note: '' }
+})
+const summary = ref({ completedTasks: 0, earlyBonuses: 0, contributionPercent: 0, rollbackPoints: 0, estimatedHours: 0, actualHours: 0, loggedHours: 0 })
 const spotlightTasks = ref([])
 const recentAchievements = ref([])
 const transactions = ref([])
 const leaderboard = ref([])
 
-const formatDate = (value) => (value ? new Date(value).toLocaleString('vi-VN') : '')
+const formatDate = (value) => (value ? new Date(value).toLocaleString('en-GB') : '')
+const pointsToNext = computed(() => Math.max(0, Number(career.value?.nextThreshold || 0) - Number(wallet.value?.totalPoints || 0)))
 
 const getInitials = (name = '') => {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -171,16 +192,46 @@ const loadRewards = async () => {
     ])
 
     const data = mine.data?.data || {}
-    wallet.value = data.wallet || wallet.value
-    career.value = data.career || career.value
-    formula.value = data.formula || formula.value
-    summary.value = data.summary || summary.value
+    const nextWallet = data.wallet || {}
+    const nextCareer = data.career || {}
+
+    wallet.value = {
+      ...wallet.value,
+      ...nextWallet,
+      totalPoints: Number(nextWallet.totalPoints ?? wallet.value.totalPoints ?? 0),
+      level: Number(nextWallet.level ?? wallet.value.level ?? 1),
+      nextLevelAt: Number(nextWallet.nextLevelAt ?? wallet.value.nextLevelAt ?? 1000)
+    }
+    career.value = {
+      ...career.value,
+      ...nextCareer,
+      level: Number(nextCareer.level ?? wallet.value.level ?? career.value.level ?? 1),
+      title: nextCareer.title || wallet.value.rankTitle || career.value.title || 'Contributor',
+      nextThreshold: Number(nextCareer.nextThreshold ?? wallet.value.nextLevelAt ?? career.value.nextThreshold ?? 1000),
+      progressPercent: Math.max(0, Math.min(100, Number(nextCareer.progressPercent ?? career.value.progressPercent ?? 0)))
+    }
+    formula.value = {
+      ...formula.value,
+      ...(data.formula || {}),
+      sample: {
+        ...formula.value.sample,
+        ...(data.formula?.sample || {})
+      },
+      policy: {
+        ...formula.value.policy,
+        ...(data.formula?.policy || {})
+      }
+    }
+    summary.value = {
+      ...summary.value,
+      ...(data.summary || {})
+    }
     spotlightTasks.value = data.spotlightTasks || []
     recentAchievements.value = data.recentAchievements || []
     transactions.value = data.transactions || []
     leaderboard.value = leaders.data?.data || []
   } catch (error) {
-    ElMessage.error(error.response?.data?.message || 'Khong tai duoc diem thuong.')
+    ElMessage.error(error.response?.data?.message || 'Unable to load rewards.')
   } finally {
     loading.value = false
   }

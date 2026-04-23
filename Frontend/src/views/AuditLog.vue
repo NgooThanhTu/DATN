@@ -181,6 +181,7 @@ import NotificationsDropdown from '../components/NotificationsDropdown.vue'
 import CustomizeSidebarModal from '../components/CustomizeSidebarModal.vue'
 import NexusLayout from '@/components/layout/NexusLayout.vue'
 import axiosClient from '../api/axiosClient'
+import { canAccessAdminUserDirectory, getStoredUser, hasSystemAdminAccess } from '@/utils/permissions'
 
 const router = useRouter()
 const sidebarVisible = ref(false)
@@ -217,9 +218,8 @@ const auditLogs = ref([])
 
 onMounted(async () => {
   // Admin/PM guard - chỉ Admin và PM mới được truy cập trang này
-  const currentUser = JSON.parse(localStorage.getItem('user') || '{}')
-  const roles = currentUser.systemRoles || []
-  const isAuthorized = roles.some(r => ['Admin', 'admin', 'Manager', 'manager', 'PM'].includes(r))
+  const currentUser = getStoredUser()
+  const isAuthorized = hasSystemAdminAccess(currentUser) || canAccessAdminUserDirectory(currentUser)
   
   if (!isAuthorized) {
     ElMessage.error('Bạn không có quyền truy cập trang Audit Log.')
@@ -362,6 +362,10 @@ const handleSidebarSaved = (prefs) => {
 .pagination-footer { padding: 16px; display: flex; justify-content: flex-end; border-top: 1px solid var(--border-color); }
 
 /* Custom Element Plus theme styles local to this component */
+::v-deep(.el-table) {
+  --el-table-bg-color: var(--bg-card);
+  --el-table-tr-bg-color: var(--bg-card);
+  --el-table-header-bg-color: var(--bg-layout);
 :deep(.el-table) {
   --el-table-bg-color: var(--table-bg);
   --el-table-tr-bg-color: var(--table-bg);
@@ -372,20 +376,22 @@ const handleSidebarSaved = (prefs) => {
   --el-table-row-hover-bg-color: var(--hover-bg);
 }
 
+::v-deep(.el-input__wrapper), ::v-deep(.el-select__wrapper) {
+  background-color: var(--bg-secondary) !important;
 :deep(.el-input__wrapper), :deep(.el-select__wrapper) {
   background-color: var(--input-bg) !important;
   box-shadow: 0 0 0 1px var(--border-color) inset !important;
 }
 
-:deep(.el-input__inner) {
+::v-deep(.el-input__inner) {
   color: var(--text-primary) !important;
 }
 
-:deep(.el-table td.el-table__cell), :deep(.el-table th.el-table__cell) {
+::v-deep(.el-table td.el-table__cell), ::v-deep(.el-table th.el-table__cell) {
   border-bottom: 1px solid var(--border-color) !important;
 }
 
-:deep(.el-pagination) {
+::v-deep(.el-pagination) {
   --el-pagination-bg-color: transparent;
   --el-pagination-hover-color: var(--color-accent);
   color: var(--color-text-secondary);

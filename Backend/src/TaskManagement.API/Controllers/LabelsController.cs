@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using TaskManagement.API.Filters;
 using TaskManagement.Domain.Entities;
 using TaskManagement.Infrastructure.Data;
 
@@ -9,6 +10,7 @@ namespace TaskManagement.API.Controllers
     [ApiController]
     [Route("api/projects/{projectId}")]
     [Authorize]
+    [ProjectAuthorize("")]
     public class LabelsController : ControllerBase
     {
         private readonly ApplicationDbContext _context;

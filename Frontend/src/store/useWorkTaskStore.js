@@ -13,10 +13,21 @@ const normalizeDateOnly = (value) => {
   return `${year}-${month}-${day}`
 }
 
-const normalizeTaskRecord = (task = {}) => {
+const normalizeTaskRecord = (task = {}, fallbackProjectId = null) => {
   const parentId = task.parentTaskId || task.parentId || task.ParentTaskId || task.ParentId || null
   const id = task.id || task.Id || null
-  const projectId = task.projectId || task.ProjectId || null
+  const projectId = task.projectId || task.ProjectId || fallbackProjectId || null
+  const assignees = Array.isArray(task.assignees)
+    ? task.assignees
+    : Array.isArray(task.Assignees)
+      ? task.Assignees
+      : []
+  const assigneeIds = Array.from(new Set([
+    ...(Array.isArray(task.assigneeIds) ? task.assigneeIds : []),
+    ...(Array.isArray(task.AssigneeIds) ? task.AssigneeIds : []),
+    ...assignees.map(item => item?.userId || item?.id).filter(Boolean),
+    ...(task.assignedUserId || task.AssignedUserId ? [task.assignedUserId || task.AssignedUserId] : [])
+  ]))
 
   return {
     ...task,
@@ -25,21 +36,22 @@ const normalizeTaskRecord = (task = {}) => {
     parentId,
     parentTaskId: parentId,
     assignedUserId: task.assignedUserId || task.AssignedUserId || null,
-    assigneeIds: Array.isArray(task.assigneeIds)
-      ? task.assigneeIds
-      : Array.isArray(task.AssigneeIds)
-        ? task.AssigneeIds
-        : [],
-    assignees: Array.isArray(task.assignees)
-      ? task.assignees
-      : Array.isArray(task.Assignees)
-        ? task.Assignees
-        : [],
+    assigneeIds,
+    assignees: assignees
+      .map(item => ({
+        ...item,
+        userId: item?.userId || item?.id
+      }))
+      .filter(item => item.userId)
+      .filter((item, index, list) => list.findIndex(candidate => candidate.userId === item.userId) === index),
     statusName: task.statusName || task.StatusName || '',
     sequenceId: task.sequenceId || task.SequenceId || null,
     sortOrder: task.sortOrder ?? task.SortOrder ?? 0,
     sprintId: task.sprintId || task.SprintId || null,
     moduleId: task.moduleId || task.ModuleId || null,
+    totalEstimatedHours: task.totalEstimatedHours ?? task.TotalEstimatedHours ?? 0,
+    totalActualHours: task.totalActualHours ?? task.TotalActualHours ?? 0,
+    storyPoints: task.storyPoints ?? task.StoryPoints ?? 0,
     plannedStartDate: normalizeDateOnly(task.plannedStartDate || task.PlannedStartDate || null),
     plannedEndDate: normalizeDateOnly(task.plannedEndDate || task.PlannedEndDate || null),
     dueDate: normalizeDateOnly(task.dueDate || task.DueDate || null),
@@ -113,16 +125,15 @@ export const useWorkTaskStore = defineStore('workTask', {
         });
 
         if (requestId !== this.fetchRequestId || this.currentProjectId !== projectId) {
-          return []
+          return this.tasks
         }
 
         this.tasks = (res.data?.data || [])
-          .map(task => normalizeTaskRecord(task))
-          .filter(task => task?.projectId === projectId)
+          .map(task => normalizeTaskRecord(task, projectId))
         return this.tasks
       } catch (err) {
         if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') {
-          return []
+          return this.tasks
         }
 
         this.error = err.message;
@@ -158,8 +169,14 @@ export const useWorkTaskStore = defineStore('workTask', {
         const res = method === 'put'
           ? await axiosClient.put(`/projects/${projectId}/WorkTasks/${taskId}`, payload)
           : await axiosClient.patch(`/projects/${projectId}/WorkTasks/${taskId}`, payload);
-        await this.fetchTasks(projectId);
-        return res.data?.data;
+        const updatedTask = normalizeTaskRecord(res.data?.data || {}, projectId);
+        if (index >= 0 && updatedTask?.id) {
+          this.tasks[index] = {
+            ...this.tasks[index],
+            ...updatedTask
+          };
+        }
+        return updatedTask;
       } catch (err) {
         if (index >= 0 && previousTask) {
           this.tasks[index] = previousTask;

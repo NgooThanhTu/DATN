@@ -620,7 +620,15 @@ namespace TaskManagement.Infrastructure.Data
             {
                 if (prop.CurrentValue is DateTime dt && dt.Kind != DateTimeKind.Utc)
                 {
-                    prop.CurrentValue = dt.ToUniversalTime();
+                    var propertyName = prop.Metadata.Name;
+                    if (propertyName is "PlannedStartDate" or "PlannedEndDate" or "DueDate" or "StartDate" or "EndDate")
+                    {
+                        prop.CurrentValue = DateTime.SpecifyKind(dt.Date, DateTimeKind.Utc);
+                    }
+                    else
+                    {
+                        prop.CurrentValue = dt.ToUniversalTime();
+                    }
                 }
             }
 

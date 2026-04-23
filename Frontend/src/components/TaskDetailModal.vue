@@ -71,6 +71,24 @@
                       @change="event => updateAssigneeProgress(assignee.userId, event.target.value)"
                     />
                     <span class="assignee-progress-suffix">%</span>
+                    <input
+                      class="assignee-progress-input"
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      :value="assignee.estimatedHours || 0"
+                      @change="event => updateAssigneeEstimatedHours(assignee.userId, event.target.value)"
+                    />
+                    <span class="assignee-progress-suffix">h</span>
+                    <input
+                      class="assignee-progress-input"
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      :value="assignee.contributionWeight || 1"
+                      @change="event => updateAssigneeContributionWeight(assignee.userId, event.target.value)"
+                    />
+                    <span class="assignee-progress-suffix">w</span>
                   </div>
                 </div>
               </div>
@@ -119,6 +137,19 @@
              style="width:125px; height:28px"
              @change="val => handleTaskDateChange('dueDate', val)"
            />
+           <div class="t-btn t-btn-number">
+             <i class="fa-regular fa-hourglass-half"></i>
+             <span>Estimate</span>
+             <input
+               :value="getEstimatedHours(selectedTask)"
+               type="number"
+               min="0"
+               step="0.5"
+               class="estimate-inline-input"
+               @input="event => updateEstimatedHours(event.target.value, selectedTask)"
+             />
+             <small>h</small>
+           </div>
 
            <!-- CYCLE -->
            <el-popover  placement="bottom-start" trigger="click" popper-class="plane-popover" :width="280" @show="cycleSearch = ''">
@@ -200,10 +231,13 @@
       <div class="task-side-panel slide-in-right" v-else>
          <div class="sp-header">
             <div class="sph-left">
+               <button v-if="canGoBack" class="nav-icon-btn" type="button" @click="emit('back')">
+                 <i class="fa-solid fa-arrow-left"></i>
+               </button>
                <i class="fa-solid fa-arrow-right icon-btn" @click="showTaskModal = false"></i>
             </div>
             <div class="sph-right">
-               <button class="unsub-btn" @click="toggleSubscription"><i class="fa-regular fa-bell-slash"></i> {{ isSubscribed ? 'Unsubscribe' : 'Subscribe' }}</button>
+               <button class="unsub-btn" @click="toggleSubscription"><i :class="isSubscribed ? 'fa-regular fa-bell-slash' : 'fa-regular fa-bell'"></i> {{ isSubscribed ? 'Unsubscribe' : 'Subscribe' }}</button>
                <button class="icon-btn icon-action-btn" @click="copyTaskLink" title="Copy link"><i class="fa-solid fa-link"></i></button>
                <el-dropdown trigger="click" @command="handleTaskMenuCommand">
                  <button class="icon-btn icon-action-btn" title="More actions"><i class="fa-solid fa-ellipsis"></i></button>
@@ -293,24 +327,7 @@
                  <i class="fa-solid fa-wand-magic-sparkles"></i>
                  {{ isAiBreakingDown ? 'AI is creating...' : 'AI split into subtasks' }}
                </button>
-               
-               <el-popover placement="bottom-start" trigger="click" popper-class="plane-popover dark" :width="300">
-                 <template #reference>
-                   <button class="s-btn"><i class="fa-solid fa-code-fork"></i> Add relation</button>
-                 </template>
-                 <div class="popover-content">
-                   <div class="p-2 border-b border-theme">
-                     <div class="relative flex items-center">
-                       <i class="fa-solid fa-magnifying-glass absolute left-2 text-muted"></i>
-                       <input type="text" class="w-full bg-transparent border-none text-primary pl-8 focus:outline-none" placeholder="Search to relate..." />
-                     </div>
-                   </div>
-                   <div class="flex-1 flex-center justify-center py-4 text-muted text-xs">
-                     No related items
-                   </div>
-                 </div>
-               </el-popover>
-               
+              
                <button class="s-btn" @click="triggerDescriptionFileUpload"><i class="fa-solid fa-paperclip"></i> Attach</button>
             </div>
             <div v-if="isCreatingSubtask" class="quick-subtask-box">
@@ -502,6 +519,23 @@
                  </div>
                </div>
                <div class="p-row">
+                 <div class="p-label"><i class="fa-solid fa-signal"></i> Story points</div>
+                 <div class="p-val">
+                   <div class="estimate-editor">
+                     <input
+                       :value="Number(selectedTask?.storyPoints ?? 0)"
+                       type="number"
+                       min="0"
+                       max="21"
+                       step="1"
+                       class="estimate-hours-input"
+                       @input="event => updateStoryPoints(event.target.value)"
+                     />
+                     <span class="estimate-unit">SP</span>
+                   </div>
+                 </div>
+               </div>
+               <div class="p-row">
                  <div class="p-label"><i class="fa-regular fa-circle-user"></i> Created by</div>
                  <div class="p-val flex items-center gap-2">
                     <div class="avatar-xxs bg-green-700 rounded-full w-5 h-5 flex-center text-white text-[10px]">{{ getCreatorName(selectedTask)[0]?.toUpperCase() || 'U' }}</div>
@@ -550,6 +584,43 @@
                        @change="val => handleTaskDateChange('dueDate', val)"
                      />
                    </div>
+                 </div>
+               </div>
+               <div class="p-row">
+                 <div class="p-label"><i class="fa-regular fa-hourglass-half"></i> Estimate</div>
+                 <div class="p-val estimate-property">
+                   <div class="estimate-editor">
+                     <input
+                       :value="getEstimatedHours(selectedTask)"
+                       type="number"
+                       min="0"
+                       step="0.5"
+                       class="estimate-hours-input"
+                       @input="event => updateEstimatedHours(event.target.value)"
+                     />
+                   </div>
+                   <div v-if="selectedAssigneeRows.length" class="estimate-breakdown">
+                     <div class="estimate-breakdown-head">Estimate split by assignee</div>
+                     <div class="estimate-breakdown-row" v-for="assignee in selectedAssigneeRows" :key="`estimate-${assignee.userId}`">
+                       <span>{{ assignee.fullName || assignee.email || 'Member' }}</span>
+                       <strong>{{ formatEstimateHours(assignee.estimatedHours || 0) }}h</strong>
+                       <small>{{ formatEstimateHours(assignee.contributionWeight || 1) }}w</small>
+                     </div>
+                   </div>
+                   <div v-if="subtasksList.length" class="estimate-breakdown">
+                     <div class="estimate-breakdown-head">Subtask roll-up</div>
+                     <div class="estimate-breakdown-row">
+                       <span>{{ subtasksList.length }} sub-work items</span>
+                       <strong>{{ formatEstimateHours(subtaskEstimateTotal) }}h</strong>
+                       <button class="secondary-mini-btn" type="button" @click="rollupEstimateFromSubtasks">Use roll-up</button>
+                     </div>
+                   </div>
+                   <button class="property-trigger estimate-suggestion-btn" @click="applySuggestedEstimate()">
+                     <i class="fa-solid fa-wand-magic-sparkles"></i>
+                     <span>Use suggestion</span>
+                     <span class="property-value">{{ suggestedEstimateHours }}h</span>
+                   </button>
+                   <small class="estimate-helper-text">Based on priority, story points, and task title keywords.</small>
                  </div>
                </div>
                <div class="p-row">
@@ -856,15 +927,27 @@ const props = defineProps({
   selectedTask: { type: Object, default: null },
   projectId: { type: [String, Number], required: true },
   projectMembers: { type: Array, default: () => [] },
-  currentUser: { type: Object, default: () => ({}) }
+  currentUser: { type: Object, default: () => ({}) },
+  canGoBack: { type: Boolean, default: false }
 });
 
-const emit = defineEmits(['updateTask', 'close', 'open-task', 'create-subtask', 'refresh-tasks']);
+const emit = defineEmits(['updateTask', 'close', 'back', 'open-task', 'create-subtask', 'refresh-tasks']);
 
 const showTaskModal = ref(true);
 const isSubscribed = ref(false);
 const activitySortNewestFirst = ref(true);
 const showSubtasks = ref(true);
+
+const toBooleanFlag = (value) => {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        if (normalized === 'true') return true;
+        if (normalized === 'false') return false;
+    }
+    if (typeof value === 'number') return value !== 0;
+    return Boolean(value);
+};
 
 const discardNewTask = () => {
     showTaskModal.value = false;
@@ -1013,11 +1096,12 @@ const getAssigneeLabel = (id) => {
 
 const getAssigneeIds = (task = props.selectedTask) => {
    if (!task) return [];
-   if (Array.isArray(task.assigneeIds) && task.assigneeIds.length) return task.assigneeIds;
-   if (Array.isArray(task.assignees) && task.assignees.length) return task.assignees.map(item => item.userId || item.id).filter(Boolean);
-   if (task.assignedUserId) return [task.assignedUserId];
-   if (task.assigneeId) return [task.assigneeId];
-   return [];
+   return Array.from(new Set([
+     ...(Array.isArray(task.assigneeIds) ? task.assigneeIds : []),
+     ...(Array.isArray(task.assignees) ? task.assignees.map(item => item.userId || item.id).filter(Boolean) : []),
+     ...(task.assignedUserId ? [task.assignedUserId] : []),
+     ...(task.assigneeId ? [task.assigneeId] : [])
+   ]));
 };
 
 const buildTaskAssigneeRows = (task = props.selectedTask) => {
@@ -1091,7 +1175,12 @@ const getModuleLabel = (id) => {
 const getParentLabel = (id) => {
    if (!id) return 'Add parent work item';
    const parent = cachedProjectTasks.value.find(task => task.id === id);
-   return parent ? `${parent.sequenceId || parent.id?.substring(0, 8)} ${parent.title}` : 'Parent selected';
+   if (parent) {
+      return `${parent.sequenceId || parent.id?.substring(0, 8)} ${parent.title}`;
+   }
+
+   const fallbackTitle = props.selectedTask?.parentTaskTitle || props.selectedTask?.parentTitle || props.selectedTask?.parentName;
+   return fallbackTitle ? fallbackTitle : 'Parent selected';
 };
 
 const getLabelsSummary = (labelIds) => {
@@ -1516,7 +1605,7 @@ const toggleSubscription = async () => {
     }
     try {
         const response = await axiosClient.post(`/projects/${props.projectId}/WorkTasks/${props.selectedTask.id}/subscription`);
-        const subscribed = Boolean(response.data?.data?.isSubscribed);
+        const subscribed = toBooleanFlag(response.data?.data?.isSubscribed);
         isSubscribed.value = subscribed;
         props.selectedTask.isSubscribed = subscribed;
         emit('refresh-tasks');
@@ -1549,6 +1638,7 @@ const duplicateTask = async () => {
         description: props.selectedTask.description,
         statusName: props.selectedTask.statusName || 'TO DO',
         priority: props.selectedTask.priority ?? 0,
+        totalEstimatedHours: getEstimatedHours(props.selectedTask),
         assignedUserId: getAssigneeIds()[0] || null,
         assigneeIds: getAssigneeIds(),
         plannedStartDate: props.selectedTask.plannedStartDate,
@@ -1766,14 +1856,78 @@ const updateTaskField = (task, field, value) => {
   emit('updateTask', task, field, value);
 };
 
+const updateTaskFields = (task, payload) => {
+  emit('updateTask', task, payload);
+};
+
+const formatEstimateHours = (value) => {
+  const normalized = Math.max(0, Number(value) || 0);
+  return normalized % 1 === 0 ? normalized.toFixed(0) : normalized.toFixed(1);
+};
+
+const normalizeAssigneeEstimateState = (task = props.selectedTask) => {
+  if (!task) return [];
+  if (!Array.isArray(task.assignees)) {
+    task.assignees = [];
+  }
+
+  return task.assignees.map(assignee => ({
+    ...assignee,
+    userId: assignee.userId || assignee.id,
+    progressPercent: Math.min(100, Math.max(0, Number(assignee.progressPercent) || 0)),
+    contributionWeight: Math.max(0.1, Number(assignee.contributionWeight) || 1),
+    estimatedHours: Math.max(0, Number(assignee.estimatedHours) || 0)
+  }));
+};
+
+const distributeEstimateAcrossAssignees = (task = props.selectedTask, { persist = true } = {}) => {
+  if (!task) return;
+  const assignees = normalizeAssigneeEstimateState(task);
+  if (!assignees.length) {
+    task.assignees = assignees;
+    return;
+  }
+
+  const totalEstimate = Math.max(0, Number(task.totalEstimatedHours) || 0);
+  const totalWeight = assignees.reduce((sum, assignee) => sum + Math.max(assignee.contributionWeight, 0.1), 0);
+  let assignedTotal = 0;
+
+  task.assignees = assignees.map((assignee, index) => {
+    const normalizedWeight = Math.max(assignee.contributionWeight, 0.1);
+    const isLast = index === assignees.length - 1;
+    const estimateHours = isLast
+      ? Math.max(0, Math.round((totalEstimate - assignedTotal) * 10) / 10)
+      : Math.max(0, Math.round((totalEstimate * normalizedWeight / totalWeight) * 10) / 10);
+    assignedTotal += estimateHours;
+
+    return {
+      ...assignee,
+      contributionWeight: normalizedWeight,
+      estimatedHours: estimateHours
+    };
+  });
+
+  if (!task.isNew && persist) {
+    updateTaskFields(task, {
+      assigneeProgress: task.assignees.map(assignee => ({
+        userId: assignee.userId,
+        progressPercent: assignee.progressPercent || 0,
+        contributionWeight: assignee.contributionWeight || 1,
+        estimatedHours: assignee.estimatedHours || 0
+      }))
+    });
+  }
+};
+
 const syncTaskAssignees = (task, assigneeIds) => {
   if (!task) return;
   const existingAssignees = Array.isArray(task.assignees) ? task.assignees : [];
-  task.assigneeIds = assigneeIds;
-  task.assignedUserId = assigneeIds[0] || null;
-  task.assigneeId = assigneeIds[0] || null;
+  const normalizedIds = Array.from(new Set(assigneeIds.filter(Boolean)));
+  task.assigneeIds = normalizedIds;
+  task.assignedUserId = normalizedIds[0] || null;
+  task.assigneeId = normalizedIds[0] || null;
   task.assignees = projectMemberOptions.value
-    .filter(member => assigneeIds.includes(member.userId))
+    .filter(member => normalizedIds.includes(member.userId))
     .map(member => {
       const existing = existingAssignees.find(item => (item.userId || item.id) === member.userId) || {};
       return {
@@ -1781,17 +1935,29 @@ const syncTaskAssignees = (task, assigneeIds) => {
         fullName: member.fullName || member.name || member.email,
         email: member.email,
         progressPercent: existing.progressPercent ?? 0,
-        contributionWeight: existing.contributionWeight ?? 1
+        contributionWeight: existing.contributionWeight ?? 1,
+        estimatedHours: existing.estimatedHours ?? 0
       };
     });
+
+  distributeEstimateAcrossAssignees(task, { persist: false });
 };
 
 const applySelectedAssignees = async (assigneeIds, task = props.selectedTask) => {
   if (!task) return;
-  syncTaskAssignees(task, assigneeIds);
+  const normalizedIds = Array.from(new Set(assigneeIds.filter(Boolean)));
+  syncTaskAssignees(task, normalizedIds);
 
   if (!task.isNew) {
-    updateTaskField(task, 'assigneeIds', assigneeIds);
+    updateTaskFields(task, {
+      assigneeIds: normalizedIds,
+      assigneeProgress: (task.assignees || []).map(assignee => ({
+        userId: assignee.userId || assignee.id,
+        progressPercent: assignee.progressPercent || 0,
+        contributionWeight: assignee.contributionWeight || 1,
+        estimatedHours: assignee.estimatedHours || 0
+      }))
+    });
   }
 };
 
@@ -1799,7 +1965,7 @@ const toggleAssignee = async (memberId, task = props.selectedTask) => {
   const currentIds = getAssigneeIds(task);
   const nextIds = currentIds.includes(memberId)
     ? currentIds.filter(id => id !== memberId)
-    : [...currentIds, memberId];
+    : Array.from(new Set([...currentIds, memberId]));
   await applySelectedAssignees(nextIds, task);
 };
 
@@ -1819,6 +1985,41 @@ const updateAssigneeProgress = (memberId, rawValue, task = props.selectedTask) =
       userId: memberId,
       progressPercent
     }]);
+  }
+};
+
+const updateAssigneeContributionWeight = (memberId, rawValue, task = props.selectedTask) => {
+  if (!task) return;
+  task.assignees = normalizeAssigneeEstimateState(task).map(assignee =>
+    assignee.userId === memberId
+      ? { ...assignee, contributionWeight: Math.max(0.1, Number(rawValue) || 1) }
+      : assignee
+  );
+
+  distributeEstimateAcrossAssignees(task);
+};
+
+const updateAssigneeEstimatedHours = (memberId, rawValue, task = props.selectedTask) => {
+  if (!task) return;
+  const normalizedEstimate = Math.max(0, Number(rawValue) || 0);
+  task.assignees = normalizeAssigneeEstimateState(task).map(assignee =>
+    assignee.userId === memberId
+      ? { ...assignee, estimatedHours: normalizedEstimate }
+      : assignee
+  );
+
+  task.totalEstimatedHours = Math.round(task.assignees.reduce((sum, assignee) => sum + (Number(assignee.estimatedHours) || 0), 0) * 10) / 10;
+
+  if (!task.isNew) {
+    updateTaskFields(task, {
+      totalEstimatedHours: task.totalEstimatedHours,
+      assigneeProgress: task.assignees.map(assignee => ({
+        userId: assignee.userId,
+        progressPercent: assignee.progressPercent || 0,
+        contributionWeight: assignee.contributionWeight || 1,
+        estimatedHours: assignee.estimatedHours || 0
+      }))
+    });
   }
 };
 
@@ -1843,6 +2044,69 @@ const updateTaskProgress = (task, rawValue) => {
       progressPercent
     })));
   }
+};
+
+const getEstimatedHours = (task = props.selectedTask) => {
+  const value = Number(task?.totalEstimatedHours ?? 0);
+  return Number.isFinite(value) ? value : 0;
+};
+
+const calculateSuggestedEstimate = (task = props.selectedTask) => {
+  const priority = Number(task?.priority ?? 0);
+  const storyPoints = Number(task?.storyPoints ?? 0);
+  const title = String(task?.title || '').toLowerCase();
+
+  let hours = 2;
+
+  if (storyPoints > 0) {
+    hours = Math.max(hours, storyPoints * 2);
+  }
+
+  if (priority === 1) hours += 4;
+  if (priority === 2) hours += 2;
+  if (priority === 4) hours = Math.max(1, hours - 0.5);
+
+  if (/(api|integration|refactor|migration|security|payment|deploy)/.test(title)) hours += 3;
+  if (/(bug|fix|hotfix|patch)/.test(title)) hours += 1.5;
+  if (/(ui|ux|copy|docs|content)/.test(title)) hours = Math.max(1.5, hours - 0.5);
+
+  return Math.round(hours * 2) / 2;
+};
+
+const suggestedEstimateHours = computed(() => calculateSuggestedEstimate());
+
+const subtaskEstimateTotal = computed(() => {
+  return Math.round(
+    (subtasksList.value || []).reduce((sum, subtask) => sum + (Number(subtask?.totalEstimatedHours) || 0), 0) * 10
+  ) / 10;
+});
+
+const updateEstimatedHours = (rawValue, task = props.selectedTask) => {
+  if (!task) return;
+  const nextValue = Math.max(0, Number(rawValue) || 0);
+  task.totalEstimatedHours = nextValue;
+  distributeEstimateAcrossAssignees(task, { persist: false });
+  if (!task.isNew) {
+    updateTaskFields(task, {
+      totalEstimatedHours: nextValue,
+      assigneeProgress: (task.assignees || []).map(assignee => ({
+        userId: assignee.userId || assignee.id,
+        progressPercent: assignee.progressPercent || 0,
+        contributionWeight: assignee.contributionWeight || 1,
+        estimatedHours: assignee.estimatedHours || 0
+      }))
+    });
+  }
+};
+
+const applySuggestedEstimate = (task = props.selectedTask) => {
+  updateEstimatedHours(calculateSuggestedEstimate(task), task);
+  ElMessage.success('Estimate updated from suggestion');
+};
+
+const rollupEstimateFromSubtasks = (task = props.selectedTask) => {
+  updateEstimatedHours(subtaskEstimateTotal.value, task);
+  ElMessage.success('Parent estimate rolled up from sub-work items');
 };
 
 const handleTaskDateChange = (field, rawValue, task = props.selectedTask) => {
@@ -1898,6 +2162,15 @@ const selectPriority = (priority, task = props.selectedTask) => {
   task.priority = priority;
   if (!task.isNew) {
     updateTaskField(task, 'priority', priority);
+  }
+};
+
+const updateStoryPoints = (rawValue, task = props.selectedTask) => {
+  if (!task) return;
+  const nextValue = Math.min(21, Math.max(0, Number(rawValue) || 0));
+  task.storyPoints = nextValue;
+  if (!task.isNew) {
+    updateTaskField(task, 'storyPoints', nextValue);
   }
 };
 
@@ -1980,6 +2253,8 @@ const normalizeTaskSnapshot = (task) => {
   task.plannedStartDate = formatDateOnly(task.plannedStartDate);
   task.plannedEndDate = formatDateOnly(task.plannedEndDate);
   task.dueDate = formatDateOnly(task.dueDate);
+  task.totalEstimatedHours = Number(task.totalEstimatedHours ?? 0);
+  task.storyPoints = Number(task.storyPoints ?? 0);
 
   if (Array.isArray(task.assignees)) {
     task.assignees = task.assignees.map(item => ({
@@ -1992,6 +2267,23 @@ const normalizeTaskSnapshot = (task) => {
   task.assigneeIds = assigneeIds;
   task.assigneeId = task.assigneeId || task.assignedUserId || assigneeIds[0] || null;
   task.assignedUserId = task.assignedUserId || task.assigneeId || assigneeIds[0] || null;
+  if (Array.isArray(task.assignees) && task.assignees.length && !(task.assignees || []).some(item => Number(item.estimatedHours) > 0)) {
+    const totalWeight = task.assignees.reduce((sum, assignee) => sum + Math.max(Number(assignee.contributionWeight) || 1, 0.1), 0);
+    let assignedTotal = 0;
+    task.assignees = task.assignees.map((assignee, index) => {
+      const weight = Math.max(Number(assignee.contributionWeight) || 1, 0.1);
+      const isLast = index === task.assignees.length - 1;
+      const estimatedHours = isLast
+        ? Math.max(0, Math.round(((Number(task.totalEstimatedHours) || 0) - assignedTotal) * 10) / 10)
+        : Math.max(0, Math.round(((Number(task.totalEstimatedHours) || 0) * weight / totalWeight) * 10) / 10);
+      assignedTotal += estimatedHours;
+      return {
+        ...assignee,
+        contributionWeight: weight,
+        estimatedHours
+      };
+    });
+  }
   return task;
 };
 
@@ -2008,7 +2300,11 @@ const mergeCachedTask = (task) => {
 const openTaskDetail = (task) => {
   const normalized = normalizeTaskSnapshot({ ...task });
   const cachedTask = cachedProjectTasks.value.find(item => item.id === normalized?.id);
-  emit('open-task', normalizeTaskSnapshot(cachedTask ? { ...cachedTask, ...normalized } : normalized));
+  emit(
+    'open-task',
+    normalizeTaskSnapshot(cachedTask ? { ...cachedTask, ...normalized } : normalized),
+    { fromTask: normalizeTaskSnapshot({ ...props.selectedTask }) }
+  );
 };
 const createSubtask = (task) => emit('create-subtask', task);
 
@@ -2023,6 +2319,7 @@ const submitNewTask = async () => {
             description: props.selectedTask.description,
             statusName: props.selectedTask.statusName || 'Todo',
             priority: props.selectedTask.priority !== undefined ? props.selectedTask.priority : 0,
+            totalEstimatedHours: getEstimatedHours(props.selectedTask),
             assignedUserId: getAssigneeIds()[0] || null,
             assigneeIds: getAssigneeIds(),
             plannedStartDate: props.selectedTask.plannedStartDate,
@@ -2039,6 +2336,7 @@ const submitNewTask = async () => {
         } else {
             props.selectedTask.title = '';
             props.selectedTask.description = '';
+            props.selectedTask.totalEstimatedHours = 0;
         }
     } catch(e) {
         ElMessage.error('Lỗi khi tạo công việc');
@@ -2080,7 +2378,8 @@ const submitSubtask = async () => {
             title: newSubtaskTitle.value.trim(),
             statusName: 'BACKLOG',
             taskTypeId: props.selectedTask.taskTypeId,
-            priority: props.selectedTask.priority
+            priority: props.selectedTask.priority,
+            totalEstimatedHours: 0
         });
         isCreatingSubtask.value = false;
         newSubtaskTitle.value = '';
@@ -2360,7 +2659,7 @@ const submitComment = async () => {
 watch(() => props.selectedTask, (newTask) => {
   if (newTask) {
     normalizeTaskSnapshot(newTask);
-    isSubscribed.value = Boolean(newTask.isSubscribed);
+    isSubscribed.value = toBooleanFlag(newTask.isSubscribed);
     // Only fetch data for EXISTING tasks (have an id)
     // New tasks (isNew: true) have no id, so API calls would crash
     fetchAdditionalProjectData();
@@ -2411,6 +2710,34 @@ watch(() => props.selectedTask, (newTask) => {
   background: rgba(0, 0, 0, 0.6);
 }
 
+/* UTILITIES */
+.flex-wrapper { display: flex; align-items: center; }
+.flex-center { display: flex; align-items: center; }
+.flex-between { display: flex; justify-content: space-between; align-items: center; }
+.gap-2 { gap: 8px; } .gap-3 { gap: 12px; } .gap-4 { gap: 16px; } .gap-5 { gap: 20px; } .gap-8 { gap: 32px; }
+.text-muted { color: #A1A1AA; }
+.text-primary { color: #38BDF8; }
+.bg-dark { background: #16181D; }
+.bg-dark-2 { background: #111111; }
+.border-gray { border-color: #27272A; }
+.icon-btn { cursor: pointer; transition: color 0.2s; } .icon-btn:hover { color: #E5E7EB; }
+.nav-icon-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #27272A;
+  border-radius: 6px;
+  background: transparent;
+  color: #A1A1AA;
+  cursor: pointer;
+}
+.nav-icon-btn:hover {
+  color: #E5E7EB;
+  background: #1E1F21;
+}
+.icon-hover { cursor: pointer; padding: 4px; border-radius: 4px; } .icon-hover:hover { background: #27272A; }
+.icon-hover.is-active {
+  background: #1D4ED8;
+  color: #FFFFFF;
 [data-theme='light'] .task-modal-overlay {
   background: rgba(0, 0, 0, 0.3);
 }
@@ -2604,6 +2931,62 @@ watch(() => props.selectedTask, (newTask) => {
 }
 
 .property-value {
+  color: #F4F4F5;
+  font-weight: 500;
+}
+.t-btn-number {
+  gap: 6px;
+}
+.estimate-inline-input,
+.estimate-hours-input {
+  width: 72px;
+  border: 1px solid #27272A;
+  border-radius: 6px;
+  background: #111111;
+  color: #E4E4E7;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+.estimate-property {
+  display: grid;
+  gap: 10px;
+}
+.estimate-editor {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.estimate-unit,
+.estimate-helper-text,
+.t-btn-number small {
+  color: #A1A1AA;
+  font-size: 12px;
+}
+.estimate-suggestion-btn {
+  justify-content: space-between;
+  width: fit-content;
+}
+.muted-val {
+  color: #71717A;
+}
+
+.btn-add-label {
+  background: #27272A;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 10px;
+  color: #A1A1AA;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.icon-filter-btn {
+  background: #27272A;
+  border: none;
+  color: #A1A1AA;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
   font-weight: 600;
   color: var(--color-text-primary);
 }

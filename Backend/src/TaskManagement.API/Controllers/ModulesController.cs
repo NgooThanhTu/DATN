@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using TaskManagement.API.Filters;
 using TaskManagement.Domain.Entities;
 using TaskManagement.Infrastructure.Data;
 
@@ -10,6 +11,7 @@ namespace TaskManagement.API.Controllers
     [ApiController]
     [Route("api/projects/{projectId}")]
     [Authorize]
+    [ProjectAuthorize("")]
     public class ModulesController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
@@ -26,7 +28,8 @@ namespace TaskManagement.API.Controllers
             [FromQuery] int pageSize = 20,
             [FromQuery] string? search = null,
             [FromQuery] string? sortBy = null,
-            [FromQuery] string? sortDirection = null)
+            [FromQuery] string? sortDirection = null,
+            [FromQuery] bool includeDisabled = false)
         {
             var normalizedPage = page < 1 ? 1 : page;
             var normalizedPageSize = pageSize switch
@@ -39,6 +42,11 @@ namespace TaskManagement.API.Controllers
             var query = _context.Modules
                 .AsNoTracking()
                 .Where(m => m.ProjectId == projectId);
+
+            if (!includeDisabled)
+            {
+                query = query.Where(m => m.Status != "Disabled");
+            }
 
             if (!string.IsNullOrWhiteSpace(search))
             {
@@ -262,13 +270,14 @@ namespace TaskManagement.API.Controllers
             var module = await _context.Modules.FirstOrDefaultAsync(m => m.Id == moduleId && m.ProjectId == projectId);
             if (module == null)
             {
-                return NotFound(new { statusCode = 404, message = "Module khong ton tai." });
+                return NotFound(new { statusCode = 404, message = "Module does not exist." });
             }
 
-            _context.Modules.Remove(module);
+            module.Status = "Disabled";
+            module.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
-            return Ok(new { statusCode = 200, message = "Xoa thanh cong." });
+            return Ok(new { statusCode = 200, message = "Module disabled successfully." });
         }
     }
 

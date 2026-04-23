@@ -17,14 +17,19 @@
       class="admin-menu"
       :router="true"
     >
-      <el-menu-item index="/admin/audit-log">
+      <el-menu-item v-if="canAccessSystemAdmin" index="/admin/audit-log">
         <i class="fa-solid fa-file-lines menu-icon"></i>
         <span>{{ t('Audit Log', 'Nhật ký Hệ thống') }}</span>
       </el-menu-item>
 
-      <el-menu-item index="/admin/users">
+      <el-menu-item v-if="canAccessUserDirectory" index="/admin/users">
         <i class="fa-solid fa-users menu-icon"></i>
         <span>{{ t('User Management', 'Quản lý Người dùng') }}</span>
+      </el-menu-item>
+
+      <el-menu-item v-if="canAccessUserDirectory" index="/admin/roles">
+        <i class="fa-solid fa-shield-halved menu-icon"></i>
+        <span>{{ t('Role Management', 'Quản lý Vai trò') }}</span>
       </el-menu-item>
 
       <!-- <el-sub-menu index="/admin/organization">
@@ -36,12 +41,12 @@
         <el-menu-item index="/admin/organization/contact">{{ t('Contact', 'Liên hệ') }}</el-menu-item>
       </el-sub-menu> -->
 
-      <el-menu-item index="/admin/configuration">
+      <el-menu-item v-if="canAccessSystemAdmin" index="/admin/configuration">
         <i class="fa-solid fa-gear menu-icon"></i>
         <span>{{ t('Configuration', 'Cấu hình') }}</span>
       </el-menu-item>
 
-      <el-sub-menu index="/admin/instance">
+      <el-sub-menu v-if="canAccessSystemAdmin" index="/admin/instance">
         <template #title>
           <i class="fa-solid fa-server menu-icon"></i>
           <span>{{ t('Instance', 'Cáº¥p há»‡ thá»‘ng') }}</span>
@@ -51,7 +56,7 @@
         <el-menu-item index="/admin/instance/email">{{ t('Email / SMTP', 'Email / SMTP') }}</el-menu-item>
       </el-sub-menu>
 
-      <el-sub-menu index="/admin/security">
+      <el-sub-menu v-if="canAccessSystemAdmin" index="/admin/security">
         <template #title>
           <i class="fa-solid fa-shield-halved menu-icon"></i>
           <span>{{ t('Security', 'Bảo mật') }}</span>
@@ -105,6 +110,7 @@ import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import logoImg from '@/assets/logo_QLCV.png'
 import { useLocale } from '@/composables/useLocale'
+import { canAccessAdminUserDirectory, getStoredUser, hasSystemAdminAccess } from '@/utils/permissions'
 
 const { locale, toggleLocale, t } = useLocale()
 
@@ -131,6 +137,9 @@ onUnmounted(() => {
 
 const route = useRoute()
 const router = useRouter()
+const currentUser = computed(() => getStoredUser())
+const canAccessSystemAdmin = computed(() => hasSystemAdminAccess(currentUser.value))
+const canAccessUserDirectory = computed(() => canAccessAdminUserDirectory(currentUser.value))
 
 const goBack = () => {
   if (window.history.state && window.history.state.back) {
@@ -220,10 +229,13 @@ const activeMenu = computed(() => {
   color: var(--color-text-secondary);
 }
 
-:deep(.el-menu) {
+::v-deep(.el-menu) {
   background-color: transparent !important;
 }
 
+::v-deep(.el-menu-item) {
+  height: 44px;
+  line-height: 44px;
 :deep(.el-menu-item), :deep(.el-sub-menu__title) {
   height: 48px;
   line-height: 48px;
@@ -236,6 +248,27 @@ const activeMenu = computed(() => {
   transition: all 0.2s !important;
 }
 
+::v-deep(.el-sub-menu__title) {
+  height: 44px;
+  line-height: 44px;
+  margin: 4px 12px;
+  border-radius: 6px;
+  color: var(--text-primary) !important;
+  background-color: transparent !important;
+}
+
+::v-deep(.el-menu-item.is-active) {
+  background-color: color-mix(in srgb, var(--bg-layout) 15%, var(--text-primary) 85%) !important;
+  color: var(--bg-layout) !important;
+  font-weight: 700;
+}
+
+::v-deep(.el-menu-item.is-active .menu-icon) {
+  color: var(--bg-layout) !important;
+}
+
+::v-deep(.el-menu-item:hover), ::v-deep(.el-sub-menu__title:hover) {
+  background-color: var(--bg-hover) !important;
 :deep(.el-menu-item:hover), :deep(.el-sub-menu__title:hover) {
   background-color: var(--color-surface-hover) !important;
   color: var(--color-text-primary) !important;

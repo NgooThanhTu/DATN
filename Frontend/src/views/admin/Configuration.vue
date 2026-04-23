@@ -172,13 +172,21 @@ const resetProjectStatuses = () => {
 }
 
 const fetchDefaultTaskStatuses = async () => {
-  const res = await axiosClient.get('/settings/admin/default-task-statuses')
-  defaultTaskStatuses.value = (res.data?.data?.length ? res.data.data : getDefaultTaskStatusSeed())
+  try {
+    const res = await axiosClient.get('/settings/admin/default-task-statuses')
+    defaultTaskStatuses.value = (res.data?.data?.length ? res.data.data : getDefaultTaskStatusSeed())
+  } catch (error) {
+    defaultTaskStatuses.value = getDefaultTaskStatusSeed()
+  }
 }
 
 const fetchProjectStatuses = async () => {
-  const res = await axiosClient.get('/settings/admin/project-statuses')
-  projectStatuses.value = (res.data?.data?.length ? res.data.data : getProjectStatusSeed())
+  try {
+    const res = await axiosClient.get('/settings/admin/project-statuses')
+    projectStatuses.value = (res.data?.data?.length ? res.data.data : getProjectStatusSeed())
+  } catch (error) {
+    projectStatuses.value = getProjectStatusSeed()
+  }
 }
 
 const saveDefaultTaskStatuses = async () => {
@@ -216,6 +224,113 @@ const fetchMetrics = async () => {
   }
 }
 
+const applyThemeToDocument = () => {
+  Object.values(themeColors.value).forEach((color) => {
+    document.documentElement.style.setProperty(color.variable, color.value)
+  })
+}
+
+const fetchTheme = async () => {
+  try {
+    const res = await axiosClient.get('/settings/ThemeSettings')
+    const data = res.data?.data || {}
+
+    if (data.SavedPresets) {
+      try {
+        const parsed = JSON.parse(data.SavedPresets)
+        templates.value = [...parsed, ...defaultTemplates]
+      } catch (error) {
+        templates.value = [...defaultTemplates]
+      }
+    } else {
+      templates.value = [...defaultTemplates]
+    }
+
+    Object.keys(themeColors.value).forEach((key) => {
+      themeColors.value[key].value = data[key] || themeColors.value[key].default
+    })
+  } catch (error) {
+    templates.value = [...defaultTemplates]
+    Object.keys(themeColors.value).forEach((key) => {
+      themeColors.value[key].value = themeColors.value[key].default
+    })
+  }
+
+  applyThemeToDocument()
+}
+
+const saveThemeToBackend = async (showMessage = true) => {
+  try {
+    const payload = { Settings: {} }
+    Object.keys(themeColors.value).forEach((key) => {
+      payload.Settings[key] = themeColors.value[key].value
+    })
+    const customPresets = templates.value.filter((item) => !defaultTemplates.find((preset) => preset.name === item.name))
+    payload.Settings.SavedPresets = JSON.stringify(customPresets)
+    await axiosClient.put('/settings/ThemeSettings', payload)
+    if (showMessage) {
+      ElMessage.success(t('Theme saved.', 'Đã lưu theme.'))
+    }
+  } catch (error) {
+    if (showMessage) {
+      ElMessage.error(t('Could not save theme.', 'Không thể lưu theme.'))
+    }
+  }
+}
+
+const applyTemplatePreset = async (name) => {
+  const preset = templates.value.find((item) => item.name === name)
+  if (!preset) return
+
+  Object.keys(themeColors.value).forEach((key) => {
+    if (preset[key] !== undefined) {
+      themeColors.value[key].value = preset[key]
+    }
+  })
+  applyThemeToDocument()
+  await saveThemeToBackend(false)
+}
+
+const onCustomColorChange = async (key, value) => {
+  themeColors.value[key].value = value
+  applyThemeToDocument()
+  await saveThemeToBackend(false)
+}
+
+const resetThemeToDefault = async () => {
+  Object.keys(themeColors.value).forEach((key) => {
+    themeColors.value[key].value = themeColors.value[key].default
+  })
+  selectedPreset.value = ''
+  applyThemeToDocument()
+  await saveThemeToBackend(true)
+}
+
+const saveAndAddFavorite = async () => {
+  try {
+    const { value } = await ElMessageBox.prompt(
+      t('Save and name your theme preset', 'Lưu và đặt tên preset giao diện'),
+      t('Save theme', 'Lưu theme'),
+      {
+        inputPattern: /.+/,
+        inputErrorMessage: t('Theme name is required.', 'Tên theme là bắt buộc.')
+      }
+    )
+
+    const customPreset = { name: value.trim() }
+    Object.keys(themeColors.value).forEach((key) => {
+      customPreset[key] = themeColors.value[key].value
+    })
+    templates.value.unshift(customPreset)
+    selectedPreset.value = customPreset.name
+    await saveThemeToBackend(false)
+    ElMessage.success(t('Theme preset saved.', 'Đã lưu preset giao diện.'))
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error(t('Could not save theme preset.', 'Không thể lưu preset giao diện.'))
+    }
+  }
+}
 onMounted(async () => {
   try {
     isLoading.value = true

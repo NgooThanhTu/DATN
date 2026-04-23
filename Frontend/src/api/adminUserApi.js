@@ -10,6 +10,21 @@ export const adminUserApi = {
   createUser(data) {
     return axiosClient.post('/admin/users', data);
   },
+  getRoles(params) {
+    return axiosClient.get('/admin/users/roles', { params });
+  },
+  createRole(data) {
+    return axiosClient.post('/admin/users/roles', data);
+  },
+  updateRole(roleId, data) {
+    return axiosClient.put(`/admin/users/roles/${roleId}`, data);
+  },
+  deleteRole(roleId) {
+    return axiosClient.delete(`/admin/users/roles/${roleId}`);
+  },
+  assignUserRoles(userId, roleIds) {
+    return axiosClient.post(`/admin/users/${userId}/roles`, { roleIds });
+  },
   removeUser(userId) {
     return axiosClient.delete(`/admin/users/${userId}`);
   }

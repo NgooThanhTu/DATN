@@ -9,6 +9,8 @@ export const useAdminUserStore = defineStore('adminUsers', () => {
   const departments = ref([]);
   const projectRoleAssignments = ref([]);
   const availableProjects = ref([]);
+  const roles = ref([]);
+  const permissions = ref([]);
 
   const fetchUsers = async (search = '') => {
     loading.value = true;
@@ -139,12 +141,50 @@ export const useAdminUserStore = defineStore('adminUsers', () => {
     }
   };
 
+  const fetchRoles = async (search = '') => {
+    try {
+      const res = await adminUserApi.getRoles({ search });
+      roles.value = (res.data?.data?.roles || []).map(role => ({
+        ...role,
+        permissionIds: (role.permissions || []).map(permission => permission.id)
+      }));
+      permissions.value = res.data?.data?.permissions || [];
+      return roles.value;
+    } catch (error) {
+      console.error('Failed to load roles:', error);
+      throw error;
+    }
+  };
+
+  const createRole = async (payload) => {
+    await adminUserApi.createRole(payload);
+    return fetchRoles();
+  };
+
+  const updateRole = async (roleId, payload) => {
+    await adminUserApi.updateRole(roleId, payload);
+    return fetchRoles();
+  };
+
+  const deleteRole = async (roleId) => {
+    await adminUserApi.deleteRole(roleId);
+    return fetchRoles();
+  };
+
+  const assignUserRoles = async (userId, roleIds) => {
+    await adminUserApi.assignUserRoles(userId, roleIds);
+    await Promise.all([fetchUsers(), fetchRoles()]);
+    return true;
+  };
+
   return {
     users,
     loading,
     departments,
     projectRoleAssignments,
     availableProjects,
+    roles,
+    permissions,
     fetchUsers,
     suspendUser,
     createUser,
@@ -157,6 +197,11 @@ export const useAdminUserStore = defineStore('adminUsers', () => {
     fetchProjectRoleAssignments,
     saveProjectRoleAssignment,
     deleteProjectRoleAssignment,
-    fetchAccessibleProjects
+    fetchAccessibleProjects,
+    fetchRoles,
+    createRole,
+    updateRole,
+    deleteRole,
+    assignUserRoles
   };
 });

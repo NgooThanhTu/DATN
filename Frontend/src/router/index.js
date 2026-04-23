@@ -1,4 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import axiosClient from '@/api/axiosClient'
+import { getStoredUser, hasSystemAdminAccess } from '@/utils/permissions'
 import homeRoutes from './homeRoutes'
 import authRoutes from './authRoutes'
 import dashboardRoutes from './dashboardRoutes'
@@ -20,9 +22,8 @@ const router = createRouter({
   ]
 })
 
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   const token = localStorage.getItem('accessToken')
-  // Cho phép các trang công khai không cần token
   const publicPages = ['/login', '/register', '/', '/auth/github/callback', '/accept-invite']
   const authRequired = !publicPages.includes(to.path)
 
@@ -33,12 +34,32 @@ router.beforeEach((to, from, next) => {
     })
   }
 
-  // Kiểm tra phân quyền theo role cho các route admin
+  const user = getStoredUser()
+
+  if (to.meta.requiresSystemAdminAccess && !hasSystemAdminAccess(user)) {
+    return next({
+      path: '/dashboard',
+      query: { denied: to.fullPath }
+    })
+  }
+
+  if (to.meta.requiresProjectSettingsAccess) {
+    try {
+      const projectId = String(to.params.id || '')
+      await axiosClient.get(`/projects/${projectId}/settings`)
+    } catch (error) {
+      return next({
+        path: '/dashboard',
+        query: { denied: to.fullPath }
+      })
+    }
+  }
+
   if (to.meta.requiredRoles && to.meta.requiredRoles.length > 0) {
     try {
-      const user = JSON.parse(localStorage.getItem('user') || '{}')
-      const userRoles = user.systemRoles || []
-      const hasPermission = to.meta.requiredRoles.some(role => userRoles.includes(role))
+      const userRoles = (user.systemRoles || []).map(role => String(role).trim().toLowerCase())
+      const requiredRoles = to.meta.requiredRoles.map(role => String(role).trim().toLowerCase())
+      const hasPermission = requiredRoles.some(role => userRoles.includes(role))
 
       if (!hasPermission) {
         return next({
@@ -46,7 +67,7 @@ router.beforeEach((to, from, next) => {
           query: { denied: to.fullPath }
         })
       }
-    } catch (e) {
+    } catch (error) {
       return next({ path: '/dashboard' })
     }
   }

@@ -17,12 +17,26 @@ namespace TaskManagement.API.Filters
 
     public class ProjectAuthorizeFilter : IAsyncActionFilter
     {
+        private static readonly string[] SystemOverrideRoles =
+        {
+            "superadmin",
+            "admin",
+            "system admin",
+            "organization admin",
+            "accessadmin",
+            "access admin"
+        };
+
         private readonly string[] _allowedRoles;
         private readonly ApplicationDbContext _dbContext;
 
         public ProjectAuthorizeFilter(string roles, ApplicationDbContext dbContext)
         {
-            _allowedRoles = roles.Split(',').Select(r => r.Trim()).ToArray();
+            _allowedRoles = roles
+                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(r => r.Trim())
+                .Where(r => !string.IsNullOrWhiteSpace(r))
+                .ToArray();
             _dbContext = dbContext;
         }
 
@@ -38,12 +52,27 @@ namespace TaskManagement.API.Filters
 
             // 2. Extract ProjectId from Route Data
             // Assumes route is something like /api/projects/{projectId}/...
-            var projectIdString = context.RouteData.Values["projectId"]?.ToString();
+            var projectIdString =
+                context.RouteData.Values["projectId"]?.ToString()
+                ?? context.RouteData.Values["id"]?.ToString();
             if (string.IsNullOrEmpty(projectIdString) || !Guid.TryParse(projectIdString, out Guid projectId))
             {
                 // Nếu API không cung cấp projectId trong url, chặn ngay lập tức hoặc bỏ qua tuỳ thiết kế.
                 // Theo BusinessLogic, các API liên quan đến project BAO GIỜ cũng có projectId
                 context.Result = new BadRequestObjectResult(new { statusCode = 400, message = "Missing projectId in route." });
+                return;
+            }
+
+            var hasSystemOverride = await _dbContext.Users
+                .AsNoTracking()
+                .Where(user => user.Id == userId && user.IsActive && !user.IsDeleted)
+                .SelectMany(user => user.UserRoles.Select(ur => ur.Role.Name))
+                .AnyAsync(role => SystemOverrideRoles.Contains(role.Trim().ToLower()));
+
+            if (hasSystemOverride)
+            {
+                context.HttpContext.Items["ProjectRole"] = "SystemOverride";
+                await next();
                 return;
             }
 
@@ -63,7 +92,7 @@ namespace TaskManagement.API.Filters
             }
 
             // 5. Check Roles
-            if (_allowedRoles.Length > 0 && !_allowedRoles.Contains(member.ProjectRole))
+            if (_allowedRoles.Length > 0 && !_allowedRoles.Contains(member.ProjectRole, StringComparer.OrdinalIgnoreCase))
             {
                 context.Result = new ObjectResult(new { statusCode = 403, message = $"Forbidden. Role '{member.ProjectRole}' is not allowed to perform this action." })
                 {
@@ -78,7 +107,7 @@ namespace TaskManagement.API.Filters
                                 httpMethod == HttpMethod.Put.Method || 
                                 httpMethod == HttpMethod.Delete.Method;
 
-            if (isWriteMethod && (member.ProjectRole == "Guest" || member.ProjectRole == "Stakeholder"))
+            if (isWriteMethod && (member.ProjectRole.Equals("Guest", StringComparison.OrdinalIgnoreCase) || member.ProjectRole.Equals("Stakeholder", StringComparison.OrdinalIgnoreCase)))
             {
                 context.Result = new ObjectResult(new { statusCode = 403, message = "Forbidden. Guests and Stakeholders cannot modify project data." })
                 {

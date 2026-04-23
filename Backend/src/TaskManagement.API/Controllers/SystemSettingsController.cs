@@ -9,6 +9,7 @@ using System.Linq;
 using System.Collections.Generic;
 using System;
 using System.Text.Json;
+using TaskManagement.API.Filters;
 
 namespace TaskManagement.API.Controllers
 {
@@ -17,6 +18,16 @@ namespace TaskManagement.API.Controllers
     [Authorize]
     public class SystemSettingsController : ControllerBase
     {
+        private static readonly string[] AdminAccessRoles =
+        {
+            "superadmin",
+            "admin",
+            "system admin",
+            "organization admin",
+            "accessadmin",
+            "access admin"
+        };
+
         private readonly ApplicationDbContext _context;
 
         public SystemSettingsController(ApplicationDbContext context)
@@ -27,7 +38,7 @@ namespace TaskManagement.API.Controllers
         [HttpGet("{group}")]
         public async Task<IActionResult> GetSettingsByGroup(string group)
         {
-            if (RequiresAdminAccess(group) && !CurrentUserHasAdminAccess())
+            if (RequiresAdminAccess(group) && !await CurrentUserHasAdminAccessAsync())
             {
                 return Forbid();
             }
@@ -49,7 +60,7 @@ namespace TaskManagement.API.Controllers
         [HttpPut("{group}")]
         public async Task<IActionResult> UpdateSettingsByGroup(string group, [FromBody] UpdateSettingRequest request)
         {
-            if (RequiresAdminAccess(group) && !CurrentUserHasAdminAccess())
+            if (RequiresAdminAccess(group) && !await CurrentUserHasAdminAccessAsync())
             {
                 return Forbid();
             }
@@ -84,6 +95,7 @@ namespace TaskManagement.API.Controllers
         }
 
         [HttpGet("admin/default-task-statuses")]
+        [SystemAuthorize(roles: "SuperAdmin, Admin, System Admin, Organization Admin, AccessAdmin")]
         public async Task<IActionResult> GetDefaultTaskStatuses()
         {
             var items = await GetJsonListSetting("AdminDefaults", "DefaultTaskStatuses", GetDefaultTaskStatusItems());
@@ -91,6 +103,7 @@ namespace TaskManagement.API.Controllers
         }
 
         [HttpPut("admin/default-task-statuses")]
+        [SystemAuthorize(roles: "SuperAdmin, Admin, System Admin, Organization Admin, AccessAdmin")]
         public async Task<IActionResult> UpdateDefaultTaskStatuses([FromBody] StatusListRequest request)
         {
             var items = NormalizeStatusItems(request.Items, GetDefaultTaskStatusItems());
@@ -99,6 +112,7 @@ namespace TaskManagement.API.Controllers
         }
 
         [HttpGet("admin/project-statuses")]
+        [SystemAuthorize(roles: "SuperAdmin, Admin, System Admin, Organization Admin, AccessAdmin")]
         public async Task<IActionResult> GetProjectStatuses()
         {
             var items = await GetJsonListSetting("AdminDefaults", "ProjectStatuses", GetDefaultProjectStatuses());
@@ -106,6 +120,7 @@ namespace TaskManagement.API.Controllers
         }
 
         [HttpPut("admin/project-statuses")]
+        [SystemAuthorize(roles: "SuperAdmin, Admin, System Admin, Organization Admin, AccessAdmin")]
         public async Task<IActionResult> UpdateProjectStatuses([FromBody] StatusListRequest request)
         {
             var items = NormalizeStatusItems(request.Items, GetDefaultProjectStatuses());
@@ -114,6 +129,7 @@ namespace TaskManagement.API.Controllers
         }
 
         [HttpGet("/api/admin/system/metrics")]
+        [SystemAuthorize(roles: "SuperAdmin, Admin, System Admin, Organization Admin, AccessAdmin")]
         public async Task<IActionResult> GetSystemMetrics()
         {
             var recentTaskAuditTimes = await _context.AuditLogs
@@ -248,21 +264,19 @@ namespace TaskManagement.API.Controllers
             };
         }
 
-        private bool CurrentUserHasAdminAccess()
+        private async Task<bool> CurrentUserHasAdminAccessAsync()
         {
-            return User.Claims
-                .Where(claim => claim.Type == ClaimTypes.Role || claim.Type == "role")
-                .Select(claim => claim.Value.Trim().ToLowerInvariant())
-                .Any(role => role is
-                    "superadmin" or
-                    "admin" or
-                    "system admin" or
-                    "organization admin" or
-                    "accessadmin" or
-                    "access admin" or
-                    "pm" or
-                    "po" or
-                    "project_manager");
+            var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+            {
+                return false;
+            }
+
+            return await _context.Users
+                .AsNoTracking()
+                .Where(user => user.Id == userId && user.IsActive && !user.IsDeleted)
+                .SelectMany(user => user.UserRoles.Select(ur => ur.Role.Name))
+                .AnyAsync(role => AdminAccessRoles.Contains(role.Trim().ToLowerInvariant()));
         }
 
         private static bool RequiresAdminAccess(string group)
