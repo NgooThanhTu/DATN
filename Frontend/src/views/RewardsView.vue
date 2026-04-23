@@ -9,6 +9,11 @@
         </div>
         <button class="refresh-btn" type="button" :disabled="loading" @click="loadRewards">
           <i class="fa-solid fa-rotate"></i> {{ loading ? 'Refreshing...' : 'Refresh' }}
+          <h1 class="text-hero">Rewards</h1>
+          <p class="text-desc">Review and track your career level, contribution share, and early completion bonuses.</p>
+        </div>
+        <button class="btn-secondary" type="button" :disabled="loading" @click="loadRewards">
+          <i class="fa-solid fa-rotate"></i> Refresh
         </button>
       </header>
 
@@ -238,8 +243,8 @@ onMounted(loadRewards)
 <style scoped>
 .rewards-page {
   min-height: calc(100vh - 56px);
-  background: #0d0f11;
-  color: #e4e4e7;
+  background: var(--color-bg);
+  color: var(--color-text-primary);
   padding: 32px;
 }
 
@@ -282,7 +287,7 @@ onMounted(loadRewards)
 }
 
 .eyebrow {
-  color: #38bdf8;
+  color: var(--color-accent);
   font-size: 12px;
   text-transform: uppercase;
   font-weight: 700;
@@ -298,14 +303,14 @@ h1 {
 time,
 small,
 .helper-copy {
-  color: #a1a1aa;
+  color: var(--color-text-secondary);
 }
 
 .refresh-btn {
-  border: 1px solid #27272a;
-  border-radius: 6px;
-  background: #16181d;
-  color: #e4e4e7;
+  border: 1px solid var(--border-color);
+  border-radius: 2px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
   padding: 8px 12px;
   cursor: pointer;
 }
@@ -322,9 +327,10 @@ small,
 
 .wallet-card,
 .panel {
-  border: 1px solid #27272a;
-  border-radius: 8px;
-  background: #111317;
+  border: 1px solid var(--border-color);
+  border-radius: 2px;
+  background: var(--bg-secondary);
+  box-shadow: var(--shadow-sm);
 }
 
 .wallet-card {
@@ -338,7 +344,7 @@ small,
 
 .label {
   display: block;
-  color: #a1a1aa;
+  color: var(--color-text-secondary);
   font-size: 12px;
   margin-bottom: 8px;
 }
@@ -349,20 +355,20 @@ small,
 }
 
 .unit {
-  color: #71717a;
+  color: var(--color-text-muted);
   margin-left: 8px;
 }
 
 .progress-track {
   height: 10px;
-  background: #27272a;
-  border-radius: 999px;
+  background: var(--border-color);
+  border-radius: 1px;
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #22c55e, #38bdf8);
+  background: linear-gradient(90deg, var(--color-success), var(--color-accent));
 }
 
 .formula-band,
@@ -382,7 +388,7 @@ small,
 
 .panel-head {
   padding: 14px 16px;
-  border-bottom: 1px solid #27272a;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .panel-head h2 {
@@ -399,20 +405,20 @@ small,
 
 .formula-cell {
   padding: 12px;
-  border: 1px solid #27272a;
-  border-radius: 8px;
-  background: #0d0f11;
+  border: 1px solid var(--border-color);
+  border-radius: 2px;
+  background: var(--bg-primary);
 }
 
 .formula-cell span {
   display: block;
-  color: #71717a;
+  color: var(--color-text-muted);
   margin-bottom: 8px;
   font-size: 12px;
 }
 
 .formula-cell.total strong {
-  color: #22c55e;
+  color: var(--color-success);
 }
 
 .helper-copy,
@@ -423,7 +429,7 @@ small,
 
 .summary-row {
   padding: 10px 0;
-  border-bottom: 1px solid #1e2025;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .summary-row:last-child {
@@ -436,7 +442,7 @@ small,
 .leader-row {
   gap: 12px;
   padding: 14px 16px;
-  border-bottom: 1px solid #1e2025;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .spotlight-main,
@@ -459,16 +465,16 @@ small,
 
 .chip {
   padding: 4px 8px;
-  border-radius: 999px;
-  background: rgba(34, 197, 94, 0.15);
-  color: #22c55e;
+  border-radius: 2px;
+  background: var(--color-success-bg);
+  color: var(--color-success);
   font-size: 12px;
   font-weight: 600;
 }
 
 .chip.muted {
-  background: #1f2937;
-  color: #a1a1aa;
+  background: var(--hover-bg);
+  color: var(--text-secondary);
 }
 
 .tx-icon,
@@ -481,38 +487,39 @@ small,
 }
 
 .tx-icon {
-  background: rgba(34, 197, 94, 0.14);
-  color: #22c55e;
+  background: var(--color-success-bg);
+  color: var(--color-success);
 }
 
 .tx-icon.negative {
-  background: rgba(248, 113, 113, 0.14);
-  color: #f87171;
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
 }
 
 .tx-reason {
-  color: #a1a1aa;
+  color: var(--color-text-secondary);
   font-size: 13px;
   margin: 3px 0;
 }
 
 .tx-points,
 .achievement-points {
-  color: #22c55e;
+  color: var(--color-success);
   font-size: 18px;
 }
 
 .tx-points.negative {
-  color: #f87171;
+  color: var(--color-danger);
 }
 
 .rank {
   width: 36px;
-  color: #71717a;
+  color: var(--color-text-muted);
 }
 
 .avatar {
-  background: #2563eb;
+  background: var(--color-accent);
+  color: #ffffff;
   font-size: 11px;
   font-weight: 700;
 }
@@ -523,7 +530,7 @@ small,
 }
 
 .leader-points {
-  color: #facc15;
+  color: var(--color-warning);
   font-weight: 700;
 }
 
@@ -549,3 +556,7 @@ small,
   }
 }
 </style>
+
+
+
+

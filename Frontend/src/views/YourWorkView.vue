@@ -338,7 +338,52 @@ const downloadWordActivity = () => {
               <div class="lr-right">
                 <div class="lr-badge cursor-not-allowed">
                   <i class="fa-regular fa-clock"></i> {{ activity.time }}
-                </div>
+  </div>
+           </div>
+
+           <!-- Two cols for charts -->
+           <div class="yw-two-cols mt-4">
+              <div class="chart-col">
+                 <h3 class="section-title">Work items by Priority</h3>
+                 <div class="empty-chart" v-if="myTasks.length === 0">
+                    <i class="fa-solid fa-chart-simple chart-icon"></i>
+                    <span>No work item assigned yet</span>
+                 </div>
+                 <div v-else class="text-sm p-4 text-gray-400 border border-[var(--color-border)] rounded-lg mt-2 bg-[var(--color-surface)]">
+                    <div class="flex justify-between mb-2"><span>Urgent</span> <span class="text-white">{{ myTasks.filter(t=>t.priority===1).length }}</span></div>
+                    <div class="flex justify-between mb-2"><span>High</span> <span class="text-white">{{ myTasks.filter(t=>t.priority===2).length }}</span></div>
+                    <div class="flex justify-between mb-2"><span>Medium</span> <span class="text-white">{{ myTasks.filter(t=>t.priority===3).length }}</span></div>
+                    <div class="flex justify-between"><span>Low</span> <span class="text-white">{{ myTasks.filter(t=>t.priority===4).length }}</span></div>
+                 </div>
+              </div>
+              <div class="chart-col">
+                 <h3 class="section-title">Work items by state</h3>
+                 <div class="empty-chart" v-if="myTasks.length === 0">
+                    <i class="fa-solid fa-chart-column chart-icon"></i>
+                    <span>No work item assigned yet</span>
+                 </div>
+                 <div v-else class="text-sm p-4 text-gray-400 border border-[var(--color-border)] rounded-lg mt-2 bg-[var(--color-surface)]">
+                    <div class="flex justify-between mb-2"><span>Backlog</span> <span class="text-white">{{ workload.backlog }}</span></div>
+                    <div class="flex justify-between mb-2"><span>Not Started</span> <span class="text-white">{{ workload.notStarted }}</span></div>
+                    <div class="flex justify-between mb-2"><span>In Progress</span> <span class="text-white">{{ workload.workingOn }}</span></div>
+                    <div class="flex justify-between"><span>Completed</span> <span class="text-white">{{ workload.completed }}</span></div>
+                 </div>
+              </div>
+           </div>
+
+           <!-- Recent activity -->
+           <h3 class="section-title mt-4">Recent activity</h3>
+           <div class="list-body">
+              <div class="list-row" style="cursor: default;" v-for="act in recentActivity" :key="act.id">
+                 <div class="lr-left">
+                    <span class="lr-id" style="min-width: 30px;"><i class="fa-solid fa-clock-rotate-left" style="color: var(--color-text-muted)"></i></span>
+                    <span class="lr-title">{{ act.text }}</span>
+                 </div>
+                 <div class="lr-right">
+                    <div class="lr-badge cursor-not-allowed">
+                       <i class="fa-regular fa-clock"></i> {{ act.time }}
+                    </div>
+                 </div>
               </div>
             </div>
           </div>
@@ -462,8 +507,8 @@ const downloadWordActivity = () => {
 .yw-container {
   display: flex;
   height: 100vh;
-  background: #0D0F11;
-  color: #E4E4E7;
+  background: var(--color-bg);
+  color: var(--color-text-primary);
   font-family: 'Inter', sans-serif;
   overflow: hidden;
 }
@@ -491,13 +536,13 @@ const downloadWordActivity = () => {
 .yw-tabs {
   display: flex;
   gap: 24px;
-  border-bottom: 1px solid #1E2025;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .tab-btn {
   background: transparent;
   border: none;
-  color: #A1A1AA;
+  color: var(--color-text-muted);
   font-size: 13px;
   font-weight: 500;
   padding: 8px 0;
@@ -508,13 +553,12 @@ const downloadWordActivity = () => {
 
 .tab-btn:hover { color: #E4E4E7; }
 .tab-btn.active { color: #38BDF8; border-bottom: 2px solid #38BDF8; }
-
 .yw-scrollable {
   padding-bottom: 40px;
 }
 
 .mt-4 { margin-top: 24px; }
-.section-title { font-size: 14px; font-weight: 600; margin-bottom: 16px; color: #E4E4E7; }
+.section-title { font-size: 14px; font-weight: 600; margin-bottom: 16px; color: var(--color-text-primary); }
 
 .yw-cards-row {
   display: grid;
@@ -523,15 +567,14 @@ const downloadWordActivity = () => {
 }
 
 .yw-card {
-  background: #111315;
-  border: 1px solid #1E2025;
-  border-radius: 8px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 2px;
   padding: 16px;
   display: flex;
   align-items: center;
   gap: 16px;
 }
-
 .card-icon { font-size: 18px; color: #71717A; width: 24px; text-align: center; }
 .card-lbl { font-size: 11px; color: #71717A; margin-bottom: 4px; }
 .card-val { font-size: 18px; font-weight: 600; color: #E4E4E7; }
@@ -543,9 +586,9 @@ const downloadWordActivity = () => {
 }
 
 .wl-card {
-  background: #111315;
-  border: 1px solid #1E2025;
-  border-radius: 8px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 2px;
   padding: 12px 16px;
   display: flex;
   flex-direction: column;
@@ -561,7 +604,6 @@ const downloadWordActivity = () => {
 .bg-green { background: #10B981; }
 .bg-red { background: #EF4444; }
 .wl-val { font-size: 18px; font-weight: 600; color: #E4E4E7; margin-top: auto; }
-
 .yw-two-cols {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -576,16 +618,16 @@ const downloadWordActivity = () => {
 }
 
 .empty-chart {
-  background: #111315;
-  border: 1px solid #1E2025;
-  border-radius: 8px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 2px;
   height: 150px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 12px;
-  color: #71717A;
+  color: var(--color-text-muted);
   font-size: 12px;
 }
 
@@ -594,44 +636,60 @@ const downloadWordActivity = () => {
 .list-header { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: #E4E4E7; }
 .f-icon { color: #A1A1AA; font-size: 12px; }
 .lh-count { font-size: 12px; font-weight: 400; color: #71717A; }
+}
+.activity-item {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid var(--color-border);
+  gap: 12px;
+}
+.activity-item:last-child { border-bottom: none; }
+.avatar-sm { width: 24px; height: 24px; background: var(--color-accent); color: var(--color-text-primary); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; border-radius: 50%; }
+.act-text { font-size: 13px; font-weight: 500; color: var(--color-text-primary); }
+.act-time { font-size: 11px; color: var(--color-text-muted); margin-top: 4px; }
 
-.list-body { border-top: 1px solid #1E2025; }
-.list-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #1E2025; transition: background 0.2s; cursor: pointer; }
-.list-row:hover { background: #16181D; }
+/* List View styles */
+.list-header { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--color-text-primary); }
+.f-icon { color: var(--color-text-muted); font-size: 12px; }
+.lh-count { font-size: 12px; font-weight: 400; color: var(--color-text-muted); }
+.list-body { border-top: 1px solid var(--color-border); }
+.list-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--color-border); transition: background 0.2s; cursor: pointer; }
+.list-row:hover { background: var(--color-surface); }
 .lr-left { display: flex; align-items: center; gap: 16px; }
-.lr-id { font-size: 12px; color: #71717A; min-width: 45px; }
-.lr-title { font-size: 13px; font-weight: 500; color: #E4E4E7; }
+.lr-id { font-size: 12px; color: var(--color-text-muted); min-width: 45px; }
+.lr-title { font-size: 13px; font-weight: 500; color: var(--color-text-primary); }
 .lr-right { display: flex; align-items: center; gap: 6px; }
 
-.lr-badge { border: 1px solid #27272A; border-radius: 4px; padding: 4px 8px; font-size: 12px; color: #A1A1AA; display: flex; align-items: center; gap: 6px; }
+.lr-badge { border: 1px solid var(--color-border); border-radius: 2px; padding: 4px 8px; font-size: 12px; color: var(--color-text-muted); display: flex; align-items: center; gap: 6px; }
 .lr-badge.green { border-color: #064E3B; background: rgba(16, 185, 129, 0.1); color: #10B981; }
 .lr-badge i { font-size: 11px; }
 .text-orange { color: #F59E0B; }
-.avatar-badge { width: 24px; height: 24px; border-radius: 50%; background: #0EA5E9; color: white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; padding: 0; border: none; }
+.avatar-badge { width: 24px; height: 24px; border-radius: 50%; background: var(--color-accent); color: var(--color-text-primary); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; padding: 0; border: none; }
 
 .flex-between { display: flex; justify-content: space-between; align-items: center; }
-.plane-primary-btn { background: #0EA5E9; color: white; border: none; border-radius: 6px; padding: 6px 12px; font-size: 12px; font-weight: 500; cursor: pointer; transition: background 0.2s; }
-.plane-primary-btn:hover { background: #0284C7; }
+.plane-primary-btn { background: var(--color-accent); color: var(--color-text-primary); border: none; border-radius: 2px; padding: 6px 12px; font-size: 12px; font-weight: 500; cursor: pointer; transition: background 0.2s; }
+.plane-primary-btn:hover { filter: brightness(1.1); }
 
-.p-act-row { display: flex; align-items: flex-start; gap: 16px; padding: 16px 0; border-bottom: 1px solid #1E2025; }
-.p-act-icon { width: 20px; font-size: 12px; color: #A1A1AA; text-align: center; margin-top: 2px; }
+.p-act-row { display: flex; align-items: flex-start; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--color-border); }
+.p-act-icon { width: 20px; font-size: 12px; color: var(--color-text-muted); text-align: center; margin-top: 2px; }
 .p-act-content { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 13px; }
-.p-ac-text { color: #A1A1AA; }
-.p-ac-bold { color: #E4E4E7; font-weight: 500; }
-.p-ac-time { color: #71717A; font-size: 11px; }
+.p-ac-text { color: var(--color-text-muted); }
+.p-ac-bold { color: var(--color-text-primary); font-weight: 500; }
+.p-ac-time { color: var(--color-text-muted); font-size: 11px; }
 
 .yw-sidebar {
   width: 320px;
-  background: #0D0F11;
-  border-left: 1px solid #1E2025;
+  background: var(--color-bg);
+  border-left: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
 }
 
 .cover-image {
   height: 120px;
-  background: #27272A;
-  background-image: linear-gradient(45deg, #16181D, #27272A);
+  background: var(--color-border);
+  background-image: linear-gradient(45deg, var(--color-surface), var(--color-border));
   position: relative;
 }
 
@@ -661,26 +719,30 @@ const downloadWordActivity = () => {
   top: -24px;
   width: 48px;
   height: 48px;
-  background: #0EA5E9;
-  color: white;
+  background: var(--color-accent);
+  color: var(--color-text-primary);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 20px;
   font-weight: 600;
-  border-radius: 8px;
-  border: 4px solid #0D0F11;
+  border-radius: 2px;
+  border: 4px solid var(--color-bg);
 }
 
 .user-details { margin-top: 40px; }
-.user-name { font-size: 16px; font-weight: 600; margin: 0; color: #E4E4E7; }
-.user-handle { font-size: 12px; color: #71717A; margin: 4px 0 0 0; }
+.user-name { font-size: 16px; font-weight: 600; margin: 0; color: var(--color-text-primary); }
+.user-handle { font-size: 12px; color: var(--color-text-muted); margin: 4px 0 0 0; }
 
 .info-row { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 8px; }
-.info-lbl { color: #71717A; }
-.info-val { color: #E4E4E7; font-weight: 500; }
+.info-lbl { color: var(--color-text-muted); }
+.info-val { color: var(--color-text-primary); font-weight: 500; }
 
-.workspace-row { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; padding-top: 16px; border-top: 1px solid #1E2025; cursor: pointer; }
+.workspace-row { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; padding-top: 16px; border-top: 1px solid var(--color-border); cursor: pointer; }
 .ws-icon { color: #F59E0B; }
 .ms-auto { margin-left: auto; }
 </style>
+
+
+
+

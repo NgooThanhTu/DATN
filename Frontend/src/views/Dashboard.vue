@@ -208,10 +208,10 @@ const updateTime = () => {
 
 const fallbackCover = (project) => {
   const gradients = [
-    'linear-gradient(135deg, #111827 0%, #1d4ed8 100%)',
-    'linear-gradient(135deg, #052e16 0%, #16a34a 100%)',
-    'linear-gradient(135deg, #3f0d12 0%, #b91c1c 100%)',
-    'linear-gradient(135deg, #312e81 0%, #7c3aed 100%)'
+    'linear-gradient(135deg, var(--color-bg) 0%, var(--color-accent) 100%)',
+    'linear-gradient(135deg, var(--bg-secondary) 0%, var(--color-success) 100%)',
+    'linear-gradient(135deg, var(--bg-tertiary) 0%, var(--color-warning) 100%)',
+    'linear-gradient(135deg, var(--color-surface) 0%, var(--color-danger) 100%)'
   ]
   const name = project?.name || ''
   const index = name.length % gradients.length
@@ -279,8 +279,8 @@ onMounted(async () => {
 <style scoped>
 .plane-dashboard {
   min-height: 100vh;
-  background: #0d0f11;
-  color: #e4e4e7;
+  background: var(--color-bg);
+  color: var(--color-text-primary);
   padding: 32px;
 }
 
@@ -305,10 +305,11 @@ onMounted(async () => {
 
 .eyebrow {
   margin: 0 0 8px;
-  color: #38bdf8;
+  color: var(--color-accent);
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+  font-weight: 700;
 }
 
 .dashboard-title,
@@ -322,7 +323,7 @@ onMounted(async () => {
 .section-head span,
 .project-body p,
 .project-meta {
-  color: #a1a1aa;
+  color: var(--color-text-secondary);
 }
 
 .header-actions,
@@ -333,22 +334,23 @@ onMounted(async () => {
 
 .primary-btn,
 .secondary-btn {
-  border-radius: 6px;
+  border-radius: 2px;
   padding: 10px 14px;
   border: 1px solid transparent;
   cursor: pointer;
   font-weight: 600;
+  transition: all 0.2s;
 }
 
 .primary-btn {
-  background: #0ea5e9;
-  color: #fff;
+  background: var(--color-accent);
+  color: #ffffff;
 }
 
 .secondary-btn {
-  background: transparent;
-  border-color: #27272a;
-  color: #e4e4e7;
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-text-primary);
 }
 
 .small {
@@ -357,10 +359,11 @@ onMounted(async () => {
 }
 
 .hero-panel {
-  background: #16181d;
-  border: 1px solid #1f232a;
-  border-radius: 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 2px;
   padding: 24px;
+  box-shadow: var(--shadow-sm);
 }
 
 .hero-copy {
@@ -373,15 +376,15 @@ onMounted(async () => {
 
 .stat-box {
   min-width: 120px;
-  background: #111315;
-  border: 1px solid #27272a;
-  border-radius: 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 2px;
   padding: 14px;
 }
 
 .stat-label {
   display: block;
-  color: #71717a;
+  color: var(--color-text-muted);
   font-size: 12px;
   margin-bottom: 6px;
 }
@@ -390,9 +393,9 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: #16181d;
-  border: 1px solid #27272a;
-  border-radius: 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 2px;
   padding: 0 14px;
 }
 
@@ -400,7 +403,7 @@ onMounted(async () => {
   width: 100%;
   background: transparent;
   border: none;
-  color: #fff;
+  color: var(--color-text-primary);
   padding: 14px 0;
   outline: none;
 }
@@ -413,10 +416,15 @@ onMounted(async () => {
 
 .project-card {
   position: relative;
-  background: #16181d;
-  border: 1px solid #1f232a;
-  border-radius: 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 2px;
   overflow: hidden;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.project-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
 }
 
 .favorite-btn {
@@ -427,8 +435,8 @@ onMounted(async () => {
   width: 32px;
   height: 32px;
   border: none;
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.35);
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.45);
   color: #facc15;
   cursor: pointer;
 }
@@ -446,10 +454,11 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.16);
-  color: #fff;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
   font-weight: 700;
+  backdrop-filter: blur(4px);
 }
 
 .project-body {
@@ -464,7 +473,7 @@ onMounted(async () => {
 }
 
 .project-heading span {
-  color: #71717a;
+  color: var(--color-text-muted);
   font-size: 12px;
 }
 
@@ -485,9 +494,9 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   gap: 12px;
-  background: #16181d;
-  border: 1px dashed #27272a;
-  border-radius: 8px;
+  background: var(--bg-secondary);
+  border: 1px dashed var(--border-color);
+  border-radius: 2px;
 }
 
 .task-form {
@@ -498,7 +507,7 @@ onMounted(async () => {
 .task-form label {
   display: grid;
   gap: 8px;
-  color: #52525b;
+  color: var(--color-text-secondary);
   font-size: 13px;
   font-weight: 600;
 }
@@ -507,9 +516,11 @@ onMounted(async () => {
 .task-form select,
 .task-form textarea {
   width: 100%;
-  border: 1px solid #d4d4d8;
-  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  border-radius: 2px;
   padding: 10px 12px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
   font: inherit;
 }
 
@@ -525,3 +536,6 @@ onMounted(async () => {
   }
 }
 </style>
+
+
+

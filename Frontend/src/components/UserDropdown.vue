@@ -1,12 +1,14 @@
 <template>
   <el-dropdown trigger="click" popper-class="user-dropdown-popper" @command="handleCommand" :teleported="true">
-    <div class="user-avatar-trigger">
-      {{ userInitial }}
-    </div>
+    <div class="header-avatar" :style="{ backgroundColor: avatarColor }">
+  {{ userInitial }}
+</div>
     <template #dropdown>
       <el-dropdown-menu class="jira-user-menu">
         <div class="user-menu-header">
-          <div class="header-avatar">{{ userInitial }}</div>
+          <div class="user-avatar-trigger" :style="{ backgroundColor: avatarColor }">
+  {{ userInitial }}
+</div>
           <div class="header-info">
             <div class="user-display-name">{{ userDisplayName }}</div>
             <div class="user-email">{{ userEmail }}</div>
@@ -99,6 +101,12 @@ const userDisplayName = computed(() => currentUser.value?.fullName || currentUse
 const userEmail = computed(() => currentUser.value?.email || 'user@example.com')
 const userInitial = computed(() => userDisplayName.value.charAt(0).toUpperCase() || 'U')
 
+const avatarColor = computed(() => {
+  const colors = ['#579dff', '#c97cf4', '#00b8d9', '#22a06b', '#f5cd47', '#e2483d']
+  const index = userDisplayName.value.length % colors.length
+  return colors[index]
+})
+
 const toggleThemeSub = () => {
   themeSubVisible.value = !themeSubVisible.value
 }
@@ -135,45 +143,109 @@ const selectTheme = (theme) => {
 
 <style scoped>
 .jira-user-menu {
-  width: 320px;
-  background-color: var(--bg-content);
-  border-radius: 8px;
-  padding: 12px 0;
-  border: 1px solid var(--border-color);
-  box-shadow: 0 12px 48px rgba(0,0,0,0.5);
+  width: 300px;
+  background-color: var(--color-surface);
+  border-radius: 2px; /* Sharp UI */
+  padding: 8px 0;
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-xl);
 }
-.user-menu-header { display: flex; padding: 8px 16px 20px; gap: 16px; align-items: center; }
-.header-avatar { width: 50px; height: 50px; background-color: #f59e0b; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; color: #1d2125; }
-.user-display-name { font-size: 16px; font-weight: 600; color: var(--text-primary); }
-.user-email { font-size: 12px; color: var(--text-secondary); }
-.menu-item-inner { display: flex; align-items: center; gap: 12px; color: var(--text-primary); }
-.menu-item-inner i { width: 20px; text-align: center; color: var(--text-secondary); font-size: 16px; }
-.logout-item i, .logout-item span { color: #f87171; }
-.menu-divider { height: 1px; background-color: var(--border-color); margin: 8px 0; }
+.user-menu-header { display: flex; padding: 12px 16px; gap: 12px; align-items: center; border-bottom: 1px solid var(--color-border); margin-bottom: 4px; }
+.header-avatar { 
+  width: 40px; height: 40px; 
+  border-radius: 50%; 
+  display: flex; align-items: center; justify-content: center; 
+  font-size: 16px; font-weight: 700; color: #fff; 
+}
+.user-display-name { font-size: 14px; font-weight: 700; color: var(--color-text-primary); }
+.user-email { font-size: 12px; color: var(--color-text-muted); }
+
+.menu-item-inner { 
+  display: flex; 
+  align-items: center; 
+  gap: 12px; 
+  color: var(--color-text-primary) !important; /* Ensure high contrast */
+  font-size: 13px;
+  font-weight: 500;
+}
+.menu-item-inner i { width: 16px; text-align: center; color: var(--color-text-muted); font-size: 14px; }
+
+.logout-item i, .logout-item span { color: #ef4444 !important; }
+.menu-divider { height: 1px; background-color: var(--color-border); margin: 4px 0; }
+
 .theme-trigger-item { padding: 10px 16px; cursor: pointer; transition: all 0.2s; }
-.theme-trigger-item:hover { background-color: var(--hover-bg); }
-.arrow-icon { margin-left: auto; transition: transform 0.2s; }
+.theme-trigger-item:hover { background-color: var(--color-surface-hover); }
+
+.theme-expanded-menu { 
+  margin: 8px 12px; 
+  background-color: var(--color-bg); 
+  border-radius: 4px; 
+  padding: 4px 0; 
+  border: 1px solid var(--color-border); 
+}
+.theme-option { 
+  display: flex; 
+  align-items: center; 
+  padding: 8px 12px; 
+  gap: 12px; 
+  cursor: pointer; 
+  color: var(--color-text-secondary); 
+  transition: all 0.2s;
+}
+.theme-option:hover { 
+  background-color: var(--color-surface-hover); 
+  color: var(--color-text-primary);
+}
+.theme-option.active { 
+  background-color: color-mix(in srgb, var(--color-accent) 15%, transparent); 
+  color: var(--color-accent); 
+}
+.option-label { font-size: 12px; font-weight: 600; }
+.radio-indicator { color: var(--color-accent); font-size: 12px; }
+.arrow-icon { margin-left: auto; transition: transform 0.2s; color: var(--color-text-muted); font-size: 10px !important; }
 .arrow-icon.rotated { transform: rotate(90deg); }
-.theme-expanded-menu { margin-top: 8px; background-color: var(--bg-secondary); border-radius: 6px; padding: 4px 0; border: 1px solid var(--border-color); }
-.theme-option { display: flex; align-items: center; padding: 10px 16px; gap: 16px; cursor: pointer; color: var(--text-secondary); }
-.theme-option:hover { background-color: var(--hover-bg); }
-.theme-option.active { background-color: var(--active-bg); color: #579dff; }
-.theme-preview-box { width: 48px; height: 32px; border-radius: 3px; border: 1px solid var(--border-color); overflow: hidden; display: flex; flex-direction: column; }
-.light.theme-preview-box { background: #fff; border-color: #ddd; }
-.dark.theme-preview-box { background: #0d1117; border-color: #21262d; }
-.p-header { height: 8px; background: #ebecf0; }
-.dark .p-header { background: #21262d; }
+
+.theme-preview-box { 
+  width: 36px; height: 24px; border-radius: 2px; border: 1px solid var(--color-border); 
+  overflow: hidden; display: flex; flex-direction: column; 
+}
+.light.theme-preview-box { background: #ffffff; }
+.dark.theme-preview-box { background: #0f172a; border-color: #334155; }
+.p-header { height: 4px; background: #f1f5f9; }
+.dark .p-header { background: #1e293b; }
 .p-body { flex: 1; display: flex; }
-.p-sidebar { width: 12px; background: #f4f5f7; border-right: 1px solid #eee; }
-.dark .p-sidebar { background: #161b22; border-color: #30363d; }
-.p-content { flex: 1; background: #fff; }
-.dark .p-content { background: #0d1117; }
-.user-avatar-trigger { width: 32px; height: 32px; background: #f59e0b; color: #1d2125; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; cursor: pointer; }
+.p-sidebar { width: 10px; background: #f8fafc; border-right: 1px solid #e2e8f0; }
+.dark .p-sidebar { background: #020617; border-color: #1e293b; }
+.p-content { flex: 1; background: #ffffff; }
+.dark .p-content { background: #0f172a; }
+
+.user-avatar-trigger { 
+  width: 30px; height: 30px; 
+  color: #fff; border-radius: 50%; 
+  display: flex; align-items: center; justify-content: center; 
+  font-weight: 700; font-size: 11px; cursor: pointer; 
+  border: 1px solid rgba(255,255,255,0.1);
+}
 </style>
 
 <style>
-.user-dropdown-popper.el-popper { background: var(--bg-content) !important; border: 1px solid var(--border-color) !important; border-radius: 8px !important; padding: 0 !important; box-shadow: 0 12px 48px rgba(0,0,0,0.6) !important; }
-.user-dropdown-popper .el-dropdown-menu__item { padding: 10px 16px !important; background-color: transparent !important; }
-.user-dropdown-popper .el-dropdown-menu__item:hover { background-color: var(--hover-bg) !important; }
-.user-dropdown-popper .el-popper__arrow::before { background: var(--bg-content) !important; border: 1px solid var(--border-color) !important; }
+.user-dropdown-popper.el-popper { 
+  background: var(--color-surface) !important; 
+  border: 1px solid var(--color-border) !important; 
+  border-radius: 12px !important; 
+  padding: 0 !important; 
+  box-shadow: var(--shadow-xl) !important; 
+}
+.user-dropdown-popper .el-dropdown-menu__item { 
+  padding: 10px 16px !important; 
+  background-color: transparent !important; 
+  color: var(--color-text-primary) !important; 
+}
+.user-dropdown-popper .el-dropdown-menu__item:hover { 
+  background-color: var(--color-surface-hover) !important; 
+}
+.user-dropdown-popper .el-popper__arrow::before { 
+  background: var(--color-surface) !important; 
+  border: 1px solid var(--color-border) !important; 
+}
 </style>
