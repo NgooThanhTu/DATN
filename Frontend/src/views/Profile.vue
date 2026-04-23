@@ -1,53 +1,57 @@
 <template>
   <NexusLayout class="profile-page">
+    <!-- Hidden file inputs -->
+    <input ref="avatarInput" type="file" style="display: none" accept="image/*" @change="uploadAvatar" />
+    <input ref="coverInput" type="file" style="display: none" accept="image/*" @change="uploadCover" />
+
     <div class="profile-body-container">
       <div class="profile-container" v-loading="isLoading">
-        <div class="profile-header-section">
-          <el-dropdown trigger="click" class="header-image-dropdown">
-            <div class="header-image-box">
-              <div class="avatar-inside-wrapper">
-                <el-dropdown trigger="click">
-                  <div class="large-profile-avatar" :style="avatarStyle">
-                    {{ profileData.avatarUrl ? '' : getInitials(profileData.fullName) }}
+        <div class="profile-header-section sharp-card">
+          <!-- Cover photo banner -->
+          <div
+            class="header-image-box"
+            :style="coverBannerStyle"
+            @click="triggerCoverUpload"
+            title="Click to change cover"
+          >
+            <!-- Avatar (absolute-positioned over the banner) -->
+            <div class="avatar-inside-wrapper" @click.stop>
+              <el-dropdown trigger="click" @command="handleAvatarCommand">
+                <div class="large-profile-avatar" :style="avatarStyle">
+                  {{ profileData.avatarUrl ? '' : getInitials(profileData.fullName) }}
+                  <div class="avatar-hover-overlay">
+                    <i class="fa-solid fa-camera"></i>
                   </div>
-                  <template #dropdown>
-                    <el-dropdown-menu>
-                      <el-dropdown-item @click="triggerAvatarUpload">
-                        <i class="fa-solid fa-plus"></i> Thêm ảnh hồ sơ
-                      </el-dropdown-item>
-                    </el-dropdown-menu>
-                  </template>
-                  <input ref="avatarInput" type="file" style="display: none" accept="image/*" @change="uploadAvatar" />
-                </el-dropdown>
-              </div>
-
-              <div class="banner-upload-prompt">
-                <i class="fa-regular fa-image"></i>
-                <span>Cập nhật ảnh bìa sau</span>
-              </div>
+                </div>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="upload">
+                      <i class="fa-solid fa-plus"></i> Add profile photo
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
             </div>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item @click="triggerAvatarUpload">
-                  <i class="fa-solid fa-upload"></i> Tải ảnh lên
-                </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
+
+            <div class="banner-upload-prompt" v-if="!profileData.coverUrl">
+              <i class="fa-regular fa-image"></i>
+              <span>{{ profileData.coverUrl ? 'Change cover' : 'Add cover' }}</span>
+            </div>
+          </div>
 
           <div class="header-footer-privacy">
             <div class="profile-name-block">
-              <strong>{{ profileData.publicName || profileData.fullName || 'Thành viên' }}</strong>
-              <span>{{ profileData.jobTitle || 'Cập nhật chức danh của bạn' }}</span>
+              <strong>{{ profileData.publicName || profileData.fullName || 'Member' }}</strong>
+              <span>{{ profileData.jobTitle || 'Update your job title' }}</span>
             </div>
             <div class="header-privacy-info">
-              <span>Ai có thể xem ảnh hồ sơ của bạn?</span>
+              <span>Who can see your profile photo?</span>
               <el-dropdown trigger="click">
-                <span class="privacy-select"><i class="fa-solid fa-globe"></i> Bất kỳ ai <i class="fa-solid fa-chevron-down"></i></span>
+                <span class="privacy-select"><i class="fa-solid fa-globe"></i> Anyone <i class="fa-solid fa-chevron-down"></i></span>
                 <template #dropdown>
                   <el-dropdown-menu>
-                    <el-dropdown-item>Bất kỳ ai</el-dropdown-item>
-                    <el-dropdown-item>Chỉ người trong tổ chức</el-dropdown-item>
+                    <el-dropdown-item>Anyone</el-dropdown-item>
+                    <el-dropdown-item>Organization only</el-dropdown-item>
                   </el-dropdown-menu>
                 </template>
               </el-dropdown>
@@ -160,6 +164,7 @@ import { ElMessage } from 'element-plus'
 const isLoading = ref(false)
 const isSaving = ref(false)
 const avatarInput = ref(null)
+const coverInput = ref(null)
 
 const profileData = ref({
   fullName: '',
@@ -169,17 +174,31 @@ const profileData = ref({
   organization: '',
   email: '',
   collaboration: '',
-  avatarUrl: ''
+  avatarUrl: '',
+  coverUrl: ''
 })
 
-const getBaseUrl = () => 'http://localhost:5136'
+const getBaseUrl = () => import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5136'
 
 const avatarStyle = computed(() => {
-  if (!profileData.value.avatarUrl) {
-    return ''
+  if (!profileData.value.avatarUrl) return {}
+  return {
+    backgroundImage: `url(${getBaseUrl()}${profileData.value.avatarUrl})`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    color: 'transparent'
   }
+})
 
-  return `background-image: url(${getBaseUrl()}${profileData.value.avatarUrl}); background-size: cover; color: transparent; background-position: center;`
+const coverBannerStyle = computed(() => {
+  if (!profileData.value.coverUrl) {
+    return { background: 'var(--bg-tertiary)' }
+  }
+  return {
+    backgroundImage: `url(${getBaseUrl()}${profileData.value.coverUrl})`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center'
+  }
 })
 
 const getInitials = (name) => {
@@ -193,17 +212,27 @@ const getInitials = (name) => {
     .toUpperCase()
 }
 
+const handleAvatarCommand = (command) => {
+  if (command === 'upload') {
+    triggerAvatarUpload()
+  }
+}
+
 const triggerAvatarUpload = () => {
   avatarInput.value?.click()
 }
 
+const triggerCoverUpload = () => {
+  coverInput.value?.click()
+}
+
 const uploadAvatar = async (event) => {
-  const file = event.target.files?.[0]
-  if (!file) return
-
+  const avatarFile = event.target.files?.[0]
+  if (!avatarFile) return
+  
   const formData = new FormData()
-  formData.append('file', file)
-
+  formData.append('file', avatarFile)
+  
   try {
     const res = await axiosClient.put('/users/avatar', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
@@ -211,7 +240,27 @@ const uploadAvatar = async (event) => {
     profileData.value.avatarUrl = res.data?.data?.avatarUrl || ''
     ElMessage.success('Đã cập nhật ảnh đại diện')
   } catch (error) {
-    ElMessage.error(error.response?.data?.message || 'Lỗi khi tải ảnh')
+    ElMessage.error(error.response?.data?.message || 'Lỗi khi tải ảnh đại diện')
+  } finally {
+    event.target.value = ''
+  }
+}
+
+const uploadCover = async (event) => {
+  const coverFile = event.target.files?.[0]
+  if (!coverFile) return
+
+  const formData = new FormData()
+  formData.append('file', coverFile)
+
+  try {
+    const res = await axiosClient.put('/users/cover', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    profileData.value.coverUrl = res.data?.data?.coverUrl || ''
+    ElMessage.success('Đã cập nhật ảnh bìa')
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || 'Lỗi khi tải ảnh bìa')
   } finally {
     event.target.value = ''
   }
@@ -230,7 +279,8 @@ const fetchProfile = async () => {
       organization: data.organizationName || '',
       email: data.email || '',
       collaboration: data.collaborationRules || '',
-      avatarUrl: data.avatarUrl || ''
+      avatarUrl: data.avatarUrl || '',
+      coverUrl: data.coverUrl || ''
     }
   } catch (error) {
     console.error('Lỗi khi tải profile', error)
@@ -286,28 +336,27 @@ onMounted(fetchProfile)
 
 .profile-header-section {
   position: relative;
-  background-color: var(--bg-card);
-  border-radius: 12px;
+  background-color: var(--bg-secondary);
+  border-radius: 2px;
   overflow: visible;
   border: 1px solid var(--border-color);
   margin-bottom: 80px;
   width: 100%;
 }
 
-.header-image-dropdown {
-  display: block;
-  width: 100%;
-}
-
 .header-image-box {
   width: 100%;
   height: 180px;
-  background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
   display: flex;
   align-items: center;
   position: relative;
   cursor: pointer;
-  border-radius: 12px 12px 0 0;
+  border-radius: 2px 2px 0 0;
+  transition: filter 0.2s;
+}
+
+.header-image-box:hover {
+  filter: brightness(0.88);
 }
 
 .avatar-inside-wrapper {
@@ -320,15 +369,42 @@ onMounted(fetchProfile)
 .large-profile-avatar {
   height: 120px;
   width: 120px;
-  background-color: #f59e0b;
-  border-radius: 50%;
+  background-color: var(--color-accent);
+  border-radius: 50%; /* Avatar remains circular for visual distinction */
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 40px;
   font-weight: 700;
-  color: #1d2125;
-  border: 4px solid var(--bg-layout);
+  color: #ffffff;
+  border: 4px solid var(--bg-primary);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: filter 0.2s;
+}
+
+.large-profile-avatar:hover {
+  filter: brightness(0.8);
+}
+
+.avatar-hover-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background 0.2s;
+  color: white;
+  font-size: 22px;
+  opacity: 0;
+}
+
+.large-profile-avatar:hover .avatar-hover-overlay {
+  background: rgba(0,0,0,0.4);
+  opacity: 1;
 }
 
 .banner-upload-prompt {
@@ -338,14 +414,16 @@ onMounted(fetchProfile)
   align-items: center;
   justify-content: center;
   gap: 8px;
-  color: rgba(29, 33, 37, 0.4);
+  color: rgba(255, 255, 255, 0.7);
   font-weight: 600;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  pointer-events: none;
 }
 
 .header-footer-privacy {
-  background-color: var(--bg-card);
-  border-radius: 0 0 12px 12px;
-  padding: 40px 24px 12px;
+  background-color: var(--bg-secondary);
+  border-radius: 0 0 2px 2px;
+  padding: 24px 24px 12px;
   display: flex;
   justify-content: space-between;
   gap: 24px;
@@ -355,17 +433,17 @@ onMounted(fetchProfile)
 .profile-name-block {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .profile-name-block strong {
-  color: var(--text-primary);
+  color: var(--color-text-primary);
   font-size: 22px;
   font-weight: 700;
 }
 
 .profile-name-block span {
-  color: #8b949e;
+  color: var(--color-text-secondary);
   font-size: 14px;
 }
 
@@ -375,15 +453,16 @@ onMounted(fetchProfile)
   align-items: flex-end;
   gap: 6px;
   font-size: 13px;
-  color: #8b949e;
+  color: var(--color-text-muted);
 }
 
 .privacy-select {
-  color: #8b949e;
+  color: var(--color-text-secondary);
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 4px;
+  font-weight: 500;
 }
 
 .profile-content-form {
@@ -391,10 +470,12 @@ onMounted(fetchProfile)
 }
 
 .section-title {
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--color-text-primary);
   margin-bottom: 24px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .mt-40 {
@@ -404,27 +485,29 @@ onMounted(fetchProfile)
 .form-grid {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
 }
 
 .form-row {
   display: grid;
-  grid-template-columns: 200px 1fr;
-  gap: 32px;
+  grid-template-columns: 160px 1fr;
+  gap: 12px; /* Tightened from 20px */
 }
 
 .field-label {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--color-text-secondary);
   display: flex;
   align-items: center;
   gap: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 
 .info-icon {
-  font-size: 12px;
-  color: #8b949e;
+  font-size: 11px;
+  color: var(--color-text-muted);
 }
 
 .field-input-wrapper {
@@ -432,29 +515,31 @@ onMounted(fetchProfile)
 }
 
 .field-privacy {
-  margin-top: 8px;
+  margin-top: 6px;
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
-  color: #8b949e;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.privacy-label {
+  color: var(--color-text-muted);
 }
 
 .save-row {
-  margin-top: 16px;
+  margin-top: 12px;
 }
 
 .contact-card {
-  padding-bottom: 40px;
+  padding-bottom: 24px;
 }
 
 .email-value {
-  padding: 10px 0;
+  padding: 6px 0;
   font-size: 14px;
-}
-
-.danger-item {
-  color: #f87171 !important;
+  color: var(--color-text-primary);
+  font-weight: 600;
 }
 
 @media (max-width: 768px) {
@@ -492,7 +577,7 @@ onMounted(fetchProfile)
 
   .form-row {
     grid-template-columns: 1fr;
-    gap: 8px;
+    gap: 4px;
   }
 
   .field-input-wrapper {
