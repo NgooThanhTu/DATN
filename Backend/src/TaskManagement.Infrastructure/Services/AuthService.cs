@@ -91,31 +91,7 @@ namespace TaskManagement.Infrastructure.Services
         {
             var roles = user.UserRoles?.Select(ur => ur.Role.Name).ToList() ?? new List<string>();
 
-            // Auto-seed roles if user has none (For Dev/Testing purposes)
-            if (roles.Count == 0)
-            {
-                var adminRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == "Admin");
-                if (adminRole == null)
-                {
-                    adminRole = new TaskManagement.Domain.Entities.Role { Id = Guid.NewGuid(), Name = "Admin", Description = "System Administrator" };
-                    _context.Roles.Add(adminRole);
-                    await _context.SaveChangesAsync();
-                }
-
-                var ur = new TaskManagement.Domain.Entities.UserRole
-                {
-                    UserId = user.Id,
-                    RoleId = adminRole.Id,
-                    Role = adminRole
-                };
-                user.UserRoles?.Add(ur);
-                if (user.UserRoles == null) {
-                    _context.UserRoles.Add(ur);
-                }
-                await _context.SaveChangesAsync();
-                
-                roles.Add("Admin");
-            }
+            // Users without system roles should stay role-less until explicitly assigned.
 
             var accessToken = _jwtService.GenerateAccessToken(user, roles);
             var refreshToken = _jwtService.GenerateRefreshToken();
@@ -238,28 +214,7 @@ namespace TaskManagement.Infrastructure.Services
 
             var roles = user.UserRoles?.Select(ur => ur.Role.Name).ToList() ?? new List<string>();
 
-            // Auto-seed roles if user has none (For Dev/Testing purposes)
-            if (roles.Count == 0)
-            {
-                var adminRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == "Admin");
-                if (adminRole == null)
-                {
-                    adminRole = new TaskManagement.Domain.Entities.Role { Id = Guid.NewGuid(), Name = "Admin", Description = "System Administrator" };
-                    _context.Roles.Add(adminRole);
-                    await _context.SaveChangesAsync();
-                }
-
-                var ur = new TaskManagement.Domain.Entities.UserRole
-                {
-                    UserId = user.Id,
-                    RoleId = adminRole.Id,
-                    Role = adminRole
-                };
-                _context.UserRoles.Add(ur);
-                await _context.SaveChangesAsync();
-                
-                roles.Add("Admin");
-            }
+            // Users without system roles should stay role-less until explicitly assigned.
 
             var accessToken = _jwtService.GenerateAccessToken(user, roles);
             var refreshToken = _jwtService.GenerateRefreshToken();

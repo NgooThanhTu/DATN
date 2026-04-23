@@ -147,7 +147,9 @@ const updateDateField = (task, field, event) => {
 
 const toggleTaskAssignee = (task, id) => {
   const currentIds = getTaskAssigneeIds(task)
-  const nextIds = currentIds.includes(id) ? currentIds.filter(item => item !== id) : [...currentIds, id]
+  const nextIds = currentIds.includes(id)
+    ? currentIds.filter(item => item !== id)
+    : Array.from(new Set([...currentIds, id]))
   emit('update-task', task, 'assigneeIds', nextIds, currentIds)
 }
 

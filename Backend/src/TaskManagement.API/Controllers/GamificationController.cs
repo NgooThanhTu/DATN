@@ -79,13 +79,26 @@ namespace TaskManagement.API.Controllers
                     item.WorkTaskId,
                     item.ProgressPercent,
                     item.ContributionWeight,
-                    item.Status
+                    item.Status,
+                    item.EstimatedHours,
+                    item.TotalActualHours
+                })
+                .ToListAsync();
+
+            var timeLogSnapshots = await _context.TimeLogs
+                .AsNoTracking()
+                .Where(item => item.UserId == userId.Value)
+                .GroupBy(item => item.WorkTaskId)
+                .Select(group => new
+                {
+                    WorkTaskId = group.Key,
+                    LoggedHours = group.Sum(item => item.Hours)
                 })
                 .ToListAsync();
 
             var points = wallet?.TotalPoints ?? 0;
             var career = CalculateCareer(points);
-            var summary = BuildSummary(transactions, assignedTaskSnapshots, assignmentSnapshots);
+            var summary = BuildSummary(transactions, assignedTaskSnapshots, assignmentSnapshots, timeLogSnapshots);
 
             return Ok(new
             {
@@ -113,9 +126,17 @@ namespace TaskManagement.API.Controllers
                     },
                     formula = new
                     {
-                        expression = "Gia tri x Anh huong x So ngay",
+                        expression = "Base effort x Efficiency x Quality x Contribution share",
                         earlyBonusPercent = 10,
                         contributionRule = "Diem duoc chia theo ty le dong gop trong task.",
+                        actualHoursRule = "Actual hours uu tien lay tu time log, sau do fallback sang assignment actual hours.",
+                        policy = new
+                        {
+                            parentRollup = "Task cha co the roll-up effort tu subtasks, nhung diem uu tien tinh tren task giao viec cuoi cung.",
+                            multiAssignee = "Estimate cua task khong bi nhan doi; effort duoc chia theo contribution weight.",
+                            reopenedWork = "Task bi rollback hoac reopen se bi tru diem thong qua giao dich rollback.",
+                            carryOver = "Task qua cycle van giu estimate/actual, nhung quality modifier giam neu overdue."
+                        },
                         sample = summary.SampleFormula
                     },
                     summary = new
@@ -125,7 +146,10 @@ namespace TaskManagement.API.Controllers
                         rollbackPoints = Math.Abs(transactions.Where(item => item.Amount < 0).Sum(item => item.Amount)),
                         completedTasks = summary.CompletedTasks,
                         earlyBonuses = summary.EarlyBonuses,
-                        contributionPercent = summary.ContributionPercent
+                        contributionPercent = summary.ContributionPercent,
+                        estimatedHours = summary.EstimatedHours,
+                        actualHours = summary.ActualHours,
+                        loggedHours = summary.LoggedHours
                     },
                     spotlightTasks = summary.SpotlightTasks,
                     transactions,
@@ -208,10 +232,12 @@ namespace TaskManagement.API.Controllers
         private static RewardSummary BuildSummary(
             IEnumerable<dynamic> transactions,
             IEnumerable<dynamic> tasks,
-            IEnumerable<dynamic> assignments)
+            IEnumerable<dynamic> assignments,
+            IEnumerable<dynamic> timeLogs)
         {
             var taskList = tasks.ToList();
             var assignmentList = assignments.ToList();
+            var timeLogLookup = timeLogs.ToDictionary(item => (Guid)item.WorkTaskId, item => (double)item.LoggedHours);
 
             var completedTasks = taskList.Count(task => $"{task.StatusName ?? string.Empty}".ToUpperInvariant().Contains("DONE"));
             var earlyBonuses = transactions.Count(item => $"{item.TransactionType ?? string.Empty}".Contains("EarlyBonus", StringComparison.OrdinalIgnoreCase));
@@ -219,6 +245,9 @@ namespace TaskManagement.API.Controllers
             var contributionPercent = assignmentList.Count > 0
                 ? Math.Round(totalContributionWeight / Math.Max(assignmentList.Count, 1) * 100, 1)
                 : 0;
+            var estimatedHours = assignmentList.Sum(item => Math.Max(0.0, (double)item.EstimatedHours));
+            var actualHours = assignmentList.Sum(item => Math.Max(0.0, (double)item.TotalActualHours));
+            var loggedHours = timeLogLookup.Values.Sum();
 
             var spotlightTasks = taskList
                 .OrderByDescending(task => CalculateTaskFormula(task.StoryPoints, task.Priority, task.PlannedStartDate, task.PlannedEndDate, task.DueDate))
@@ -228,6 +257,17 @@ namespace TaskManagement.API.Controllers
                     var assignment = assignmentList.FirstOrDefault(item => item.WorkTaskId == task.Id);
                     var formula = CalculateTaskFormula(task.StoryPoints, task.Priority, task.PlannedStartDate, task.PlannedEndDate, task.DueDate);
                     var share = assignment != null ? Math.Max(5, Math.Min(100, (int)Math.Round((double)assignment.ContributionWeight * 100, MidpointRounding.AwayFromZero))) : 100;
+                    var assignmentEstimatedHours = assignment == null ? 0 : (double?)assignment.EstimatedHours ?? 0;
+                    var assignmentActualHours = assignment == null ? 0 : (double?)assignment.TotalActualHours ?? 0;
+                    var estimatedTaskHours = assignmentEstimatedHours > 0
+                        ? assignmentEstimatedHours
+                        : Math.Max(1, (double)task.TotalEstimatedHours);
+                    var actualTaskHours = timeLogLookup.TryGetValue((Guid)task.Id, out var logged)
+                        ? logged
+                        : Math.Max(0.0, assignmentActualHours);
+                    var efficiency = CalculateEfficiency(estimatedTaskHours, actualTaskHours);
+                    var qualityModifier = CalculateQualityModifier(task.DueDate, $"{task.StatusName ?? string.Empty}");
+                    var fairPoints = Math.Max(1, (int)Math.Round(formula * efficiency * qualityModifier * (share / 100.0), MidpointRounding.AwayFromZero));
                     return new
                     {
                         task.Id,
@@ -238,7 +278,12 @@ namespace TaskManagement.API.Controllers
                         estimatedDays = EstimateDays(task.PlannedStartDate, task.PlannedEndDate, task.DueDate),
                         formulaPoints = formula,
                         contributionShare = share,
-                        progressPercent = assignment != null ? (int)Math.Round((double)assignment.ProgressPercent, MidpointRounding.AwayFromZero) : ($"{task.StatusName ?? string.Empty}".ToUpperInvariant().Contains("DONE") ? 100 : 0)
+                        progressPercent = assignment != null ? (int)Math.Round((double)assignment.ProgressPercent, MidpointRounding.AwayFromZero) : ($"{task.StatusName ?? string.Empty}".ToUpperInvariant().Contains("DONE") ? 100 : 0),
+                        estimatedHours = Math.Round(estimatedTaskHours, 1),
+                        actualHours = Math.Round(actualTaskHours, 1),
+                        efficiency = Math.Round(efficiency, 2),
+                        qualityModifier = Math.Round(qualityModifier, 2),
+                        fairPoints
                     };
                 })
                 .ToList();
@@ -279,10 +324,36 @@ namespace TaskManagement.API.Controllers
                         value = Math.Max(1, (int)Math.Round((double)sampleTask.storyPoints, MidpointRounding.AwayFromZero)),
                         impact = PriorityImpact(sampleTask.Priority),
                         days = sampleTask.estimatedDays,
-                        total = sampleTask.formulaPoints,
-                        note = "Bonus som +10%, sau do chia theo contribution share."
+                        total = sampleTask.fairPoints,
+                        note = $"Estimate {sampleTask.estimatedHours}h / Actual {sampleTask.actualHours}h / Efficiency x{sampleTask.efficiency} / Quality x{sampleTask.qualityModifier}."
                     }
             };
+        }
+
+        private static double CalculateEfficiency(double estimatedHours, double actualHours)
+        {
+            var safeEstimate = Math.Max(1, estimatedHours);
+            if (actualHours <= 0)
+            {
+                return 1;
+            }
+
+            var ratio = safeEstimate / Math.Max(actualHours, 0.5);
+            return Math.Clamp(ratio, 0.6, 1.25);
+        }
+
+        private static double CalculateQualityModifier(DateTime? dueDate, string statusName)
+        {
+            var normalized = statusName.ToUpperInvariant();
+            var isDone = normalized.Contains("DONE") || normalized.Contains("COMPLETE");
+            var overdue = dueDate.HasValue && DateTime.UtcNow.Date > dueDate.Value.Date;
+
+            if (!isDone)
+            {
+                return overdue ? 0.75 : 0.9;
+            }
+
+            return overdue ? 0.9 : 1.1;
         }
 
         private static int CalculateTaskFormula(double storyPoints, int priority, DateTime? plannedStartDate, DateTime? plannedEndDate, DateTime? dueDate)
@@ -320,6 +391,9 @@ namespace TaskManagement.API.Controllers
             public int CompletedTasks { get; init; }
             public int EarlyBonuses { get; init; }
             public double ContributionPercent { get; init; }
+            public double EstimatedHours { get; init; }
+            public double ActualHours { get; init; }
+            public double LoggedHours { get; init; }
             public object SampleFormula { get; init; } = null!;
             public IEnumerable<object> SpotlightTasks { get; init; } = Array.Empty<object>();
             public IEnumerable<object> RecentAchievements { get; init; } = Array.Empty<object>();

@@ -1,42 +1,44 @@
 <template>
   <el-dropdown trigger="click" popper-class="user-dropdown-popper" @command="handleCommand" :teleported="true">
     <div class="user-avatar-trigger">
-      U
+      {{ userInitial }}
     </div>
     <template #dropdown>
       <el-dropdown-menu class="jira-user-menu">
-        <!-- User Info Header -->
         <div class="user-menu-header">
-          <div class="header-avatar">U</div>
+          <div class="header-avatar">{{ userInitial }}</div>
           <div class="header-info">
-            <div class="user-display-name">Người dùng</div>
-            <div class="user-email">user@example.com</div>
+            <div class="user-display-name">{{ userDisplayName }}</div>
+            <div class="user-email">{{ userEmail }}</div>
           </div>
         </div>
 
         <div class="menu-divider"></div>
 
         <el-dropdown-item command="profile">
-          <router-link to="/profile" style="text-decoration: none; color: inherit; display: block; width: 100%;">
-            <div class="menu-item-inner">
-              <i class="fa-regular fa-user"></i>
-              <span>Hồ sơ</span>
-            </div>
-          </router-link>
+          <div class="menu-item-inner">
+            <i class="fa-regular fa-user"></i>
+            <span>Profile</span>
+          </div>
         </el-dropdown-item>
 
-        <!-- Theme Sub-menu -->
+        <el-dropdown-item v-if="canAccessAdmin" command="admin">
+          <div class="menu-item-inner">
+            <i class="fa-solid fa-shield-halved"></i>
+            <span>Project administration</span>
+          </div>
+        </el-dropdown-item>
+
         <div class="theme-trigger-item" @click.stop="toggleThemeSub">
           <div class="menu-item-inner">
             <i class="fa-solid fa-circle-half-stroke"></i>
-            <span>Chủ đề</span>
+            <span>Theme</span>
             <i class="fa-solid fa-chevron-right arrow-icon" :class="{ rotated: themeSubVisible }"></i>
           </div>
 
-          <!-- expansion area -->
           <transition name="el-zoom-in-top">
-            <div class="theme-expanded-menu" v-if="themeSubVisible">
-              <div class="theme-option" :class="{ active: currentTheme === 'light' }" @click.stop="currentTheme = 'light'">
+            <div v-if="themeSubVisible" class="theme-expanded-menu">
+              <div class="theme-option" :class="{ active: currentTheme === 'light' }" @click.stop="selectTheme('light')">
                 <div class="radio-indicator">
                   <i v-if="currentTheme === 'light'" class="fa-solid fa-circle-dot"></i>
                   <i v-else class="fa-regular fa-circle"></i>
@@ -45,10 +47,10 @@
                   <div class="p-header"></div>
                   <div class="p-body"><div class="p-sidebar"></div><div class="p-content"></div></div>
                 </div>
-                <span class="option-label">Sáng</span>
+                <span class="option-label">Light</span>
               </div>
 
-              <div class="theme-option" :class="{ active: currentTheme === 'dark' }" @click.stop="currentTheme = 'dark'">
+              <div class="theme-option" :class="{ active: currentTheme === 'dark' }" @click.stop="selectTheme('dark')">
                 <div class="radio-indicator">
                   <i v-if="currentTheme === 'dark'" class="fa-solid fa-circle-dot"></i>
                   <i v-else class="fa-regular fa-circle"></i>
@@ -57,7 +59,7 @@
                   <div class="p-header"></div>
                   <div class="p-body"><div class="p-sidebar"></div><div class="p-content"></div></div>
                 </div>
-                <span class="option-label">Tối</span>
+                <span class="option-label">Dark</span>
               </div>
             </div>
           </transition>
@@ -68,14 +70,14 @@
         <el-dropdown-item command="switch">
           <div class="menu-item-inner">
             <i class="fa-solid fa-users-viewfinder"></i>
-            <span>Chuyển tài khoản</span>
+            <span>Switch account</span>
           </div>
         </el-dropdown-item>
 
         <el-dropdown-item command="logout" class="logout-item-wrapper">
           <div class="menu-item-inner logout-item">
             <i class="fa-solid fa-arrow-right-from-bracket"></i>
-            <span>Đăng xuất</span>
+            <span>Log out</span>
           </div>
         </el-dropdown-item>
       </el-dropdown-menu>
@@ -84,12 +86,18 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { currentTheme, toggleTheme } from '@/utils/theme'
+import { getStoredUser, hasSystemAdminAccess } from '@/utils/permissions'
 
 const router = useRouter()
 const themeSubVisible = ref(false)
+const currentUser = computed(() => getStoredUser())
+const canAccessAdmin = computed(() => hasSystemAdminAccess(currentUser.value))
+const userDisplayName = computed(() => currentUser.value?.fullName || currentUser.value?.name || currentUser.value?.email?.split('@')?.[0] || 'User')
+const userEmail = computed(() => currentUser.value?.email || 'user@example.com')
+const userInitial = computed(() => userDisplayName.value.charAt(0).toUpperCase() || 'U')
 
 const toggleThemeSub = () => {
   themeSubVisible.value = !themeSubVisible.value
@@ -98,6 +106,9 @@ const toggleThemeSub = () => {
 const handleCommand = async (cmd) => {
   if (cmd === 'profile') {
     router.push('/profile')
+  } else if (cmd === 'admin') {
+    const routeData = router.resolve('/admin')
+    window.open(routeData.href, '_blank', 'noopener')
   } else if (cmd === 'logout') {
     try {
       const { default: axiosClient } = await import('@/api/axiosClient')
@@ -118,6 +129,7 @@ const handleCommand = async (cmd) => {
 
 const selectTheme = (theme) => {
   toggleTheme(theme)
+  themeSubVisible.value = false
 }
 </script>
 
@@ -165,4 +177,3 @@ const selectTheme = (theme) => {
 .user-dropdown-popper .el-dropdown-menu__item:hover { background-color: var(--hover-bg) !important; }
 .user-dropdown-popper .el-popper__arrow::before { background: var(--bg-content) !important; border: 1px solid var(--border-color) !important; }
 </style>
-

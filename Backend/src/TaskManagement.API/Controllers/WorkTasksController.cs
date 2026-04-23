@@ -75,6 +75,101 @@ namespace TaskManagement.API.Controllers
             ("CANCELLED", 5)
         };
 
+        private static DateTime? ParseDateOnlyUtc(System.Text.Json.JsonElement property)
+        {
+            if (property.ValueKind == System.Text.Json.JsonValueKind.Null)
+            {
+                return null;
+            }
+
+            var raw = property.GetString();
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return null;
+            }
+
+            if (DateTime.TryParse(raw, out var parsed))
+            {
+                return DateTime.SpecifyKind(parsed.Date, DateTimeKind.Utc);
+            }
+
+            return null;
+        }
+
+        private static async Task<WorkTaskResponseDto?> LoadTaskResponseAsync(
+            ApplicationDbContext context,
+            Guid projectId,
+            Guid taskId,
+            Guid userId)
+        {
+            var task = await context.WorkTasks
+                .AsNoTracking()
+                .Where(wt => wt.Id == taskId && wt.ProjectId == projectId && !wt.IsDeleted)
+                .Select(wt => new WorkTaskResponseDto
+                {
+                    Id = wt.Id,
+                    ProjectId = wt.ProjectId,
+                    SprintId = wt.SprintId,
+                    Title = wt.Title,
+                    Description = wt.Description,
+                    Priority = wt.Priority,
+                    StoryPoints = wt.StoryPoints,
+                    StatusName = wt.TaskStatus.Name,
+                    TaskStatusId = wt.TaskStatusId,
+                    TaskTypeName = wt.TaskType.Name,
+                    TypeName = wt.TaskType.Name,
+                    TaskTypeId = wt.TaskTypeId,
+                    AssigneeName = wt.AssignedUser != null ? wt.AssignedUser.FullName : null,
+                    AssignedUserId = wt.AssignedUserId,
+                    Assignees = wt.TaskAssignments
+                        .Where(ta => ta.Status)
+                        .Select(ta => new TaskAssigneeDto
+                        {
+                            UserId = ta.UserId,
+                            FullName = ta.User.FullName,
+                            Email = ta.User.Email,
+                            ProgressPercent = ta.ProgressPercent,
+                            ContributionWeight = ta.ContributionWeight,
+                            EstimatedHours = ta.EstimatedHours,
+                            TotalActualHours = ta.TotalActualHours,
+                            IsBlocked = ta.BlockedByUserId.HasValue,
+                            BlockedByUserId = ta.BlockedByUserId,
+                            BlockReason = ta.BlockReason
+                        })
+                        .ToList(),
+                    ModuleId = wt.IssueModules
+                        .OrderBy(im => im.AssignedAt)
+                        .Select(im => (Guid?)im.ModuleId)
+                        .FirstOrDefault(),
+                    LabelIds = wt.IssueLabels
+                        .Select(il => il.LabelId)
+                        .ToList(),
+                    ReporterName = wt.Reporter.FullName ?? wt.Reporter.Email,
+                    ReporterId = wt.ReporterId,
+                    PlannedStartDate = wt.PlannedStartDate,
+                    PlannedEndDate = wt.PlannedEndDate,
+                    DueDate = wt.DueDate,
+                    TotalEstimatedHours = wt.TotalEstimatedHours,
+                    TotalActualHours = wt.TotalActualHours,
+                    ParentTaskId = wt.ParentTaskId,
+                    RowVersion = wt.RowVersion,
+                    CreatedAt = wt.CreatedAt,
+                    UpdatedAt = wt.UpdatedAt,
+                    ProjectName = wt.Project.Name,
+                    SortOrder = wt.SortOrder,
+                    SequenceId = wt.SequenceId,
+                    IsSubscribed = wt.Subscribers.Any(s => s.UserId == userId)
+                })
+                .FirstOrDefaultAsync();
+
+            if (task != null)
+            {
+                task.StatusName = NormalizeStatusName(task.StatusName);
+            }
+
+            return task;
+        }
+
         private static async Task EnsureDefaultTaskStatusesAsync(ApplicationDbContext context, Guid projectId)
         {
             var existingStatuses = await context.TaskStatuses
@@ -231,6 +326,7 @@ namespace TaskManagement.API.Controllers
         }
 
         [HttpGet("projects/{projectId}/WorkTasks")]
+        [ProjectAuthorize("")]
         public async Task<IActionResult> GetByProject(Guid projectId)
         {
             try
@@ -295,6 +391,7 @@ namespace TaskManagement.API.Controllers
         }
 
         [HttpGet("projects/{projectId}/task-statuses")]
+        [ProjectAuthorize("")]
         public async Task<IActionResult> GetProjectTaskStatuses(Guid projectId, [FromServices] ApplicationDbContext context)
         {
             try
@@ -320,7 +417,112 @@ namespace TaskManagement.API.Controllers
             }
         }
 
+        [HttpPost("projects/{projectId}/task-statuses")]
+        [ProjectAuthorize("PROJECT_MANAGER,PROJECT_LEAD,PM,PO,Admin")]
+        public async Task<IActionResult> CreateProjectTaskStatus(Guid projectId, [FromBody] SaveTaskStatusRequest request, [FromServices] ApplicationDbContext context)
+        {
+            if (string.IsNullOrWhiteSpace(request.Name))
+            {
+                return BadRequest(new { statusCode = 400, message = "Ten trang thai khong de trong." });
+            }
+
+            await EnsureDefaultTaskStatusesAsync(context, projectId);
+
+            var normalizedName = NormalizeStatusName(request.Name);
+            var exists = await context.TaskStatuses
+                .AnyAsync(status => status.ProjectId == projectId && NormalizeStatusName(status.Name) == normalizedName);
+            if (exists)
+            {
+                return Conflict(new { statusCode = 409, message = "Trang thai da ton tai trong project." });
+            }
+
+            var maxPosition = await context.TaskStatuses
+                .Where(status => status.ProjectId == projectId)
+                .Select(status => (int?)status.Position)
+                .MaxAsync() ?? 0;
+
+            var status = new TaskManagement.Domain.Entities.TaskStatus
+            {
+                Id = Guid.NewGuid(),
+                ProjectId = projectId,
+                Name = request.Name.Trim(),
+                ColorCode = request.ColorCode,
+                Position = request.Position ?? (maxPosition + 1)
+            };
+
+            context.TaskStatuses.Add(status);
+            await context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                statusCode = 201,
+                message = "Da tao trang thai.",
+                data = new { status.Id, status.Name, status.ColorCode, status.Position }
+            });
+        }
+
+        [HttpPut("projects/{projectId}/task-statuses/{statusId}")]
+        [ProjectAuthorize("PROJECT_MANAGER,PROJECT_LEAD,PM,PO,Admin")]
+        public async Task<IActionResult> UpdateProjectTaskStatus(Guid projectId, Guid statusId, [FromBody] SaveTaskStatusRequest request, [FromServices] ApplicationDbContext context)
+        {
+            var status = await context.TaskStatuses.FirstOrDefaultAsync(item => item.Id == statusId && item.ProjectId == projectId);
+            if (status == null)
+            {
+                return NotFound(new { statusCode = 404, message = "Trang thai khong ton tai." });
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.Name))
+            {
+                var normalizedName = NormalizeStatusName(request.Name);
+                var duplicateExists = await context.TaskStatuses
+                    .AnyAsync(item => item.ProjectId == projectId && item.Id != statusId && NormalizeStatusName(item.Name) == normalizedName);
+                if (duplicateExists)
+                {
+                    return Conflict(new { statusCode = 409, message = "Trang thai da ton tai trong project." });
+                }
+
+                status.Name = request.Name.Trim();
+            }
+
+            status.ColorCode = request.ColorCode ?? status.ColorCode;
+            if (request.Position.HasValue)
+            {
+                status.Position = request.Position.Value;
+            }
+
+            await context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                statusCode = 200,
+                message = "Da cap nhat trang thai.",
+                data = new { status.Id, status.Name, status.ColorCode, status.Position }
+            });
+        }
+
+        [HttpDelete("projects/{projectId}/task-statuses/{statusId}")]
+        [ProjectAuthorize("PROJECT_MANAGER,PROJECT_LEAD,PM,PO,Admin")]
+        public async Task<IActionResult> DeleteProjectTaskStatus(Guid projectId, Guid statusId, [FromServices] ApplicationDbContext context)
+        {
+            var status = await context.TaskStatuses.FirstOrDefaultAsync(item => item.Id == statusId && item.ProjectId == projectId);
+            if (status == null)
+            {
+                return NotFound(new { statusCode = 404, message = "Trang thai khong ton tai." });
+            }
+
+            var isInUse = await context.WorkTasks.AnyAsync(task => task.ProjectId == projectId && task.TaskStatusId == statusId && !task.IsDeleted);
+            if (isInUse)
+            {
+                return BadRequest(new { statusCode = 400, message = "Khong the xoa trang thai dang duoc task su dung." });
+            }
+
+            context.TaskStatuses.Remove(status);
+            await context.SaveChangesAsync();
+            return Ok(new { statusCode = 200, message = "Da xoa trang thai." });
+        }
+
         [HttpPost("projects/{projectId}/WorkTasks")]
+        [ProjectAuthorize("")]
         public async Task<IActionResult> Create(Guid projectId, [FromBody] CreateWorkTaskDto request)
         {
             request.ProjectId = projectId;
@@ -354,6 +556,7 @@ namespace TaskManagement.API.Controllers
         }
 
         [HttpPut("projects/{projectId}/WorkTasks/{id}/status")]
+        [ProjectAuthorize("")]
         public async Task<IActionResult> UpdateStatus(Guid projectId, Guid id, [FromBody] UpdateTaskStatusRequestDto request, [FromServices] ApplicationDbContext context)
         {
             try
@@ -411,6 +614,7 @@ namespace TaskManagement.API.Controllers
         }
 
         [HttpPut("projects/{projectId}/WorkTasks/{id}")]
+        [ProjectAuthorize("")]
         public async Task<IActionResult> Update(Guid projectId, Guid id, [FromBody] UpdateWorkTaskDto dto, [FromServices] ApplicationDbContext context)
         {
             try
@@ -510,6 +714,7 @@ namespace TaskManagement.API.Controllers
         }
 
         [HttpPost("projects/{projectId}/WorkTasks/{id}/subscription")]
+        [ProjectAuthorize("")]
         public async Task<IActionResult> ToggleSubscription(Guid projectId, Guid id, [FromServices] ApplicationDbContext context)
         {
             try
@@ -549,6 +754,7 @@ namespace TaskManagement.API.Controllers
         }
 
         [HttpPatch("projects/{projectId}/WorkTasks/{id}")]
+        [ProjectAuthorize("")]
         public async Task<IActionResult> PartialUpdate(Guid projectId, Guid id, [FromBody] System.Text.Json.JsonElement updates, [FromServices] TaskManagement.Infrastructure.Data.ApplicationDbContext context, [FromServices] IGamificationService gamificationService)
         {
             try
@@ -601,6 +807,9 @@ namespace TaskManagement.API.Controllers
                 if (updates.TryGetProperty("priority", out var prioProp) && prioProp.ValueKind != System.Text.Json.JsonValueKind.Null)
                     task.Priority = prioProp.GetInt32();
 
+                if (updates.TryGetProperty("totalEstimatedHours", out var estimateProp) && estimateProp.ValueKind != System.Text.Json.JsonValueKind.Null)
+                    task.TotalEstimatedHours = Math.Max(0, estimateProp.GetDouble());
+
                 if (updates.TryGetProperty("sortOrder", out var sortProp) && sortProp.ValueKind != System.Text.Json.JsonValueKind.Null)
                     task.SortOrder = sortProp.GetDouble();
 
@@ -641,19 +850,21 @@ namespace TaskManagement.API.Controllers
 
                     var existingAssignments = task.TaskAssignments.ToList();
 
-                    foreach (var assignment in existingAssignments.Where(ta => !parsedIds.Contains(ta.UserId)))
+                    foreach (var assignment in existingAssignments)
                     {
-                        context.TaskAssignments.Remove(assignment);
+                        assignment.Status = parsedIds.Contains(assignment.UserId);
                     }
 
                     foreach (var assigneeId in parsedIds.Where(idValue => existingAssignments.All(ta => ta.UserId != idValue)))
                     {
-                        context.TaskAssignments.Add(new TaskManagement.Domain.Entities.TaskAssignment
+                        var newAssignment = new TaskManagement.Domain.Entities.TaskAssignment
                         {
                             WorkTaskId = task.Id,
                             UserId = assigneeId,
                             Status = true
-                        });
+                        };
+                        context.TaskAssignments.Add(newAssignment);
+                        task.TaskAssignments.Add(newAssignment);
                     }
 
                     task.AssignedUserId = parsedIds.FirstOrDefault();
@@ -702,6 +913,8 @@ namespace TaskManagement.API.Controllers
                             task.TaskAssignments.Add(assignment);
                         }
 
+                        assignment.Status = true;
+
                         var oldProgress = assignment.ProgressPercent;
                         if (item.TryGetProperty("progressPercent", out var progressProp) && progressProp.ValueKind != System.Text.Json.JsonValueKind.Null)
                         {
@@ -747,14 +960,12 @@ namespace TaskManagement.API.Controllers
 
                 if (updates.TryGetProperty("plannedStartDate", out var startProp))
                 {
-                    if (startProp.ValueKind == System.Text.Json.JsonValueKind.Null) task.PlannedStartDate = null;
-                    else if (DateTime.TryParse(startProp.GetString(), out DateTime d)) task.PlannedStartDate = d;
+                    task.PlannedStartDate = ParseDateOnlyUtc(startProp);
                 }
 
                 if (updates.TryGetProperty("dueDate", out var dueProp))
                 {
-                    if (dueProp.ValueKind == System.Text.Json.JsonValueKind.Null) task.DueDate = null;
-                    else if (DateTime.TryParse(dueProp.GetString(), out DateTime d)) task.DueDate = d;
+                    task.DueDate = ParseDateOnlyUtc(dueProp);
                 }
 
                 if (updates.TryGetProperty("sprintId", out var sprintProp))
@@ -840,52 +1051,98 @@ namespace TaskManagement.API.Controllers
                 }
 
                 task.UpdatedAt = DateTime.UtcNow;
-                await context.SaveChangesAsync();
-                if (userId != Guid.Empty && !string.IsNullOrWhiteSpace(newStatusName))
+                try
                 {
-                    await gamificationService.ApplyStatusChangeRewardsAsync(id, userId, oldStatusName, newStatusName);
+                    await context.SaveChangesAsync();
                 }
+                catch (DbUpdateConcurrencyException)
+                {
+                    var latestTask = await LoadTaskResponseAsync(context, projectId, id, userId);
+
+                    if (latestTask != null)
+                    {
+                        return Ok(new
+                        {
+                            statusCode = 200,
+                            message = "Saved",
+                            data = latestTask
+                        });
+                    }
+
+                    return StatusCode(409, new
+                    {
+                        statusCode = 409,
+                        message = "This work item was updated by another action. Please reload and try again."
+                    });
+                }
+                try
+                {
+                    if (userId != Guid.Empty && !string.IsNullOrWhiteSpace(newStatusName))
+                    {
+                        await gamificationService.ApplyStatusChangeRewardsAsync(id, userId, oldStatusName, newStatusName);
+                    }
+                }
+                catch
+                {
+                    // Post-save rewards must not fail a successful task update.
+                }
+
                 foreach (var rewardRequest in progressRewardRequests)
                 {
-                    await gamificationService.ApplyAssignmentProgressRewardsAsync(id, rewardRequest.AssigneeId, userId, rewardRequest.OldProgress, rewardRequest.NewProgress);
+                    try
+                    {
+                        await gamificationService.ApplyAssignmentProgressRewardsAsync(id, rewardRequest.AssigneeId, userId, rewardRequest.OldProgress, rewardRequest.NewProgress);
+                    }
+                    catch
+                    {
+                        // Post-save rewards must not fail a successful task update.
+                    }
                 }
 
-                var currentAssigneeIds = task.TaskAssignments
-                    .Where(ta => ta.Status)
-                    .Select(ta => ta.UserId)
-                    .ToHashSet();
-                if (task.AssignedUserId is Guid currentAssignedUserId)
+                try
                 {
-                    currentAssigneeIds.Add(currentAssignedUserId);
+                    var currentAssigneeIds = task.TaskAssignments
+                        .Where(ta => ta.Status)
+                        .Select(ta => ta.UserId)
+                        .ToHashSet();
+                    if (task.AssignedUserId is Guid currentAssignedUserId)
+                    {
+                        currentAssigneeIds.Add(currentAssignedUserId);
+                    }
+
+                    var newAssigneeIds = currentAssigneeIds
+                        .Except(previousAssigneeIds)
+                        .ToList();
+
+                    if (newAssigneeIds.Any())
+                    {
+                        await TriggerTaskAssignedNotificationsAsync(
+                            context,
+                            projectId,
+                            id,
+                            userId,
+                            task.Title,
+                            newAssigneeIds);
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(newStatusName) && !string.Equals(oldStatusName, newStatusName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        await TriggerTaskStatusChangedNotificationAsync(
+                            context,
+                            projectId,
+                            id,
+                            userId,
+                            task.Title,
+                            newStatusName);
+                    }
                 }
-
-                var newAssigneeIds = currentAssigneeIds
-                    .Except(previousAssigneeIds)
-                    .ToList();
-
-                if (newAssigneeIds.Any())
+                catch
                 {
-                    await TriggerTaskAssignedNotificationsAsync(
-                        context,
-                        projectId,
-                        id,
-                        userId,
-                        task.Title,
-                        newAssigneeIds);
+                    // Notifications must not fail a successful task update.
                 }
 
-                if (!string.IsNullOrWhiteSpace(newStatusName) && !string.Equals(oldStatusName, newStatusName, StringComparison.OrdinalIgnoreCase))
-                {
-                    await TriggerTaskStatusChangedNotificationAsync(
-                        context,
-                        projectId,
-                        id,
-                        userId,
-                        task.Title,
-                        newStatusName);
-                }
-
-                return Ok(new { statusCode = 200, message = "Saved", data = task });
+                var savedTask = await LoadTaskResponseAsync(context, projectId, id, userId);
+                return Ok(new { statusCode = 200, message = "Saved", data = savedTask });
             }
             catch (Exception ex)
             {
@@ -894,6 +1151,7 @@ namespace TaskManagement.API.Controllers
         }
 
         [HttpGet("{id}/comments")]
+        [ProjectAuthorize("")]
         public async Task<IActionResult> GetComments(Guid projectId, Guid id, [FromServices] TaskManagement.Infrastructure.Data.ApplicationDbContext context)
         {
             try
@@ -927,6 +1185,7 @@ namespace TaskManagement.API.Controllers
         /// Kanban Drag-Drop: Reorder task (update SortOrder + optionally change status)
         /// </summary>
         [HttpPut("projects/{projectId}/WorkTasks/{id}/reorder")]
+        [ProjectAuthorize("")]
         public async Task<IActionResult> Reorder(Guid projectId, Guid id, [FromBody] ReorderTaskDto dto, [FromServices] TaskManagement.Infrastructure.Data.ApplicationDbContext context, [FromServices] IGamificationService gamificationService)
         {
             try
@@ -1004,6 +1263,7 @@ namespace TaskManagement.API.Controllers
         /// GET /api/projects/{projectId}/WorkTasks/{parentId}/subtasks
         /// </summary>
         [HttpGet("projects/{projectId}/WorkTasks/{parentId}/subtasks")]
+        [ProjectAuthorize("")]
         public async Task<IActionResult> GetSubtasks(Guid projectId, Guid parentId, [FromServices] ApplicationDbContext context)
         {
             await EnsureDefaultTaskStatusesAsync(context, projectId);
@@ -1064,6 +1324,7 @@ namespace TaskManagement.API.Controllers
         /// POST /api/projects/{projectId}/WorkTasks/{parentId}/subtasks — Create a child task
         /// </summary>
         [HttpPost("projects/{projectId}/WorkTasks/{parentId}/subtasks")]
+        [ProjectAuthorize("")]
         public async Task<IActionResult> CreateSubtask(Guid projectId, Guid parentId, [FromBody] CreateWorkTaskDto request, [FromServices] ApplicationDbContext context)
         {
             var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -1203,6 +1464,13 @@ namespace TaskManagement.API.Controllers
     {
         public double SortOrder { get; set; }
         public string? NewStatusName { get; set; }
+    }
+
+    public class SaveTaskStatusRequest
+    {
+        public string? Name { get; set; }
+        public string? ColorCode { get; set; }
+        public int? Position { get; set; }
     }
 
     public class NotificationActorContext

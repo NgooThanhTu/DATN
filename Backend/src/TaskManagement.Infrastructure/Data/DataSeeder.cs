@@ -12,6 +12,34 @@ namespace TaskManagement.Infrastructure.Data
         {
             var now = DateTime.UtcNow;
             var preferredOwnerId = Guid.Parse("11111111-0000-0000-0000-000000000001");
+            var standardRoles = new[]
+            {
+                new { Name = "Admin", Description = "System Administrator" },
+                new { Name = "PM", Description = "Project Manager" },
+                new { Name = "Project Lead", Description = "Project lead access" },
+                new { Name = "PO", Description = "Product Owner" },
+                new { Name = "Developer", Description = "Developer access" },
+                new { Name = "QA", Description = "Quality Assurance" },
+                new { Name = "Accountant", Description = "Accounting access" }
+            };
+
+            foreach (var roleSeed in standardRoles)
+            {
+                if (!await context.Roles.AnyAsync(role => role.Name == roleSeed.Name))
+                {
+                    context.Roles.Add(new Role
+                    {
+                        Id = Guid.NewGuid(),
+                        Name = roleSeed.Name,
+                        Description = roleSeed.Description
+                    });
+                }
+            }
+
+            if (context.ChangeTracker.HasChanges())
+            {
+                await context.SaveChangesAsync();
+            }
 
             var owner = await context.Users.FirstOrDefaultAsync(u => u.Id == preferredOwnerId)
                 ?? await context.Users.FirstOrDefaultAsync(u => u.Email == "admin@example.com");

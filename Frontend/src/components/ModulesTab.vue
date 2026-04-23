@@ -17,6 +17,7 @@ const loadingModules = ref(false)
 const loadingTasks = ref(false)
 const loadingMoreModules = ref(false)
 const showCreateModal = ref(false)
+const showRestoreModal = ref(false)
 const isEditing = ref(false)
 const editingModuleId = ref(null)
 const rowCalendarModId = ref(null)
@@ -42,7 +43,8 @@ const statusOptions = [
   { key: 'in progress', label: 'In Progress', icon: 'fa-solid fa-circle-notch', color: '#FBBF24', bg: 'rgba(251,191,36,0.15)' },
   { key: 'paused', label: 'Paused', icon: 'fa-solid fa-pause', color: '#A1A1AA', bg: 'rgba(161,161,170,0.15)' },
   { key: 'completed', label: 'Completed', icon: 'fa-regular fa-circle-check', color: '#4ADE80', bg: 'rgba(74,222,128,0.15)' },
-  { key: 'cancelled', label: 'Cancelled', icon: 'fa-regular fa-circle-xmark', color: '#F87171', bg: 'rgba(248,113,113,0.15)' }
+  { key: 'cancelled', label: 'Cancelled', icon: 'fa-regular fa-circle-xmark', color: '#F87171', bg: 'rgba(248,113,113,0.15)' },
+  { key: 'disabled', label: 'Disabled', icon: 'fa-solid fa-box-archive', color: '#94A3B8', bg: 'rgba(148,163,184,0.16)' }
 ]
 
 const statusConfig = Object.fromEntries(statusOptions.map(option => [option.key, option]))
@@ -64,6 +66,7 @@ const getStatusKey = (raw) => {
   if (normalized.includes('cancel')) return 'cancelled'
   if (normalized.includes('plan')) return 'planned'
   if (normalized.includes('pause')) return 'paused'
+  if (normalized.includes('disable') || normalized.includes('archive')) return 'disabled'
   return 'backlog'
 }
 
@@ -105,13 +108,17 @@ const normalizeModule = (module) => ({
   isFavorite: Boolean(module.isFavorite)
 })
 
+const activeModules = computed(() => modules.value.filter(module => module.statusKey !== 'disabled'))
+
 const filteredModules = computed(() => {
   if (statusFilter.value === 'all') {
-    return modules.value
+    return activeModules.value
   }
 
-  return modules.value.filter(module => module.statusKey === statusFilter.value)
+  return activeModules.value.filter(module => module.statusKey === statusFilter.value)
 })
+
+const disabledModules = computed(() => modules.value.filter(module => module.statusKey === 'disabled'))
 
 const groupedModules = computed(() =>
   statusOptions
@@ -123,14 +130,15 @@ const groupedModules = computed(() =>
 )
 
 const canLoadMore = computed(() => modulePagination.value.hasNextPage)
-const totalLoaded = computed(() => modules.value.length)
+const totalLoaded = computed(() => filteredModules.value.length)
 
 const buildModuleParams = (page) => ({
   page,
   pageSize: modulePagination.value.pageSize,
   search: moduleSearch.value || undefined,
   sortBy: sortBy.value,
-  sortDirection: sortDirection.value
+  sortDirection: sortDirection.value,
+  includeDisabled: true
 })
 
 const fetchMembers = async () => {
@@ -275,19 +283,37 @@ const updateModuleDateRange = async (module, value) => {
 const deleteModule = async (module) => {
   try {
     await ElMessageBox.confirm(
-      `Are you sure you want to delete "${module.name}"?`,
-      'Delete Module',
-      { confirmButtonText: 'Delete', cancelButtonText: 'Cancel', type: 'warning' }
+      `Disable "${module.name}" and move it to the restore list?`,
+      'Disable Module',
+      { confirmButtonText: 'Disable', cancelButtonText: 'Cancel', type: 'warning' }
     )
     await axiosClient.delete(`/projects/${props.projectId}/modules/${module.id}`)
-    modules.value = modules.value.filter(item => item.id !== module.id)
-    modulePagination.value.totalCount = Math.max(0, modulePagination.value.totalCount - 1)
-    ElMessage.success('Module deleted')
+    await refreshModules()
+    ElMessage.success('Module disabled')
   } catch (error) {
     if (error !== 'cancel') {
       console.error('[ModulesTab] Failed to delete module', error)
-      ElMessage.error('Failed to delete module')
+      ElMessage.error('Failed to disable module')
     }
+  }
+}
+
+const restoreModule = async (module) => {
+  try {
+    await axiosClient.put(`/projects/${props.projectId}/modules/${module.id}`, {
+      name: module.name,
+      description: module.description,
+      status: 'Backlog',
+      leadId: module.leadId,
+      taskIds: module.taskIds,
+      startDate: module.startDate,
+      targetDate: module.targetDate
+    })
+    await refreshModules()
+    ElMessage.success('Module restored')
+  } catch (error) {
+    console.error('[ModulesTab] Failed to restore module', error)
+    ElMessage.error('Failed to restore module')
   }
 }
 
@@ -430,6 +456,7 @@ watch([moduleSearch, sortBy, sortDirection], async () => {
           </button>
         </div>
 
+        <button class="filter-action" type="button" @click="showRestoreModal = true">Restore Modules</button>
         <button class="primary-action" @click="openCreateModal">Add Module</button>
       </div>
     </div>
@@ -634,6 +661,36 @@ watch([moduleSearch, sortBy, sortDirection], async () => {
         </div>
       </div>
     </div>
+
+    <div class="modal-overlay" v-if="showRestoreModal" @click.self="showRestoreModal = false">
+      <div class="create-module-modal restore-modal">
+        <div class="cm-header">
+          <h2 class="cm-title">Restore modules</h2>
+        </div>
+
+        <div class="cm-body">
+          <div v-if="!disabledModules.length" class="empty-state-wrapper compact-empty-state">
+            <div class="es-icon"><i class="fa-solid fa-box-archive"></i></div>
+            <h3 class="es-title">No disabled modules</h3>
+            <p class="es-desc">Disabled modules will appear here and can only be restored from this screen.</p>
+          </div>
+
+          <div v-else class="restore-modal-list">
+            <div class="restore-modal-row" v-for="module in disabledModules" :key="`restore-modal-${module.id}`">
+              <div class="restore-modal-copy">
+                <strong>{{ module.name }}</strong>
+                <span>{{ module.description || 'Disabled module ready to restore.' }}</span>
+              </div>
+              <button class="cm-btn-create" type="button" @click="restoreModule(module)">Restore</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="cm-footer">
+          <button class="cm-btn-cancel" @click="showRestoreModal = false">Close</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -769,6 +826,7 @@ watch([moduleSearch, sortBy, sortDirection], async () => {
 .modules-body {
   padding: 24px;
   flex: 1;
+  overflow-y: auto;
 }
 
 .modules-list,
@@ -949,6 +1007,40 @@ watch([moduleSearch, sortBy, sortDirection], async () => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.restore-modal {
+  width: min(760px, calc(100vw - 32px));
+}
+
+.restore-modal-list {
+  display: grid;
+  gap: 12px;
+}
+
+.restore-modal-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid #27272A;
+  border-radius: 10px;
+  background: #0D0F11;
+}
+
+.restore-modal-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.restore-modal-copy span {
+  color: #A1A1AA;
+  font-size: 13px;
+}
+
+.compact-empty-state {
+  margin: 0;
 }
 
 .cm-grid {

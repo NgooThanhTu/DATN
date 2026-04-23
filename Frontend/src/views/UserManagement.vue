@@ -478,7 +478,7 @@ const handleSidebarSaved = (prefs) => {
 .danger-zone h4 { color: #ef4444; margin: 0 0 8px 0; font-size: 14px; }
 
 /* Custom Element Plus theme styles local to this component */
-:deep(.el-table) {
+::v-deep(.el-table) {
   --el-table-bg-color: var(--bg-card);
   --el-table-tr-bg-color: var(--bg-card);
   --el-table-header-bg-color: var(--bg-layout);
@@ -488,12 +488,12 @@ const handleSidebarSaved = (prefs) => {
   --el-table-row-hover-bg-color: var(--hover-bg);
 }
 
-:deep(.el-input__wrapper), :deep(.el-select__wrapper) {
+::v-deep(.el-input__wrapper), ::v-deep(.el-select__wrapper) {
   background-color: var(--bg-secondary) !important;
   box-shadow: 0 0 0 1px var(--border-color) inset !important;
 }
 
-:deep(.el-input__inner) {
+::v-deep(.el-input__inner) {
   color: var(--text-primary) !important;
 }
 
@@ -565,7 +565,7 @@ const handleSidebarSaved = (prefs) => {
 .danger-zone h4 { color: #ef4444; margin: 0 0 8px 0; font-size: 14px; }
 
 /* Custom Element Plus theme styles local to this component */
-:deep(.el-table) {
+::v-deep(.el-table) {
   --el-table-bg-color: var(--bg-card);
   --el-table-tr-bg-color: var(--bg-card);
   --el-table-header-bg-color: var(--bg-layout);
@@ -575,16 +575,16 @@ const handleSidebarSaved = (prefs) => {
   --el-table-row-hover-bg-color: var(--hover-bg);
 }
 
-:deep(.el-input__wrapper), :deep(.el-select__wrapper) {
+::v-deep(.el-input__wrapper), ::v-deep(.el-select__wrapper) {
   background-color: var(--bg-secondary) !important;
   box-shadow: 0 0 0 1px var(--border-color) inset !important;
 }
 
-:deep(.el-input__inner) {
+::v-deep(.el-input__inner) {
   color: var(--text-primary) !important;
 }
 
-:deep(.el-table td.el-table__cell), :deep(.el-table th.el-table__cell) {
+::v-deep(.el-table td.el-table__cell), ::v-deep(.el-table th.el-table__cell) {
   border-bottom: 1px solid var(--border-color) !important;
 }
 </style>

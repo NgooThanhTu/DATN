@@ -1,14 +1,18 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using TaskManagement.API.Filters;
 using TaskManagement.Application.DTOs.Common;
 using TaskManagement.Application.DTOs.Sprint;
 using TaskManagement.Application.Interfaces;
+using TaskManagement.Infrastructure.Data;
 
 namespace TaskManagement.API.Controllers
 {
     [ApiController]
     [Route("api/projects/{projectId}/sprints")]
     [Authorize]
+    [ProjectAuthorize("")]
     public class SprintsController : ControllerBase
     {
         private readonly ISprintService _sprintService;
@@ -30,7 +34,9 @@ namespace TaskManagement.API.Controllers
         {
             var sprint = await _sprintService.GetByIdAsync(id);
             if (sprint == null || sprint.ProjectId != projectId)
-                return NotFound(ApiResponse<object>.Error("Sprint không tồn tại trong dự án này.", 404));
+            {
+                return NotFound(ApiResponse<object>.Error("Cycle khong ton tai trong du an nay.", 404));
+            }
 
             return Ok(ApiResponse<SprintResponseDto>.Success(sprint));
         }
@@ -41,8 +47,7 @@ namespace TaskManagement.API.Controllers
             try
             {
                 var result = await _sprintService.CreateAsync(projectId, dto);
-                return CreatedAtAction(nameof(GetById), new { projectId, id = result.Id },
-                    ApiResponse<SprintResponseDto>.Created(result));
+                return CreatedAtAction(nameof(GetById), new { projectId, id = result.Id }, ApiResponse<SprintResponseDto>.Created(result));
             }
             catch (ArgumentException ex)
             {
@@ -50,16 +55,29 @@ namespace TaskManagement.API.Controllers
             }
         }
 
-        /// <summary>
-        /// 5.3 Sprint Overlap Guard: Start sprint, chặn nếu đã có sprint active
-        /// </summary>
+        [HttpPut("{id}")]
+        [ProjectAuthorize("PROJECT_MANAGER,PROJECT_LEAD,PM,PO,Admin")]
+        public async Task<IActionResult> Update(Guid projectId, Guid id, [FromBody] UpdateSprintDto dto)
+        {
+            try
+            {
+                var result = await _sprintService.UpdateAsync(projectId, id, dto);
+                return Ok(ApiResponse<SprintResponseDto>.Success(result, "Cycle da duoc cap nhat."));
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ApiResponse<object>.Error(ex.Message));
+            }
+        }
+
         [HttpPost("{id}/start")]
+        [ProjectAuthorize("PROJECT_MANAGER,PROJECT_LEAD,PM,PO,Admin")]
         public async Task<IActionResult> Start(Guid projectId, Guid id)
         {
             try
             {
                 var result = await _sprintService.StartAsync(projectId, id);
-                return Ok(ApiResponse<SprintResponseDto>.Success(result, "Sprint đã được bắt đầu."));
+                return Ok(ApiResponse<SprintResponseDto>.Success(result, "Cycle da duoc bat dau."));
             }
             catch (ArgumentException ex)
             {
@@ -71,16 +89,20 @@ namespace TaskManagement.API.Controllers
             }
         }
 
-        /// <summary>
-        /// 5.5 Close Sprint + Roll-over Tasks
-        /// </summary>
         [HttpPost("{id}/close")]
+        [ProjectAuthorize("PROJECT_MANAGER,PROJECT_LEAD,PM,PO,Admin")]
         public async Task<IActionResult> Close(Guid projectId, Guid id, [FromBody] CloseSprintDto dto)
         {
             try
             {
-                await _sprintService.CloseAsync(id, dto);
-                return Ok(ApiResponse<object>.Success(null!, "Sprint đã được đóng. Các task chưa hoàn thành đã được chuyển."));
+                var userIdString = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                if (!Guid.TryParse(userIdString, out var actorUserId))
+                {
+                    return Unauthorized(ApiResponse<object>.Error("Unauthorized.", 401));
+                }
+
+                await _sprintService.CloseAsync(id, dto, actorUserId);
+                return Ok(ApiResponse<object>.Success(null!, "Cycle da duoc dong va task ton dong da duoc xu ly."));
             }
             catch (ArgumentException ex)
             {
@@ -92,21 +114,172 @@ namespace TaskManagement.API.Controllers
             }
         }
 
+        [HttpGet("{id}/carry-over-tasks")]
+        [ProjectAuthorize("PROJECT_MANAGER,PROJECT_LEAD,PM,PO,Admin")]
+        public async Task<IActionResult> GetCarryOverTasks(
+            Guid projectId,
+            Guid id,
+            [FromQuery] string? search,
+            [FromQuery] Guid? assigneeId,
+            [FromQuery] string? scope,
+            [FromServices] ApplicationDbContext context)
+        {
+            var sprint = await context.Sprints
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.Id == id && s.ProjectId == projectId);
+            if (sprint == null)
+            {
+                return NotFound(ApiResponse<object>.Error("Cycle khong ton tai trong du an nay.", 404));
+            }
+
+            var doneStatusIds = await context.TaskStatuses
+                .Where(ts => ts.ProjectId == projectId &&
+                    (ts.Name.Contains("Done") || ts.Name.Contains("Complete") || ts.Name.Contains("Hoan thanh")))
+                .Select(ts => ts.Id)
+                .ToListAsync();
+
+            var normalizedScope = (scope ?? "all").Trim().ToLowerInvariant();
+            var query = context.WorkTasks
+                .AsNoTracking()
+                .Include(task => task.AssignedUser)
+                .Include(task => task.TaskStatus)
+                .Include(task => task.Sprint)
+                .Where(task =>
+                    task.ProjectId == projectId &&
+                    !task.IsDeleted &&
+                    task.ParentTaskId == null &&
+                    !doneStatusIds.Contains(task.TaskStatusId) &&
+                    task.AuditLogs.Any(log => log.FieldChanged == "SPRINT_CARRY_OVER" && log.OldValue == id.ToString()));
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var keyword = search.Trim();
+                query = query.Where(task => task.Title.Contains(keyword) || (task.SequenceId != null && task.SequenceId.Contains(keyword)));
+            }
+
+            if (assigneeId.HasValue)
+            {
+                query = query.Where(task =>
+                    task.AssignedUserId == assigneeId.Value ||
+                    task.TaskAssignments.Any(assignment => assignment.Status && assignment.UserId == assigneeId.Value));
+            }
+
+            if (normalizedScope == "backlog")
+            {
+                query = query.Where(task => task.SprintId == null);
+            }
+            else if (normalizedScope == "cycle")
+            {
+                query = query.Where(task => task.SprintId != null);
+            }
+
+            var tasks = await query
+                .OrderByDescending(task => task.UpdatedAt)
+                .Select(task => new SprintCarryOverTaskDto
+                {
+                    Id = task.Id,
+                    SequenceId = task.SequenceId,
+                    Title = task.Title,
+                    Priority = task.Priority,
+                    StatusName = task.TaskStatus != null ? task.TaskStatus.Name : "BACKLOG",
+                    AssignedUserId = task.AssignedUserId,
+                    AssignedUserName = task.AssignedUser != null ? (task.AssignedUser.FullName ?? task.AssignedUser.Email) : null,
+                    CurrentSprintId = task.SprintId,
+                    CurrentSprintName = task.Sprint != null ? task.Sprint.Name : null,
+                    CurrentLocation = task.SprintId == null ? "Backlog" : "Cycle",
+                    UpdatedAt = task.UpdatedAt
+                })
+                .ToListAsync();
+
+            return Ok(ApiResponse<List<SprintCarryOverTaskDto>>.Success(tasks));
+        }
+
+        [HttpPost("{id}/carry-over-tasks/move")]
+        [ProjectAuthorize("PROJECT_MANAGER,PROJECT_LEAD,PM,PO,Admin")]
+        public async Task<IActionResult> BulkMoveCarryOverTasks(
+            Guid projectId,
+            Guid id,
+            [FromBody] BulkMoveCarryOverTasksDto dto,
+            [FromServices] ApplicationDbContext context)
+        {
+            if (dto.TaskIds == null || dto.TaskIds.Count == 0)
+            {
+                return BadRequest(ApiResponse<object>.Error("Hay chon it nhat mot task ton dong."));
+            }
+
+            var sprint = await context.Sprints
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.Id == id && s.ProjectId == projectId);
+            if (sprint == null)
+            {
+                return NotFound(ApiResponse<object>.Error("Cycle khong ton tai trong du an nay.", 404));
+            }
+
+            if (dto.TargetSprintId.HasValue)
+            {
+                var targetExists = await context.Sprints.AnyAsync(s => s.Id == dto.TargetSprintId.Value && s.ProjectId == projectId);
+                if (!targetExists)
+                {
+                    return BadRequest(ApiResponse<object>.Error("Cycle dich khong thuoc du an nay."));
+                }
+            }
+
+            var userIdString = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (!Guid.TryParse(userIdString, out var actorUserId))
+            {
+                return Unauthorized(ApiResponse<object>.Error("Unauthorized.", 401));
+            }
+
+            var doneStatusIds = await context.TaskStatuses
+                .Where(ts => ts.ProjectId == projectId &&
+                    (ts.Name.Contains("Done") || ts.Name.Contains("Complete") || ts.Name.Contains("Hoan thanh")))
+                .Select(ts => ts.Id)
+                .ToListAsync();
+
+            var tasks = await context.WorkTasks
+                .Where(task =>
+                    task.ProjectId == projectId &&
+                    !task.IsDeleted &&
+                    task.ParentTaskId == null &&
+                    dto.TaskIds.Contains(task.Id) &&
+                    !doneStatusIds.Contains(task.TaskStatusId) &&
+                    task.AuditLogs.Any(log => log.FieldChanged == "SPRINT_CARRY_OVER" && log.OldValue == id.ToString()))
+                .ToListAsync();
+
+            foreach (var task in tasks)
+            {
+                task.SprintId = dto.TargetSprintId;
+                task.UpdatedAt = DateTime.UtcNow;
+                context.AuditLogs.Add(new Domain.Entities.AuditLog
+                {
+                    Id = Guid.NewGuid(),
+                    WorkTaskId = task.Id,
+                    UserId = actorUserId,
+                    FieldChanged = "SPRINT_REPLAN",
+                    OldValue = id.ToString(),
+                    NewValue = dto.TargetSprintId?.ToString() ?? "BACKLOG",
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
+
+            await context.SaveChangesAsync();
+            return Ok(ApiResponse<object>.Success(new { movedCount = tasks.Count }, "Da cap nhat cycle cho task ton dong."));
+        }
+
         [HttpPatch("{id}/favorite")]
-        public async Task<IActionResult> ToggleFavorite(Guid projectId, Guid id, [FromServices] TaskManagement.Infrastructure.Data.ApplicationDbContext context)
+        public async Task<IActionResult> ToggleFavorite(Guid projectId, Guid id, [FromServices] ApplicationDbContext context)
         {
             var sprint = await context.Sprints.FindAsync(id);
-            if (sprint == null || sprint.ProjectId != projectId) return NotFound(new { statusCode = 404, message = "Cycle không tồn tại." });
+            if (sprint == null || sprint.ProjectId != projectId)
+            {
+                return NotFound(new { statusCode = 404, message = "Cycle khong ton tai." });
+            }
 
             sprint.IsFavorite = !sprint.IsFavorite;
             await context.SaveChangesAsync();
-
             return Ok(new { statusCode = 200, data = new { isFavorite = sprint.IsFavorite } });
         }
 
-        /// <summary>
-        /// 6.1 Burndown Chart
-        /// </summary>
         [HttpGet("{id}/burndown")]
         public async Task<IActionResult> GetBurndown(Guid projectId, Guid id)
         {

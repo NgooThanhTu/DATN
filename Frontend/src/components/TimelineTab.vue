@@ -22,6 +22,7 @@ const scrollContainer = ref(null)
 const dragState = ref(null)
 const clickedBucket = ref(null)
 const timelineAnchorDate = ref(new Date())
+const viewportWidth = ref(0)
 const expanded = ref({
   showOnlyScheduled: false,
   hideDone: false,
@@ -29,9 +30,9 @@ const expanded = ref({
 })
 
 const viewModes = [
-  { key: 'Week', unit: 'day', cellWidth: 84 },
-  { key: 'Month', unit: 'day', cellWidth: 42 },
-  { key: 'Quarter', unit: 'week', cellWidth: 92 }
+  { key: 'Week', unit: 'week', cellWidth: 120 },
+  { key: 'Month', unit: 'month', cellWidth: 140 },
+  { key: 'Quarter', unit: 'quarter', cellWidth: 180 }
 ]
 
 const activeView = computed(() => viewModes.find(mode => mode.key === viewMode.value) || viewModes[0])
@@ -43,16 +44,22 @@ const timelineRange = computed(() => {
 
   if (viewMode.value === 'Week') {
     const currentWeekStart = startOfWeek(timelineAnchorDate.value)
-    start.setTime(currentWeekStart.getTime())
-    end.setTime(currentWeekStart.getTime())
-    end.setDate(end.getDate() + 13)
+    start.setTime(addDays(currentWeekStart, -35).getTime())
+    end.setTime(addDays(currentWeekStart, 48).getTime())
   } else if (viewMode.value === 'Month') {
-    start.setDate(1)
-    end.setFullYear(start.getFullYear(), start.getMonth() + 1, 0)
+    start.setFullYear(start.getFullYear(), start.getMonth() - 5, 1)
+    end.setFullYear(start.getFullYear(), start.getMonth() + 11, 0)
   } else {
-    const quarterStartMonth = Math.floor(start.getMonth() / 3) * 3
-    start.setMonth(quarterStartMonth, 1)
-    end.setFullYear(start.getFullYear(), quarterStartMonth + 3, 0)
+    const anchor = timelineAnchorDate.value
+    const anchorQuarterStart = new Date(anchor.getFullYear(), Math.floor(anchor.getMonth() / 3) * 3, 1)
+    const quarterStart = new Date(anchorQuarterStart)
+    quarterStart.setMonth(quarterStart.getMonth() - 12)
+    start.setTime(quarterStart.getTime())
+
+    const quarterEnd = new Date(anchorQuarterStart)
+    quarterEnd.setMonth(quarterEnd.getMonth() + 24)
+    quarterEnd.setDate(0)
+    end.setTime(quarterEnd.getTime())
   }
 
   return { start, end: endOfDay(end) }
@@ -61,6 +68,9 @@ const timelineRange = computed(() => {
 const timeBuckets = computed(() => buildBuckets(timelineRange.value.start, timelineRange.value.end, activeView.value.unit))
 const cellWidth = computed(() => activeView.value.cellWidth)
 const totalWidth = computed(() => timeBuckets.value.length * cellWidth.value)
+const canvasWidth = computed(() => Math.max(totalWidth.value, viewportWidth.value || 0))
+const rowHeight = 52
+const rowsCanvasHeight = computed(() => Math.max((visibleTasks.value.length + 1) * rowHeight, rowHeight * 8))
 
 const headerGroups = computed(() => {
   const groups = []
@@ -193,7 +203,7 @@ const toggleCreateMode = () => {
   createMode.value = !createMode.value
   clickedBucket.value = null
   if (createMode.value) {
-    ElMessage.info('Create mode dang bat. Click vao timeline de them work item nhanh.')
+    ElMessage.info('Create mode is on. Click the timeline to add a work item quickly.')
   }
 }
 
@@ -257,7 +267,7 @@ const onMouseUp = async (event) => {
   }
 
   if (startDate > endDate) {
-    ElMessage.warning('Khoang thoi gian khong hop le.')
+    ElMessage.warning('The selected time range is invalid.')
     return
   }
 
@@ -273,7 +283,7 @@ const onMouseUp = async (event) => {
   } catch (error) {
     task.plannedStartDate = originalStart
     task.dueDate = originalEnd
-    ElMessage.error(error.response?.data?.message || 'Khong cap nhat duoc timeline.')
+    ElMessage.error(error.response?.data?.message || 'Could not update the timeline.')
   }
 }
 
@@ -324,12 +334,15 @@ watch(expanded, (value) => {
 }, { deep: true })
 
 onMounted(() => {
+  updateViewportWidth()
+  window.addEventListener('resize', updateViewportWidth)
   window.setTimeout(goToToday, 120)
 })
 
 onUnmounted(() => {
   document.removeEventListener('mousemove', onMouseMove)
   document.removeEventListener('mouseup', onMouseUp)
+  window.removeEventListener('resize', updateViewportWidth)
 })
 
 function buildBuckets(start, end, unit) {
@@ -343,25 +356,27 @@ function buildBuckets(start, end, unit) {
     let subLabel = ''
     let groupLabel = ''
 
-    if (unit === 'day') {
-      bucketEnd = endOfDay(cursor)
-      label = `${bucketStart.getDate()}`
-      subLabel = ['Su', 'M', 'T', 'W', 'Th', 'F', 'Sa'][bucketStart.getDay()]
-      groupLabel = bucketStart.toLocaleString('en-US', { month: 'short', year: 'numeric' })
-      cursor.setDate(cursor.getDate() + 1)
-    } else if (unit === 'week') {
+    if (unit === 'week') {
       const normalizedWeekStart = startOfWeek(bucketStart)
       bucketEnd = endOfDay(addDays(normalizedWeekStart, 6))
       label = `W${getWeekNumber(normalizedWeekStart)}`
-      subLabel = `${normalizedWeekStart.getDate()}-${bucketEnd.getDate()}`
+      subLabel = `${normalizedWeekStart.toLocaleString('en-US', { month: 'short' })} ${normalizedWeekStart.getDate()} - ${bucketEnd.toLocaleString('en-US', { month: 'short' })} ${bucketEnd.getDate()}`
       groupLabel = normalizedWeekStart.toLocaleString('en-US', { month: 'short', year: 'numeric' })
       cursor.setDate(cursor.getDate() + 7)
-    } else {
+    } else if (unit === 'month') {
       bucketEnd = endOfDay(new Date(bucketStart.getFullYear(), bucketStart.getMonth() + 1, 0))
       label = bucketStart.toLocaleString('en-US', { month: 'short' })
       subLabel = `${bucketStart.getFullYear()}`
       groupLabel = `${Math.floor(bucketStart.getMonth() / 3) + 1} / ${bucketStart.getFullYear()}`
       cursor.setMonth(cursor.getMonth() + 1, 1)
+    } else {
+      const quarterStart = new Date(bucketStart.getFullYear(), Math.floor(bucketStart.getMonth() / 3) * 3, 1)
+      const quarterEnd = new Date(quarterStart.getFullYear(), quarterStart.getMonth() + 3, 0)
+      bucketEnd = endOfDay(quarterEnd)
+      label = `Q${Math.floor(quarterStart.getMonth() / 3) + 1}`
+      subLabel = `${quarterStart.toLocaleString('en-US', { month: 'short' })} - ${new Date(quarterStart.getFullYear(), quarterStart.getMonth() + 2, 1).toLocaleString('en-US', { month: 'short' })}`
+      groupLabel = `${quarterStart.getFullYear()}`
+      cursor.setMonth(cursor.getMonth() + 3, 1)
     }
 
     buckets.push({
@@ -411,6 +426,10 @@ function addDays(value, amount) {
   return date
 }
 
+function updateViewportWidth() {
+  viewportWidth.value = scrollContainer.value?.clientWidth || 0
+}
+
 function startOfWeek(value) {
   const date = startOfDay(value)
   const day = (date.getDay() + 6) % 7
@@ -446,17 +465,22 @@ function formatDateOnly(value) {
 }
 
 function moveDateByView(date, steps) {
-  if (viewMode.value === 'Week') {
-    date.setDate(date.getDate() + steps)
+  if (activeView.value.unit === 'week') {
+    date.setDate(date.getDate() + (steps * 7))
     return
   }
 
-  if (viewMode.value === 'Month') {
-    date.setDate(date.getDate() + steps)
+  if (activeView.value.unit === 'month') {
+    date.setMonth(date.getMonth() + steps)
     return
   }
 
-  date.setDate(date.getDate() + (steps * 7))
+  if (activeView.value.unit === 'quarter') {
+    date.setMonth(date.getMonth() + (steps * 3))
+    return
+  }
+
+  date.setMonth(date.getMonth() + steps)
 }
 
 function diffInDays(left, right) {
@@ -530,7 +554,7 @@ function getWeekNumber(value) {
           <div class="tl-col-duration">Duration</div>
         </div>
 
-        <div class="tl-left-rows">
+        <div class="tl-left-rows" :style="{ minHeight: `${rowsCanvasHeight}px` }">
           <div
             v-for="task in visibleTasks"
             :key="task.id"
@@ -554,9 +578,9 @@ function getWeekNumber(value) {
       <div class="tl-right-panel" ref="scrollContainer">
         <div v-if="createMode" class="tl-create-banner">
           <i class="fa-solid fa-wand-magic-sparkles"></i>
-          Click vao o thoi gian trong timeline de tao work item voi ngay bat dau va ket thuc tai vi tri da chon.
+          Click a timeline slot to create a work item with start and due dates prefilled.
         </div>
-        <div class="tl-gantt" :style="{ width: `${totalWidth}px` }">
+        <div class="tl-gantt" :style="{ width: `${canvasWidth}px` }">
           <div class="tl-group-row">
             <div
               v-for="group in headerGroups"
@@ -584,7 +608,7 @@ function getWeekNumber(value) {
             </button>
           </div>
 
-          <div class="tl-bars-container">
+          <div class="tl-bars-container" :style="{ minHeight: `${rowsCanvasHeight}px` }">
             <div class="tl-grid-lines">
               <button
                 v-for="(bucket, index) in timeBuckets"
@@ -619,7 +643,7 @@ function getWeekNumber(value) {
             </div>
 
             <button class="tl-bar-row tl-add-canvas-row" type="button" @click="requestQuickAdd(clickedBucket)">
-              <span class="canvas-add-label">Click de them work item moi</span>
+              <span class="canvas-add-label">Click to add a new work item</span>
             </button>
           </div>
         </div>
@@ -632,8 +656,8 @@ function getWeekNumber(value) {
 .plane-timeline {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-height: calc(100vh - 80px);
+  height: auto;
+  min-height: 100%;
   background: #0d0f11;
   color: #e4e4e7;
   overflow: hidden;
@@ -744,8 +768,9 @@ function getWeekNumber(value) {
 .tl-body {
   display: flex;
   flex: 1;
-  min-height: 0;
-  overflow: auto;
+  min-height: max-content;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .tl-left-panel {
@@ -794,7 +819,7 @@ function getWeekNumber(value) {
 
 .tl-left-rows {
   flex: 1;
-  overflow-y: auto;
+  overflow: visible;
 }
 
 .tl-task-row {
@@ -852,11 +877,12 @@ function getWeekNumber(value) {
 .tl-right-panel {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: visible;
 }
 
 .tl-gantt {
-  min-height: 100%;
+  min-height: max-content;
   position: relative;
   padding-bottom: 24px;
 }
@@ -950,7 +976,7 @@ function getWeekNumber(value) {
 
 .tl-bars-container {
   position: relative;
-  min-height: 100%;
+  min-height: max-content;
 }
 
 .tl-grid-lines {

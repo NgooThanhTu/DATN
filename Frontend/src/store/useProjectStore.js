@@ -107,7 +107,7 @@ export const useProjectStore = defineStore('project', {
   getters: {
     sidebarProjects: (state) => dedupeProjects(state.allProjects).filter(project => project.isMember !== false),
     favoriteProjects: (state) => dedupeProjects(state.allProjects).filter(project => project.isFavorite),
-    projectTree: (state) => dedupeProjects(state.allProjects).map(project => ({
+    projectTree: (state) => dedupeProjects(state.allProjects).filter(project => project.isMember !== false).map(project => ({
       ...project,
       expanded: state.expandedProjectIds.includes(project.id)
     }))
@@ -157,6 +157,7 @@ export const useProjectStore = defineStore('project', {
       if (this.currentProject?.id === projectId) {
         this.currentProject = { ...this.currentProject, isFavorite: favorite };
       }
+      await this.fetchAllProjects(true)
     },
     clearProjectContext(projectId = null) {
       this.currentProject = projectId

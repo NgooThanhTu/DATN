@@ -165,10 +165,11 @@ const filteredMembers = computed(() => {
 })
 
 const getTaskAssigneeIds = (task) => {
-  if (Array.isArray(task.assigneeIds) && task.assigneeIds.length) return task.assigneeIds
-  if (Array.isArray(task.assignees) && task.assignees.length) return task.assignees.map(item => item.userId || item.id).filter(Boolean)
-  if (task.assignedUserId) return [task.assignedUserId]
-  return []
+  return Array.from(new Set([
+    ...(Array.isArray(task.assigneeIds) ? task.assigneeIds : []),
+    ...(Array.isArray(task.assignees) ? task.assignees.map(item => item.userId || item.id).filter(Boolean) : []),
+    ...(task.assignedUserId ? [task.assignedUserId] : [])
+  ]))
 }
 
 const getTaskAssigneeSummary = (task) => {
@@ -184,7 +185,9 @@ const getTaskAssigneeSummary = (task) => {
 
 const toggleTaskAssignee = (task, memberId) => {
   const currentIds = getTaskAssigneeIds(task)
-  const nextIds = currentIds.includes(memberId) ? currentIds.filter(id => id !== memberId) : [...currentIds, memberId]
+  const nextIds = currentIds.includes(memberId)
+    ? currentIds.filter(id => id !== memberId)
+    : Array.from(new Set([...currentIds, memberId]))
   emit('update-task', task, 'assigneeIds', nextIds, currentIds)
 }
 

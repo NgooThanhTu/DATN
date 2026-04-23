@@ -88,7 +88,7 @@ namespace TaskManagement.API.Controllers
             _context.StickyNotes.Remove(sticky);
             await _context.SaveChangesAsync();
 
-            return Ok(ApiResponse<object>.Success(null, "Deleted successfully"));
+            return Ok(ApiResponse<object>.Success(null!, "Deleted successfully"));
         }
     }
 

@@ -13,6 +13,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using TaskManagement.API.Hubs;
+using TaskManagement.API.Filters;
 using TaskManagement.Domain.Entities;
 using TaskManagement.Infrastructure.Data;
 
@@ -35,6 +36,11 @@ namespace TaskManagement.API.Controllers
             _context = context;
             _notificationHub = notificationHub;
             _env = env;
+        }
+
+        private async Task<bool> TaskBelongsToProjectAsync(Guid projectId, Guid taskId)
+        {
+            return await _context.WorkTasks.AnyAsync(task => task.Id == taskId && task.ProjectId == projectId && !task.IsDeleted);
         }
 
         private async Task TriggerNotificationEventAsync(string relativePath, object payload)
@@ -173,8 +179,14 @@ namespace TaskManagement.API.Controllers
         }
 
         [HttpGet("projects/{projectId}/WorkTasks/{taskId}/comments")]
+        [ProjectAuthorize("")]
         public async Task<IActionResult> GetComments(Guid projectId, Guid taskId)
         {
+            if (!await TaskBelongsToProjectAsync(projectId, taskId))
+            {
+                return NotFound(new { message = "Task khong ton tai trong du an nay." });
+            }
+
             var comments = await _context.Comments
                 .Where(c => c.WorkTaskId == taskId && !c.IsDeleted)
                 .Include(c => c.User)
@@ -186,6 +198,7 @@ namespace TaskManagement.API.Controllers
         }
 
         [HttpPost("projects/{projectId}/WorkTasks/{taskId}/comments")]
+        [ProjectAuthorize("")]
         public async Task<IActionResult> CreateComment(Guid projectId, Guid taskId, [FromForm] string content, [FromForm] Guid? parentCommentId, [FromForm] List<IFormFile>? files)
         {
             var userId = GetUserId();
@@ -196,7 +209,7 @@ namespace TaskManagement.API.Controllers
                 return BadRequest(new { message = "Comment phai co noi dung hoac file dinh kem." });
             }
 
-            var task = await _context.WorkTasks.FirstOrDefaultAsync(t => t.Id == taskId && !t.IsDeleted);
+            var task = await _context.WorkTasks.FirstOrDefaultAsync(t => t.Id == taskId && t.ProjectId == projectId && !t.IsDeleted);
             if (task == null)
             {
                 return NotFound(new { message = "Task khong ton tai." });
@@ -286,6 +299,7 @@ namespace TaskManagement.API.Controllers
         }
 
         [HttpPost("projects/{projectId}/WorkTasks/{taskId}/comments/{commentId}/reactions")]
+        [ProjectAuthorize("")]
         public async Task<IActionResult> AddReaction(Guid projectId, Guid taskId, Guid commentId, [FromBody] AddReactionRequest request)
         {
             var userId = GetUserId();
@@ -294,6 +308,11 @@ namespace TaskManagement.API.Controllers
             if (string.IsNullOrWhiteSpace(request.Emoji))
             {
                 return BadRequest(new { message = "Emoji is required." });
+            }
+
+            if (!await TaskBelongsToProjectAsync(projectId, taskId))
+            {
+                return NotFound(new { message = "Task khong ton tai trong du an nay." });
             }
 
             var comment = await _context.Comments
@@ -331,10 +350,16 @@ namespace TaskManagement.API.Controllers
         }
 
         [HttpPut("projects/{projectId}/WorkTasks/{taskId}/comments/{commentId}")]
+        [ProjectAuthorize("")]
         public async Task<IActionResult> UpdateComment(Guid projectId, Guid taskId, Guid commentId, [FromBody] UpdateCommentRequest request)
         {
             var userId = GetUserId();
             if (userId == null) return Unauthorized();
+
+            if (!await TaskBelongsToProjectAsync(projectId, taskId))
+            {
+                return NotFound(new { message = "Task khong ton tai trong du an nay." });
+            }
 
             var comment = await _context.Comments
                 .FirstOrDefaultAsync(c => c.Id == commentId && c.WorkTaskId == taskId && !c.IsDeleted);
@@ -351,16 +376,28 @@ namespace TaskManagement.API.Controllers
         }
 
         [HttpDelete("projects/{projectId}/WorkTasks/{taskId}/comments/{commentId}")]
-        public Task<IActionResult> DeleteCommentNested(Guid projectId, Guid taskId, Guid commentId)
+        [ProjectAuthorize("")]
+        public async Task<IActionResult> DeleteCommentNested(Guid projectId, Guid taskId, Guid commentId)
         {
-            return DeleteComment(commentId);
+            if (!await TaskBelongsToProjectAsync(projectId, taskId))
+            {
+                return NotFound(new { message = "Task khong ton tai trong du an nay." });
+            }
+
+            return await DeleteComment(commentId);
         }
 
         [HttpDelete("projects/{projectId}/WorkTasks/{taskId}/comments/{commentId}/attachments/{attachmentId}")]
+        [ProjectAuthorize("")]
         public async Task<IActionResult> DeleteCommentAttachment(Guid projectId, Guid taskId, Guid commentId, Guid attachmentId)
         {
             var userId = GetUserId();
             if (userId == null) return Unauthorized();
+
+            if (!await TaskBelongsToProjectAsync(projectId, taskId))
+            {
+                return NotFound(new { message = "Task khong ton tai trong du an nay." });
+            }
 
             var comment = await _context.Comments
                 .FirstOrDefaultAsync(c => c.Id == commentId && c.WorkTaskId == taskId && !c.IsDeleted);

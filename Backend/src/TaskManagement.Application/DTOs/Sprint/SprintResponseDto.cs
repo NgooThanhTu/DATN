@@ -14,6 +14,7 @@ namespace TaskManagement.Application.DTOs.Sprint
         public int CompletedTaskCount { get; set; }
         public int InProgressTaskCount { get; set; }
         public int BacklogTaskCount { get; set; }
+        public bool IsFavorite { get; set; }
         public DateTime CreatedAt { get; set; }
     }
 }

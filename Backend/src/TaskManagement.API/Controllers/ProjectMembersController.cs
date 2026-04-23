@@ -19,6 +19,7 @@ namespace TaskManagement.API.Controllers
         }
 
         [HttpGet]
+        [ProjectAuthorize("")]
         public async Task<IActionResult> GetProjectMembers(Guid projectId)
         {
             try
@@ -33,7 +34,7 @@ namespace TaskManagement.API.Controllers
         }
 
         [HttpPost]
-        [ProjectAuthorize("PM, Admin")]
+        [ProjectAuthorize("PROJECT_MANAGER,PROJECT_LEAD,PM,PO,Admin")]
         public async Task<IActionResult> InviteMember(Guid projectId, [FromBody] ProjectMemberRequestDto request)
         {
             try
@@ -56,7 +57,7 @@ namespace TaskManagement.API.Controllers
         }
 
         [HttpDelete("{userId}")]
-        [ProjectAuthorize("PM, Admin")]
+        [ProjectAuthorize("PROJECT_MANAGER,PROJECT_LEAD,PM,PO,Admin")]
         public async Task<IActionResult> RemoveMember(Guid projectId, Guid userId)
         {
             try
@@ -75,7 +76,7 @@ namespace TaskManagement.API.Controllers
         }
 
         [HttpPut("{userId}/role")]
-        [ProjectAuthorize("PM, Admin")]
+        [ProjectAuthorize("PROJECT_MANAGER,PROJECT_LEAD,PM,PO,Admin")]
         public async Task<IActionResult> UpdateMemberRole(Guid projectId, Guid userId, [FromBody] UpdateRoleRequestDto request)
         {
             try

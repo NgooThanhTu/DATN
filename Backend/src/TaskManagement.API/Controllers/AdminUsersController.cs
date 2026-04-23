@@ -13,9 +13,20 @@ namespace TaskManagement.API.Controllers
 {
     [ApiController]
     [Route("api/admin/users")]
-    [SystemAuthorize(roles: "SuperAdmin, Admin, Developer, DEV")]
+    [SystemAuthorize(roles: "SuperAdmin, Admin, System Admin, Organization Admin, AccessAdmin")]
     public class AdminUsersController : ControllerBase
     {
+        private static readonly string[] ProtectedSystemRoles =
+        {
+            "admin",
+            "pm",
+            "system admin",
+            "superadmin",
+            "organization admin",
+            "accessadmin",
+            "access admin"
+        };
+
         private readonly ApplicationDbContext _context;
         private readonly IEmailService _emailService;
         private readonly IConfiguration _configuration;
@@ -349,6 +360,236 @@ namespace TaskManagement.API.Controllers
             }
         }
 
+        [HttpGet("roles")]
+        public async Task<IActionResult> GetSystemRoles([FromQuery] string? search)
+        {
+            var query = _context.Roles
+                .Include(role => role.UserRoles)
+                .Include(role => role.RolePermissions)
+                .ThenInclude(link => link.Permission)
+                .AsNoTracking()
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var keyword = search.Trim().ToLowerInvariant();
+                query = query.Where(role =>
+                    role.Name.ToLower().Contains(keyword) ||
+                    (role.Description != null && role.Description.ToLower().Contains(keyword)));
+            }
+
+            var roles = await query
+                .OrderBy(role => role.Name)
+                .Select(role => new
+                {
+                    id = role.Id,
+                    name = role.Name,
+                    description = role.Description,
+                    isProtected = ProtectedSystemRoles.Contains(role.Name.Trim().ToLower()),
+                    memberCount = role.UserRoles.Count,
+                    permissions = role.RolePermissions
+                        .OrderBy(link => link.Permission.Module)
+                        .ThenBy(link => link.Permission.Code)
+                        .Select(link => new
+                        {
+                            id = link.PermissionId,
+                            code = link.Permission.Code,
+                            module = link.Permission.Module
+                        })
+                        .ToList()
+                })
+                .ToListAsync();
+
+            var permissions = await _context.Permissions
+                .AsNoTracking()
+                .OrderBy(permission => permission.Module)
+                .ThenBy(permission => permission.Code)
+                .Select(permission => new
+                {
+                    id = permission.Id,
+                    code = permission.Code,
+                    module = permission.Module
+                })
+                .ToListAsync();
+
+            return Ok(new
+            {
+                statusCode = 200,
+                message = "Success",
+                data = new
+                {
+                    roles,
+                    permissions
+                }
+            });
+        }
+
+        [HttpPost("roles")]
+        public async Task<IActionResult> CreateRole([FromBody] SaveRoleRequest request)
+        {
+            var normalizedName = request.Name?.Trim();
+            if (string.IsNullOrWhiteSpace(normalizedName))
+            {
+                return BadRequest(new { statusCode = 400, message = "Role name is required." });
+            }
+
+            var protectedRole = ProtectedSystemRoles.Contains(normalizedName.ToLowerInvariant());
+            if (protectedRole)
+            {
+                return BadRequest(new { statusCode = 400, message = "Protected roles can only be assigned, not created or edited here." });
+            }
+
+            var exists = await _context.Roles.AnyAsync(role => role.Name.ToLower() == normalizedName.ToLower());
+            if (exists)
+            {
+                return Conflict(new { statusCode = 409, message = "Role already exists." });
+            }
+
+            var role = new Role
+            {
+                Id = Guid.NewGuid(),
+                Name = normalizedName,
+                Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim()
+            };
+
+            _context.Roles.Add(role);
+            await ReplaceRolePermissionsAsync(role.Id, request.PermissionIds);
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                statusCode = 201,
+                message = "Role created successfully.",
+                data = new { role.Id, role.Name, role.Description }
+            });
+        }
+
+        [HttpPut("roles/{roleId}")]
+        public async Task<IActionResult> UpdateRole(Guid roleId, [FromBody] SaveRoleRequest request)
+        {
+            var role = await _context.Roles
+                .Include(item => item.RolePermissions)
+                .FirstOrDefaultAsync(item => item.Id == roleId);
+            if (role == null)
+            {
+                return NotFound(new { statusCode = 404, message = "Role not found." });
+            }
+
+            if (ProtectedSystemRoles.Contains(role.Name.Trim().ToLowerInvariant()))
+            {
+                return BadRequest(new { statusCode = 400, message = "Protected roles can only be assigned to users." });
+            }
+
+            var normalizedName = request.Name?.Trim();
+            if (string.IsNullOrWhiteSpace(normalizedName))
+            {
+                return BadRequest(new { statusCode = 400, message = "Role name is required." });
+            }
+
+            var duplicateExists = await _context.Roles
+                .AnyAsync(item => item.Id != roleId && item.Name.ToLower() == normalizedName.ToLower());
+            if (duplicateExists)
+            {
+                return Conflict(new { statusCode = 409, message = "Role already exists." });
+            }
+
+            role.Name = normalizedName;
+            role.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
+
+            await ReplaceRolePermissionsAsync(roleId, request.PermissionIds);
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                statusCode = 200,
+                message = "Role updated successfully.",
+                data = new { role.Id, role.Name, role.Description }
+            });
+        }
+
+        [HttpDelete("roles/{roleId}")]
+        public async Task<IActionResult> DeleteRole(Guid roleId)
+        {
+            var role = await _context.Roles
+                .Include(item => item.UserRoles)
+                .Include(item => item.RolePermissions)
+                .FirstOrDefaultAsync(item => item.Id == roleId);
+            if (role == null)
+            {
+                return NotFound(new { statusCode = 404, message = "Role not found." });
+            }
+
+            if (ProtectedSystemRoles.Contains(role.Name.Trim().ToLowerInvariant()))
+            {
+                return BadRequest(new { statusCode = 400, message = "Protected roles can only be assigned to users." });
+            }
+
+            if (role.UserRoles.Any())
+            {
+                return BadRequest(new { statusCode = 400, message = "Remove this role from users before deleting it." });
+            }
+
+            if (role.RolePermissions.Any())
+            {
+                _context.RolePermissions.RemoveRange(role.RolePermissions);
+            }
+
+            _context.Roles.Remove(role);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { statusCode = 200, message = "Role deleted successfully." });
+        }
+
+        [HttpPost("{userId}/roles")]
+        public async Task<IActionResult> AssignRolesToUser(Guid userId, [FromBody] AssignRolesRequest request)
+        {
+            var user = await _context.Users
+                .Include(item => item.UserRoles)
+                .FirstOrDefaultAsync(item => item.Id == userId && !item.IsDeleted);
+            if (user == null)
+            {
+                return NotFound(new { statusCode = 404, message = "User not found." });
+            }
+
+            var requestedRoleIds = (request.RoleIds ?? new List<Guid>())
+                .Where(id => id != Guid.Empty)
+                .Distinct()
+                .ToList();
+
+            var roles = await _context.Roles
+                .Where(role => requestedRoleIds.Contains(role.Id))
+                .ToListAsync();
+
+            if (roles.Count != requestedRoleIds.Count)
+            {
+                return BadRequest(new { statusCode = 400, message = "One or more roles do not exist." });
+            }
+
+            var existingRoleIds = user.UserRoles.Select(item => item.RoleId).ToHashSet();
+            foreach (var roleId in existingRoleIds.Except(requestedRoleIds).ToList())
+            {
+                var link = user.UserRoles.FirstOrDefault(item => item.RoleId == roleId);
+                if (link != null)
+                {
+                    _context.UserRoles.Remove(link);
+                }
+            }
+
+            foreach (var roleId in requestedRoleIds.Where(id => !existingRoleIds.Contains(id)))
+            {
+                _context.UserRoles.Add(new UserRole
+                {
+                    UserId = userId,
+                    RoleId = roleId
+                });
+            }
+
+            user.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return Ok(new { statusCode = 200, message = "User roles updated successfully." });
+        }
+
         [HttpGet("departments")]
         public async Task<IActionResult> GetDepartments()
         {
@@ -571,6 +812,54 @@ namespace TaskManagement.API.Controllers
             public Guid ProjectId { get; set; }
             public Guid DepartmentId { get; set; }
             public string RoleName { get; set; } = string.Empty;
+        }
+
+        public class SaveRoleRequest
+        {
+            public string Name { get; set; } = string.Empty;
+            public string? Description { get; set; }
+            public List<Guid>? PermissionIds { get; set; }
+        }
+
+        public class AssignRolesRequest
+        {
+            public List<Guid>? RoleIds { get; set; }
+        }
+
+        private async Task ReplaceRolePermissionsAsync(Guid roleId, List<Guid>? requestedPermissionIds)
+        {
+            var nextPermissionIds = (requestedPermissionIds ?? new List<Guid>())
+                .Where(id => id != Guid.Empty)
+                .Distinct()
+                .ToList();
+
+            var existingLinks = await _context.RolePermissions
+                .Where(link => link.RoleId == roleId)
+                .ToListAsync();
+
+            if (existingLinks.Count > 0)
+            {
+                _context.RolePermissions.RemoveRange(existingLinks);
+            }
+
+            if (nextPermissionIds.Count == 0)
+            {
+                return;
+            }
+
+            var validPermissionIds = await _context.Permissions
+                .Where(permission => nextPermissionIds.Contains(permission.Id))
+                .Select(permission => permission.Id)
+                .ToListAsync();
+
+            foreach (var permissionId in validPermissionIds)
+            {
+                _context.RolePermissions.Add(new RolePermission
+                {
+                    RoleId = roleId,
+                    PermissionId = permissionId
+                });
+            }
         }
 
         private static string NormalizeSystemRole(string? role)

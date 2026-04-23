@@ -1,5 +1,5 @@
 <template>
-  <el-dropdown v-if="canAccessAdmin" trigger="click" popper-class="settings-dropdown-popper">
+  <el-dropdown v-if="canAccessAdmin || canAccessUserDirectory" trigger="click" popper-class="settings-dropdown-popper">
     <div class="settings-nav-icon setting-trigger">
       <i class="fa-solid fa-gear"></i>
     </div>
@@ -7,49 +7,53 @@
       <el-dropdown-menu class="jira-settings-menu">
         <div class="settings-content-wrapper">
           <div class="settings-list">
-            <div class="settings-menu-item" @click="handleCommand('/admin/audit-log')">
+            <div v-if="canAccessAdmin" class="settings-menu-item" @click="handleCommand('/admin/audit-log')">
               <span class="item-text">Audit Log</span>
             </div>
 
-            <div class="settings-menu-item" @click="handleCommand('/admin/users')">
+            <div v-if="canAccessUserDirectory" class="settings-menu-item" @click="handleCommand('/admin/users')">
               <span class="item-text">User Management</span>
             </div>
 
-            <div class="settings-menu-header">
+            <div v-if="canAccessUserDirectory" class="settings-menu-item" @click="handleCommand('/admin/roles')">
+              <span class="item-text">Role Management</span>
+            </div>
+
+            <div v-if="canAccessAdmin" class="settings-menu-header">
               <span class="item-text">Organization</span>
             </div>
-            
-            <div class="settings-menu-item indented" @click="handleCommand('/admin/organization/profile')">
+
+            <div v-if="canAccessAdmin" class="settings-menu-item indented" @click="handleCommand('/admin/organization/profile')">
               <span class="item-text">Profile</span>
             </div>
-            
-            <div class="settings-menu-item indented" @click="handleCommand('/admin/organization/contact')">
+
+            <div v-if="canAccessAdmin" class="settings-menu-item indented" @click="handleCommand('/admin/organization/contact')">
               <span class="item-text">Contact</span>
             </div>
 
-            <div class="menu-divider"></div>
+            <div v-if="canAccessAdmin" class="menu-divider"></div>
 
-            <div class="settings-menu-item" @click="handleCommand('/admin/configuration')">
+            <div v-if="canAccessAdmin" class="settings-menu-item" @click="handleCommand('/admin/configuration')">
               <span class="item-text">Configuration</span>
             </div>
 
-            <div class="settings-menu-header">
+            <div v-if="canAccessAdmin" class="settings-menu-header">
               <span class="item-text">Instance</span>
             </div>
 
-            <div class="settings-menu-item indented" @click="handleCommand('/admin/instance/general')">
+            <div v-if="canAccessAdmin" class="settings-menu-item indented" @click="handleCommand('/admin/instance/general')">
               <span class="item-text">General settings</span>
             </div>
 
-            <div class="settings-menu-item indented" @click="handleCommand('/admin/instance/authentication')">
+            <div v-if="canAccessAdmin" class="settings-menu-item indented" @click="handleCommand('/admin/instance/authentication')">
               <span class="item-text">Authentication</span>
             </div>
 
-            <div class="settings-menu-item indented" @click="handleCommand('/admin/instance/email')">
+            <div v-if="canAccessAdmin" class="settings-menu-item indented" @click="handleCommand('/admin/instance/email')">
               <span class="item-text">Email / SMTP</span>
             </div>
 
-            <div class="settings-menu-item" @click="handleCommand('/admin/customization')">
+            <div v-if="canAccessAdmin" class="settings-menu-item" @click="handleCommand('/admin/customization')">
               <span class="item-text">Customization</span>
             </div>
           </div>
@@ -63,23 +67,20 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { canAccessAdminUserDirectory, getStoredUser, hasSystemAdminAccess } from '@/utils/permissions'
 
 const router = useRouter()
-
-const currentUser = JSON.parse(localStorage.getItem('user') || '{}')
-
-// Chỉ System Admin, PM, PO mới thấy nút Settings (Admin)
-const canAccessAdmin = computed(() => {
-  const roles = currentUser.systemRoles || []
-  return roles.includes('System Admin') || roles.includes('PM') || roles.includes('PO')
-})
+const currentUser = computed(() => getStoredUser())
+const canAccessAdmin = computed(() => hasSystemAdminAccess(currentUser.value))
+const canAccessUserDirectory = computed(() => canAccessAdminUserDirectory(currentUser.value))
 
 const handleCommand = (path) => {
-  if (!canAccessAdmin.value) {
-    ElMessage.warning('Bạn không có quyền truy cập trang quản trị.')
+  const canOpenPath = canAccessAdmin.value || (['/admin/users', '/admin/roles'].includes(path) && canAccessUserDirectory.value)
+  if (!canOpenPath) {
+    ElMessage.warning('You do not have permission to access admin settings.')
     return
   }
-  // Use a named target so the browser reuses the same tab for all Admin links
+
   const routeData = router.resolve({ path })
   window.open(routeData.href, 'NexusAdminWindow')
 }

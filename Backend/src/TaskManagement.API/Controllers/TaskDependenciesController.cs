@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using TaskManagement.API.Filters;
 using TaskManagement.Infrastructure.Data;
 using TaskManagement.Domain.Entities;
 
@@ -9,6 +10,7 @@ namespace TaskManagement.API.Controllers
     [ApiController]
     [Route("api/projects/{projectId}/WorkTasks/{taskId}/dependencies")]
     [Authorize]
+    [ProjectAuthorize("")]
     public class TaskDependenciesController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
@@ -21,6 +23,12 @@ namespace TaskManagement.API.Controllers
         [HttpGet]
         public async Task<IActionResult> GetDependencies(Guid projectId, Guid taskId)
         {
+            var taskExists = await _context.WorkTasks.AnyAsync(wt => wt.Id == taskId && wt.ProjectId == projectId && !wt.IsDeleted);
+            if (!taskExists)
+            {
+                return NotFound(new { statusCode = 404, message = "Cong viec khong ton tai trong du an nay." });
+            }
+
             var relations = await _context.TaskDependencies
                 .Include(td => td.PredecessorTask)
                 .ThenInclude(pt => pt.TaskStatus)
@@ -115,6 +123,13 @@ namespace TaskManagement.API.Controllers
         [HttpDelete("{relatedTaskId}")]
         public async Task<IActionResult> RemoveDependency(Guid projectId, Guid taskId, Guid relatedTaskId)
         {
+            var taskExists = await _context.WorkTasks.AnyAsync(wt => wt.Id == taskId && wt.ProjectId == projectId && !wt.IsDeleted);
+            var relatedTaskExists = await _context.WorkTasks.AnyAsync(wt => wt.Id == relatedTaskId && wt.ProjectId == projectId && !wt.IsDeleted);
+            if (!taskExists || !relatedTaskExists)
+            {
+                return NotFound(new { statusCode = 404, message = "Cong viec khong ton tai trong du an nay." });
+            }
+
             var dep = await _context.TaskDependencies
                 .FirstOrDefaultAsync(td => 
                     (td.PredecessorTaskId == taskId && td.SuccessorTaskId == relatedTaskId) ||

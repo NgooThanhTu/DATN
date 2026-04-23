@@ -228,13 +228,21 @@ const resetProjectStatuses = () => {
 }
 
 const fetchDefaultTaskStatuses = async () => {
-  const res = await axiosClient.get('/settings/admin/default-task-statuses')
-  defaultTaskStatuses.value = (res.data?.data?.length ? res.data.data : getDefaultTaskStatusSeed())
+  try {
+    const res = await axiosClient.get('/settings/admin/default-task-statuses')
+    defaultTaskStatuses.value = (res.data?.data?.length ? res.data.data : getDefaultTaskStatusSeed())
+  } catch (error) {
+    defaultTaskStatuses.value = getDefaultTaskStatusSeed()
+  }
 }
 
 const fetchProjectStatuses = async () => {
-  const res = await axiosClient.get('/settings/admin/project-statuses')
-  projectStatuses.value = (res.data?.data?.length ? res.data.data : getProjectStatusSeed())
+  try {
+    const res = await axiosClient.get('/settings/admin/project-statuses')
+    projectStatuses.value = (res.data?.data?.length ? res.data.data : getProjectStatusSeed())
+  } catch (error) {
+    projectStatuses.value = getProjectStatusSeed()
+  }
 }
 
 const saveDefaultTaskStatuses = async () => {
@@ -279,23 +287,30 @@ const applyThemeToDocument = () => {
 }
 
 const fetchTheme = async () => {
-  const res = await axiosClient.get('/settings/ThemeSettings')
-  const data = res.data?.data || {}
+  try {
+    const res = await axiosClient.get('/settings/ThemeSettings')
+    const data = res.data?.data || {}
 
-  if (data.SavedPresets) {
-    try {
-      const parsed = JSON.parse(data.SavedPresets)
-      templates.value = [...parsed, ...defaultTemplates]
-    } catch (error) {
+    if (data.SavedPresets) {
+      try {
+        const parsed = JSON.parse(data.SavedPresets)
+        templates.value = [...parsed, ...defaultTemplates]
+      } catch (error) {
+        templates.value = [...defaultTemplates]
+      }
+    } else {
       templates.value = [...defaultTemplates]
     }
-  }
 
-  Object.keys(themeColors.value).forEach((key) => {
-    if (data[key]) {
-      themeColors.value[key].value = data[key]
-    }
-  })
+    Object.keys(themeColors.value).forEach((key) => {
+      themeColors.value[key].value = data[key] || themeColors.value[key].default
+    })
+  } catch (error) {
+    templates.value = [...defaultTemplates]
+    Object.keys(themeColors.value).forEach((key) => {
+      themeColors.value[key].value = themeColors.value[key].default
+    })
+  }
 
   applyThemeToDocument()
 }

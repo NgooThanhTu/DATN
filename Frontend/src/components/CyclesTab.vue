@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useSprintStore } from '@/store/useSprintStore'
 import axiosClient from '@/api/axiosClient'
 
@@ -17,6 +17,7 @@ const props = defineProps({
 })
 
 const router = useRouter()
+const route = useRoute()
 const sprintStore = useSprintStore()
 
 provide(THEME_KEY, 'dark')
@@ -43,6 +44,13 @@ const expandedTabs = ref({
 const cyclePanelTabs = ref({})
 const cycleWorkItems = ref({})
 const cycleWorkItemsLoading = ref({})
+const expandedCarryOverCycleId = ref(null)
+const carryOverItems = ref({})
+const carryOverLoading = ref({})
+const carryOverFilters = ref({})
+const carryOverSelection = ref({})
+const carryOverTargetSprintId = ref({})
+const carryOverMoving = ref({})
 
 const monthNames = ['Thang 1', 'Thang 2', 'Thang 3', 'Thang 4', 'Thang 5', 'Thang 6', 'Thang 7', 'Thang 8', 'Thang 9', 'Thang 10', 'Thang 11', 'Thang 12']
 const dayNames = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
@@ -108,6 +116,27 @@ const fetchCycleWorkItems = async (cycleId) => {
 }
 
 const cycleItemsFor = (cycleId) => cycleWorkItems.value[cycleId] || []
+const getCarryOverFilter = (cycleId) => carryOverFilters.value[cycleId] || { search: '', scope: 'all' }
+const getCarryOverSelection = (cycleId) => carryOverSelection.value[cycleId] || []
+const getCarryOverTargetSprintId = (cycleId) => carryOverTargetSprintId.value[cycleId] || null
+const carryOverTasksFor = (cycleId) => carryOverItems.value[cycleId] || []
+
+const visibleCarryOverTasks = (cycleId) => {
+  const filters = getCarryOverFilter(cycleId)
+  const keyword = `${filters.search || ''}`.trim().toLowerCase()
+  return carryOverTasksFor(cycleId).filter(task => {
+    const matchesSearch = !keyword ||
+      `${task.title || ''}`.toLowerCase().includes(keyword) ||
+      `${task.sequenceId || ''}`.toLowerCase().includes(keyword)
+    const matchesScope =
+      filters.scope === 'all' ||
+      (filters.scope === 'backlog' && task.currentLocation === 'Backlog') ||
+      (filters.scope === 'cycle' && task.currentLocation === 'Cycle')
+    return matchesSearch && matchesScope
+  })
+}
+
+const availableTargetSprints = (cycleId) => allSprints.value.filter(sprint => sprint.id !== cycleId && (sprint.state || '').toLowerCase() !== 'completed')
 
 const priorityLabel = (priority) => {
   if (priority === 1) return 'Urgent'
@@ -116,6 +145,8 @@ const priorityLabel = (priority) => {
   if (priority === 4) return 'Low'
   return 'None'
 }
+
+const assigneeLabel = (task) => task.assignedUserName || 'Unassigned'
 
 const formatDateCompact = (d) => {
   if (!d) return ''
@@ -179,6 +210,102 @@ const openCycleBoard = (cycle) => {
       sprintName: cycle.name
     }
   })
+}
+
+const openCarryOverBoard = (cycle) => {
+  router.push({
+    name: 'CycleDetailView',
+    params: { id: props.projectId, cycleId: cycle.id },
+    query: {
+      tab: 'spreadsheet',
+      carryOverFromSprintId: cycle.id
+    }
+  })
+}
+
+const ensureCarryOverState = (cycleId) => {
+  if (!carryOverFilters.value[cycleId]) {
+    carryOverFilters.value = {
+      ...carryOverFilters.value,
+      [cycleId]: { search: '', scope: 'all' }
+    }
+  }
+  if (!carryOverSelection.value[cycleId]) {
+    carryOverSelection.value = { ...carryOverSelection.value, [cycleId]: [] }
+  }
+}
+
+const fetchCarryOverTasks = async (cycleId, force = false) => {
+  ensureCarryOverState(cycleId)
+  if (!force && (carryOverItems.value[cycleId] || carryOverLoading.value[cycleId])) return
+
+  carryOverLoading.value = { ...carryOverLoading.value, [cycleId]: true }
+  try {
+    const res = await axiosClient.get(`/projects/${props.projectId}/sprints/${cycleId}/carry-over-tasks`)
+    carryOverItems.value = { ...carryOverItems.value, [cycleId]: res.data?.data || [] }
+    carryOverSelection.value = { ...carryOverSelection.value, [cycleId]: [] }
+  } catch (error) {
+    console.error('Failed to load carry-over tasks', error)
+    carryOverItems.value = { ...carryOverItems.value, [cycleId]: [] }
+  } finally {
+    carryOverLoading.value = { ...carryOverLoading.value, [cycleId]: false }
+  }
+}
+
+const toggleCarryOverPlanner = async (cycle) => {
+  expandedCarryOverCycleId.value = expandedCarryOverCycleId.value === cycle.id ? null : cycle.id
+  if (expandedCarryOverCycleId.value === cycle.id) {
+    await fetchCarryOverTasks(cycle.id)
+  }
+}
+
+const updateCarryOverFilter = (cycleId, patch) => {
+  ensureCarryOverState(cycleId)
+  carryOverFilters.value = {
+    ...carryOverFilters.value,
+    [cycleId]: { ...carryOverFilters.value[cycleId], ...patch }
+  }
+}
+
+const toggleCarryOverSelection = (cycleId, taskId) => {
+  const next = new Set(getCarryOverSelection(cycleId))
+  if (next.has(taskId)) next.delete(taskId)
+  else next.add(taskId)
+  carryOverSelection.value = { ...carryOverSelection.value, [cycleId]: Array.from(next) }
+}
+
+const toggleSelectAllCarryOver = (cycleId) => {
+  const visibleIds = visibleCarryOverTasks(cycleId).map(task => task.id)
+  const selected = getCarryOverSelection(cycleId)
+  const shouldSelectAll = visibleIds.some(id => !selected.includes(id))
+  carryOverSelection.value = {
+    ...carryOverSelection.value,
+    [cycleId]: shouldSelectAll ? visibleIds : []
+  }
+}
+
+const carryOverSelectedCount = (cycleId) => getCarryOverSelection(cycleId).length
+
+const moveCarryOverTasks = async (cycleId, targetSprintId = null) => {
+  const taskIds = getCarryOverSelection(cycleId)
+  if (!taskIds.length) return
+
+  carryOverMoving.value = { ...carryOverMoving.value, [cycleId]: true }
+  try {
+    await axiosClient.post(`/projects/${props.projectId}/sprints/${cycleId}/carry-over-tasks/move`, {
+      taskIds,
+      targetSprintId
+    })
+    await Promise.all([
+      loadCycles(true),
+      fetchCarryOverTasks(cycleId, true)
+    ])
+  } catch (error) {
+    console.error('Failed to move carry-over tasks', error)
+    alert(error.response?.data?.message || 'Khong the cap nhat task ton dong')
+  } finally {
+    carryOverMoving.value = { ...carryOverMoving.value, [cycleId]: false }
+  }
 }
 
 const fetchBurndowns = async () => {
@@ -378,6 +505,16 @@ const btnDateText = computed(() => {
 })
 
 watch(() => props.projectId, () => loadCycles(true), { immediate: true })
+watch(
+  () => route.query.carryOverFromSprintId,
+  async (cycleId) => {
+    if (!cycleId || typeof cycleId !== 'string') return
+    expandedTabs.value.completed = true
+    expandedCarryOverCycleId.value = cycleId
+    await fetchCarryOverTasks(cycleId, true)
+  },
+  { immediate: true }
+)
 
 let cycleRefreshTimer = null
 onMounted(() => {
@@ -598,6 +735,84 @@ onUnmounted(() => {
                   <i class="fa-solid fa-star text-orange-400" v-if="cycle.isFavorite"></i>
                   <i class="fa-regular fa-star" v-else></i>
                 </button>
+                <button class="filter-action" type="button" @click.stop="toggleCarryOverPlanner(cycle)" :class="{ active: expandedCarryOverCycleId === cycle.id }">
+                  <i class="fa-solid fa-list-check"></i> Carry-over
+                </button>
+              </div>
+            </div>
+
+            <div v-if="expandedCarryOverCycleId === cycle.id" class="carry-over-panel">
+              <div class="carry-over-toolbar">
+                <div class="carry-over-filters">
+                  <input
+                    class="carry-over-search"
+                    :value="getCarryOverFilter(cycle.id).search"
+                    type="text"
+                    placeholder="Search carry-over tasks"
+                    @input="updateCarryOverFilter(cycle.id, { search: $event.target.value })"
+                  />
+                  <select
+                    class="carry-over-select"
+                    :value="getCarryOverFilter(cycle.id).scope"
+                    @change="updateCarryOverFilter(cycle.id, { scope: $event.target.value })"
+                  >
+                    <option value="all">All locations</option>
+                    <option value="backlog">Backlog only</option>
+                    <option value="cycle">Cycle only</option>
+                  </select>
+                  <button class="filter-action" type="button" @click="fetchCarryOverTasks(cycle.id, true)">Refresh</button>
+                  <button class="filter-action" type="button" @click="openCarryOverBoard(cycle)">Open board</button>
+                </div>
+                <div class="carry-over-actions">
+                  <span class="text-muted">{{ carryOverSelectedCount(cycle.id) }} selected</span>
+                  <select
+                    class="carry-over-select"
+                    :value="getCarryOverTargetSprintId(cycle.id)"
+                    @change="carryOverTargetSprintId = { ...carryOverTargetSprintId, [cycle.id]: $event.target.value || null }"
+                  >
+                    <option :value="null">Move to cycle...</option>
+                    <option v-for="target in availableTargetSprints(cycle.id)" :key="target.id" :value="target.id">
+                      {{ target.name }}
+                    </option>
+                  </select>
+                  <button class="filter-action" type="button" :disabled="carryOverMoving[cycle.id]" @click="moveCarryOverTasks(cycle.id, null)">Move to backlog</button>
+                  <button
+                    class="primary-action"
+                    type="button"
+                    :disabled="carryOverMoving[cycle.id] || !getCarryOverTargetSprintId(cycle.id)"
+                    @click="moveCarryOverTasks(cycle.id, getCarryOverTargetSprintId(cycle.id))"
+                  >
+                    Move selected
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="carryOverLoading[cycle.id]" class="tab-empty text-muted">Loading carry-over tasks...</div>
+              <div v-else-if="visibleCarryOverTasks(cycle.id).length === 0" class="tab-empty text-muted">No carry-over tasks from this completed cycle.</div>
+              <div v-else class="carry-over-table">
+                <div class="carry-over-head">
+                  <label class="carry-over-check">
+                    <input type="checkbox" :checked="visibleCarryOverTasks(cycle.id).length > 0 && carryOverSelectedCount(cycle.id) === visibleCarryOverTasks(cycle.id).length" @change="toggleSelectAllCarryOver(cycle.id)" />
+                    <span>Select all visible</span>
+                  </label>
+                  <span class="text-muted">{{ visibleCarryOverTasks(cycle.id).length }} tasks</span>
+                </div>
+
+                <div v-for="task in visibleCarryOverTasks(cycle.id)" :key="task.id" class="carry-over-row">
+                  <label class="carry-over-check">
+                    <input type="checkbox" :checked="getCarryOverSelection(cycle.id).includes(task.id)" @change="toggleCarryOverSelection(cycle.id, task.id)" />
+                  </label>
+                  <div class="carry-over-main">
+                    <span class="work-item-id">{{ task.sequenceId || task.id?.substring(0, 8).toUpperCase() }}</span>
+                    <span class="work-item-title">{{ task.title }}</span>
+                  </div>
+                  <div class="carry-over-meta">
+                    <span>{{ task.statusName }}</span>
+                    <span>{{ priorityLabel(task.priority) }}</span>
+                    <span>{{ assigneeLabel(task) }}</span>
+                    <span>{{ task.currentSprintName || 'Backlog' }}</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -780,6 +995,86 @@ onUnmounted(() => {
 .icon-btn:hover { color: #E4E4E7; }
 .completed-badge { font-size: 12px; color: #10B981; font-weight: 500; }
 .task-count-badge { font-size: 12px; color: #A1A1AA; display: flex; align-items: center; gap: 6px; }
+.carry-over-panel {
+  margin-top: 12px;
+  border: 1px solid #27272A;
+  border-radius: 10px;
+  background: #111315;
+  padding: 16px;
+}
+.carry-over-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.carry-over-filters,
+.carry-over-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.carry-over-search,
+.carry-over-select {
+  background: #0D0F11;
+  border: 1px solid #27272A;
+  color: #E4E4E7;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+.carry-over-search {
+  min-width: 220px;
+}
+.carry-over-table {
+  display: grid;
+  gap: 8px;
+}
+.carry-over-head,
+.carry-over-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) minmax(280px, 420px);
+  gap: 12px;
+  align-items: center;
+}
+.carry-over-head {
+  color: #A1A1AA;
+  font-size: 12px;
+  padding: 4px 0;
+}
+.carry-over-row {
+  border: 1px solid #27272A;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #16181D;
+}
+.carry-over-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.carry-over-main {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.carry-over-meta {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: #A1A1AA;
+  font-size: 11px;
+}
+.carry-over-meta span {
+  background: #27272A;
+  border-radius: 999px;
+  padding: 4px 8px;
+}
 
 .cc-grid { display: grid; grid-template-columns: 1fr 2fr 1.5fr; }
 .grid-panel { padding: 20px; border-right: 1px solid #27272A; }

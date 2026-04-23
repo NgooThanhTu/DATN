@@ -35,6 +35,19 @@ namespace TaskManagement.API.Controllers
             public string? Status { get; set; }
         }
 
+        private sealed class AuditLogResponseItem
+        {
+            public string Id { get; set; } = string.Empty;
+            public string Timestamp { get; set; } = string.Empty;
+            public string User { get; set; } = string.Empty;
+            public string Action { get; set; } = string.Empty;
+            public string Resource { get; set; } = string.Empty;
+            public string TargetId { get; set; } = string.Empty;
+            public string ProjectName { get; set; } = string.Empty;
+            public string Status { get; set; } = string.Empty;
+            public string Summary { get; set; } = string.Empty;
+        }
+
         [HttpGet]
         public async Task<IActionResult> GetAuditLogs(
             [FromQuery] Guid? projectId, 
@@ -229,28 +242,30 @@ namespace TaskManagement.API.Controllers
                             summaryStr = (isEng ? "Updated: " : "Cập nhật: ") + string.Join(", ", translatedFields);
                         }
 
-                        return new {
-                            id = "LOG-" + al.Id.ToString().Substring(0, 8).ToUpper(),
-                            timestamp = al.CreatedAt.ToString("o"),
-                            user = al.FullName ?? al.Email,
-                            action = actionStr,
-                            resource = $"[{al.ProjectName}] {al.TaskTitle}",
-                            targetId = !string.IsNullOrEmpty(al.TaskTitle) && al.TaskTitle.Length > 10 ? "TASK-" + al.TaskTitle.Substring(0, 10) : "TASK-" + al.TaskTitle,
-                            projectName = al.ProjectName,
-                            status = "success",
-                            summary = summaryStr
+                        return new AuditLogResponseItem
+                        {
+                            Id = "LOG-" + al.Id.ToString().Substring(0, 8).ToUpper(),
+                            Timestamp = al.CreatedAt.ToString("o"),
+                            User = al.FullName ?? al.Email ?? "Unknown",
+                            Action = actionStr,
+                            Resource = $"[{al.ProjectName}] {al.TaskTitle}",
+                            TargetId = !string.IsNullOrEmpty(al.TaskTitle) && al.TaskTitle.Length > 10 ? "TASK-" + al.TaskTitle.Substring(0, 10) : "TASK-" + al.TaskTitle,
+                            ProjectName = al.ProjectName ?? string.Empty,
+                            Status = "success",
+                            Summary = summaryStr
                         };
                     } else {
-                        return new {
-                            id = "SYS-" + al.Id.ToString().Substring(0, 8).ToUpper(),
-                            timestamp = al.CreatedAt.ToString("o"),
-                            user = al.FullName ?? al.Email ?? "System",
-                            action = al.Action?.ToLower() ?? "system",
-                            resource = al.TaskTitle,
-                            targetId = "SYSTEM",
-                            projectName = al.ProjectName,
-                            status = al.Status?.ToLower() ?? "success",
-                            summary = al.FieldChanged
+                        return new AuditLogResponseItem
+                        {
+                            Id = "SYS-" + al.Id.ToString().Substring(0, 8).ToUpper(),
+                            Timestamp = al.CreatedAt.ToString("o"),
+                            User = al.FullName ?? al.Email ?? "System",
+                            Action = al.Action?.ToLower() ?? "system",
+                            Resource = al.TaskTitle ?? "System",
+                            TargetId = "SYSTEM",
+                            ProjectName = al.ProjectName ?? "System",
+                            Status = al.Status?.ToLower() ?? "success",
+                            Summary = al.FieldChanged ?? string.Empty
                         };
                     }
                 }).ToList();

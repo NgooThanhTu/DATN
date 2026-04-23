@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
+using TaskManagement.API.Filters;
 using TaskManagement.Application.DTOs.Common;
 using TaskManagement.Application.DTOs.Project;
 using TaskManagement.Application.Interfaces;
@@ -22,6 +23,23 @@ namespace TaskManagement.API.Controllers
         {
             _projectService = projectService;
             _context = context;
+        }
+
+        public sealed class ProjectIntegrationSetting
+        {
+            public string Provider { get; set; } = string.Empty;
+            public string DisplayName { get; set; } = string.Empty;
+            public bool Enabled { get; set; }
+            public string? Endpoint { get; set; }
+            public string? ProjectKey { get; set; }
+            public string? Secret { get; set; }
+            public string? Notes { get; set; }
+            public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        }
+
+        public sealed class UpdateProjectIntegrationsRequest
+        {
+            public List<ProjectIntegrationSetting> Items { get; set; } = new();
         }
 
         private static Dictionary<string, object?> ParseNavigationConfig(string? raw)
@@ -182,6 +200,7 @@ namespace TaskManagement.API.Controllers
         }
 
         [HttpGet("{id:guid}")]
+        [ProjectAuthorize("")]
         public async Task<IActionResult> GetById(Guid id)
         {
             var project = await _projectService.GetByIdAsync(id);
@@ -214,6 +233,176 @@ namespace TaskManagement.API.Controllers
                 project.UpdatedAt,
                 IsFavorite = ReadFavoriteFlag(rawProject?.NavigationConfig)
             }));
+        }
+
+        [HttpGet("{projectId:guid}/settings")]
+        [ProjectAuthorize("PROJECT_MANAGER,PROJECT_LEAD,PM,PO,Admin")]
+        public async Task<IActionResult> GetSettingsOverview(Guid projectId)
+        {
+            var project = await _projectService.GetByIdAsync(projectId);
+            if (project == null)
+                return NotFound(ApiResponse<object>.Error("Project not found.", 404));
+
+            var members = await _projectService.GetMembersAsync(projectId);
+            var rawProject = await _context.Projects
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == projectId);
+
+            return Ok(ApiResponse<object>.Success(new
+            {
+                project = new
+                {
+                    project.Id,
+                    project.Name,
+                    project.Key,
+                    project.Description,
+                    project.StartDate,
+                    project.EndDate,
+                    project.Status,
+                    project.CreatorName,
+                    project.DepartmentId,
+                    project.DepartmentName,
+                    project.ActiveMemberCount,
+                    project.NetworkType,
+                    project.Cover,
+                    project.Icon,
+                    project.LeadUserId,
+                    project.LeadName,
+                    project.CreatedAt,
+                    project.UpdatedAt,
+                    IsFavorite = ReadFavoriteFlag(rawProject?.NavigationConfig),
+                    IsArchived = rawProject?.IsArchived ?? false
+                },
+                members
+            }));
+        }
+
+        [HttpGet("{projectId:guid}/integrations")]
+        [ProjectAuthorize("PROJECT_MANAGER,PROJECT_LEAD,PM,PO,Admin")]
+        public async Task<IActionResult> GetProjectIntegrations(Guid projectId)
+        {
+            var projectExists = await _context.Projects
+                .AsNoTracking()
+                .AnyAsync(project => project.Id == projectId && !project.IsDeleted);
+
+            if (!projectExists)
+            {
+                return NotFound(ApiResponse<object>.Error("Project not found.", 404));
+            }
+
+            var group = GetProjectIntegrationGroup(projectId);
+            var settings = await _context.SystemSettings
+                .AsNoTracking()
+                .Where(setting => setting.SettingGroup == group)
+                .ToListAsync();
+
+            var configuredItems = settings
+                .Select(setting => DeserializeProjectIntegration(setting.Value))
+                .Where(setting => setting != null)
+                .Cast<ProjectIntegrationSetting>()
+                .ToDictionary(
+                    setting => setting.Provider.Trim().ToLowerInvariant(),
+                    setting => setting);
+
+            var items = GetDefaultProjectIntegrations()
+                .Select(defaultItem =>
+                {
+                    if (!configuredItems.TryGetValue(defaultItem.Provider, out var existing))
+                    {
+                        return defaultItem;
+                    }
+
+                    return new ProjectIntegrationSetting
+                    {
+                        Provider = defaultItem.Provider,
+                        DisplayName = existing.DisplayName,
+                        Enabled = existing.Enabled,
+                        Endpoint = existing.Endpoint,
+                        ProjectKey = existing.ProjectKey,
+                        Secret = existing.Secret,
+                        Notes = existing.Notes,
+                        UpdatedAt = existing.UpdatedAt
+                    };
+                })
+                .OrderBy(item => item.DisplayName)
+                .ToList();
+
+            return Ok(ApiResponse<object>.Success(items));
+        }
+
+        [HttpPut("{projectId:guid}/integrations")]
+        [ProjectAuthorize("PROJECT_MANAGER,PROJECT_LEAD,PM,PO,Admin")]
+        public async Task<IActionResult> UpdateProjectIntegrations(Guid projectId, [FromBody] UpdateProjectIntegrationsRequest request)
+        {
+            var projectExists = await _context.Projects
+                .AnyAsync(project => project.Id == projectId && !project.IsDeleted);
+
+            if (!projectExists)
+            {
+                return NotFound(ApiResponse<object>.Error("Project not found.", 404));
+            }
+
+            var requestedItems = (request.Items ?? new List<ProjectIntegrationSetting>())
+                .Select(NormalizeProjectIntegration)
+                .GroupBy(item => item.Provider)
+                .Select(group => group.Last())
+                .ToList();
+
+            if (requestedItems.Count == 0)
+            {
+                return BadRequest(ApiResponse<object>.Error("At least one integration item is required."));
+            }
+
+            var validProviders = GetDefaultProjectIntegrations()
+                .Select(item => item.Provider)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            if (requestedItems.Any(item => !validProviders.Contains(item.Provider)))
+            {
+                return BadRequest(ApiResponse<object>.Error("One or more integration providers are invalid."));
+            }
+
+            var group = GetProjectIntegrationGroup(projectId);
+            var existingSettings = await _context.SystemSettings
+                .Where(setting => setting.SettingGroup == group)
+                .ToListAsync();
+
+            foreach (var item in requestedItems)
+            {
+                var existing = existingSettings.FirstOrDefault(setting => setting.Key == item.Provider);
+                if (existing == null)
+                {
+                    existing = new TaskManagement.Domain.Entities.SystemSetting
+                    {
+                        Id = Guid.NewGuid(),
+                        SettingGroup = group,
+                        Key = item.Provider,
+                        Description = $"Project integration settings for {item.DisplayName}"
+                    };
+                    _context.SystemSettings.Add(existing);
+                }
+
+                existing.Value = JsonSerializer.Serialize(item);
+                existing.Description = $"Project integration settings for {item.DisplayName}";
+                existing.LastModifiedAt = DateTime.UtcNow;
+            }
+
+            var requestedProviders = requestedItems
+                .Select(item => item.Provider)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var staleSettings = existingSettings
+                .Where(setting => !requestedProviders.Contains(setting.Key))
+                .ToList();
+
+            if (staleSettings.Count > 0)
+            {
+                _context.SystemSettings.RemoveRange(staleSettings);
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(ApiResponse<object>.Success(requestedItems, "Project integrations updated successfully."));
         }
 
         [HttpPut("{id:guid}/favorite")]
@@ -314,12 +503,13 @@ namespace TaskManagement.API.Controllers
             }});
         }
 
-        [HttpPut("{id:guid}")]
-        public async Task<IActionResult> Update(Guid id, [FromBody] UpdateProjectDto dto)
+        [HttpPut("{projectId:guid}")]
+        [ProjectAuthorize("PROJECT_MANAGER,PROJECT_LEAD,PM,PO,Admin")]
+        public async Task<IActionResult> Update(Guid projectId, [FromBody] UpdateProjectDto dto)
         {
             try
             {
-                var result = await _projectService.UpdateAsync(id, dto);
+                var result = await _projectService.UpdateAsync(projectId, dto);
                 return Ok(ApiResponse<ProjectResponseDto>.Success(result, "Cập nhật thành công."));
             }
             catch (ArgumentException ex)
@@ -331,12 +521,13 @@ namespace TaskManagement.API.Controllers
         /// <summary>
         /// 5.1 Archive: Vô hiệu hóa dự án
         /// </summary>
-        [HttpPut("{id:guid}/archive")]
-        public async Task<IActionResult> Archive(Guid id)
+        [HttpPut("{projectId:guid}/archive")]
+        [ProjectAuthorize("PROJECT_MANAGER,PROJECT_LEAD,PM,PO,Admin")]
+        public async Task<IActionResult> Archive(Guid projectId)
         {
             try
             {
-                await _projectService.ArchiveAsync(id);
+                await _projectService.ArchiveAsync(projectId);
                 return Ok(ApiResponse<object>.Success(null!, "Dự án đã được vô hiệu hóa."));
             }
             catch (ArgumentException ex)
@@ -345,12 +536,13 @@ namespace TaskManagement.API.Controllers
             }
         }
 
-        [HttpPut("{id:guid}/restore")]
-        public async Task<IActionResult> Restore(Guid id)
+        [HttpPut("{projectId:guid}/restore")]
+        [ProjectAuthorize("PROJECT_MANAGER,PROJECT_LEAD,PM,PO,Admin")]
+        public async Task<IActionResult> Restore(Guid projectId)
         {
             try
             {
-                await _projectService.RestoreAsync(id);
+                await _projectService.RestoreAsync(projectId);
                 return Ok(ApiResponse<object>.Success(null!, "Dự án đã được khôi phục."));
             }
             catch (ArgumentException ex)
@@ -362,12 +554,13 @@ namespace TaskManagement.API.Controllers
         /// <summary>
         /// 5.1 Soft Delete
         /// </summary>
-        [HttpDelete("{id:guid}")]
-        public async Task<IActionResult> SoftDelete(Guid id)
+        [HttpDelete("{projectId:guid}")]
+        [ProjectAuthorize("PROJECT_MANAGER,PROJECT_LEAD,PM,PO,Admin")]
+        public async Task<IActionResult> SoftDelete(Guid projectId)
         {
             try
             {
-                await _projectService.SoftDeleteAsync(id);
+                await _projectService.SoftDeleteAsync(projectId);
                 return Ok(ApiResponse<object>.Success(null!, "Dự án đã được xóa."));
             }
             catch (ArgumentException ex)
@@ -377,6 +570,7 @@ namespace TaskManagement.API.Controllers
         }
 
         [HttpGet("{id:guid}/members")]
+        [ProjectAuthorize("")]
         public async Task<IActionResult> GetMembers(Guid id)
         {
             try
@@ -475,6 +669,69 @@ namespace TaskManagement.API.Controllers
                 .ToListAsync();
 
             return Ok(ApiResponse<object>.Success(results));
+        }
+
+        private static string GetProjectIntegrationGroup(Guid projectId) => $"ProjectIntegrations:{projectId:D}";
+
+        private static List<ProjectIntegrationSetting> GetDefaultProjectIntegrations()
+        {
+            return new List<ProjectIntegrationSetting>
+            {
+                new()
+                {
+                    Provider = "github",
+                    DisplayName = "GitHub",
+                    Notes = "Repository sync, issue links, and PR references."
+                },
+                new()
+                {
+                    Provider = "jira",
+                    DisplayName = "Jira",
+                    Notes = "Two-way issue references and planning alignment."
+                },
+                new()
+                {
+                    Provider = "slack",
+                    DisplayName = "Slack",
+                    Notes = "Project alerts, sprint updates, and completion digests."
+                }
+            };
+        }
+
+        private static ProjectIntegrationSetting? DeserializeProjectIntegration(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return null;
+            }
+
+            try
+            {
+                return NormalizeProjectIntegration(JsonSerializer.Deserialize<ProjectIntegrationSetting>(raw));
+            }
+            catch (JsonException)
+            {
+                return null;
+            }
+        }
+
+        private static ProjectIntegrationSetting NormalizeProjectIntegration(ProjectIntegrationSetting? item)
+        {
+            var provider = item?.Provider?.Trim().ToLowerInvariant() ?? string.Empty;
+            var defaults = GetDefaultProjectIntegrations()
+                .FirstOrDefault(defaultItem => defaultItem.Provider.Equals(provider, StringComparison.OrdinalIgnoreCase));
+
+            return new ProjectIntegrationSetting
+            {
+                Provider = defaults?.Provider ?? provider,
+                DisplayName = string.IsNullOrWhiteSpace(item?.DisplayName) ? defaults?.DisplayName ?? provider : item!.DisplayName.Trim(),
+                Enabled = item?.Enabled ?? false,
+                Endpoint = string.IsNullOrWhiteSpace(item?.Endpoint) ? null : item.Endpoint.Trim(),
+                ProjectKey = string.IsNullOrWhiteSpace(item?.ProjectKey) ? null : item.ProjectKey.Trim(),
+                Secret = string.IsNullOrWhiteSpace(item?.Secret) ? null : item.Secret.Trim(),
+                Notes = string.IsNullOrWhiteSpace(item?.Notes) ? defaults?.Notes : item.Notes.Trim(),
+                UpdatedAt = item?.UpdatedAt == default ? DateTime.UtcNow : item?.UpdatedAt ?? DateTime.UtcNow
+            };
         }
     }
 }

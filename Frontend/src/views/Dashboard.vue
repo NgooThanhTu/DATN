@@ -83,6 +83,41 @@
         </div>
       </section>
 
+      <section v-if="favoriteProjects.length" class="projects-panel">
+        <div class="section-head">
+          <h2>Favorites</h2>
+          <span>{{ favoriteProjects.length }} starred</span>
+        </div>
+
+        <div class="project-grid">
+          <article v-for="project in favoriteProjects" :key="`favorite-${project.id}`" class="project-card">
+            <button class="favorite-btn" type="button" @click="toggleFavorite(project)">
+              <i :class="project.isFavorite ? 'fa-solid fa-star' : 'fa-regular fa-star'"></i>
+            </button>
+
+            <div class="project-cover" :style="{ background: project.cover || fallbackCover(project) }">
+              <span class="project-icon">{{ project.icon || project.name?.charAt(0)?.toUpperCase() || 'P' }}</span>
+            </div>
+
+            <div class="project-body">
+              <div class="project-heading">
+                <h3>{{ project.name }}</h3>
+                <span>{{ project.key }}</span>
+              </div>
+              <p>{{ project.description || 'No description yet.' }}</p>
+              <div class="project-meta">
+                <span>{{ project.networkType || 'Public' }}</span>
+                <span>{{ project.leadName || 'Project owner' }}</span>
+              </div>
+            </div>
+
+            <div class="project-actions">
+              <button class="secondary-btn small" type="button" @click="openProject(project.id)">Open</button>
+            </div>
+          </article>
+        </div>
+      </section>
+
       <el-dialog v-model="taskModalVisible" title="New Work Item" width="560px" append-to-body>
         <div class="task-form">
           <label>

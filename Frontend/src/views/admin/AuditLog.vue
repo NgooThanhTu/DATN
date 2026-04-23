@@ -254,7 +254,7 @@ onUnmounted(() => {
   box-shadow: 0 4px 20px rgba(0,0,0,0.05);
 }
 
-:deep(.admin-table th.el-table__cell) {
+::v-deep(.admin-table th.el-table__cell) {
   background-color: transparent !important;
   color: var(--text-primary) !important;
   opacity: 0.8;
@@ -264,7 +264,7 @@ onUnmounted(() => {
   border-bottom: 2px solid var(--border-color);
 }
 
-:deep(.admin-table td.el-table__cell) {
+::v-deep(.admin-table td.el-table__cell) {
   padding: 16px 0;
   color: var(--text-primary);
   background-color: transparent !important;
@@ -273,7 +273,7 @@ onUnmounted(() => {
   white-space: pre-line;
 }
 
-:deep(.el-table), :deep(.el-table__inner-wrapper), :deep(.el-table tr) {
+::v-deep(.el-table), ::v-deep(.el-table__inner-wrapper), ::v-deep(.el-table tr) {
   background-color: transparent !important;
 }
 
@@ -299,7 +299,7 @@ onUnmounted(() => {
 .error-text { color: #ef4444; font-weight: 500; }
 
 /* Custom Radio Group matching image */
-:deep(.custom-radio-group .el-radio-button__inner) {
+::v-deep(.custom-radio-group .el-radio-button__inner) {
   border: none !important;
   background-color: var(--bg-hover);
   box-shadow: none;
@@ -310,11 +310,11 @@ onUnmounted(() => {
   border: 1px solid var(--border-color) !important;
 }
 
-:deep(.custom-radio-group .el-radio-button:first-child .el-radio-button__inner) {
+::v-deep(.custom-radio-group .el-radio-button:first-child .el-radio-button__inner) {
   margin-left: 0;
 }
 
-:deep(.custom-radio-group .el-radio-button__original-radio:checked + .el-radio-button__inner) {
+::v-deep(.custom-radio-group .el-radio-button__original-radio:checked + .el-radio-button__inner) {
   background-color: rgba(13, 148, 136, 0.2);
   color: #0d9488;
   box-shadow: none;
