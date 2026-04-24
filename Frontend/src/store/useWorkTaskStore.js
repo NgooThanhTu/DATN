@@ -40,7 +40,13 @@ const normalizeTaskRecord = (task = {}, fallbackProjectId = null) => {
     assignees: assignees
       .map(item => ({
         ...item,
-        userId: item?.userId || item?.id
+        userId: item?.userId || item?.UserId || item?.id,
+        fullName: item?.fullName || item?.FullName || item?.name,
+        email: item?.email || item?.Email,
+        progressPercent: item?.progressPercent ?? item?.ProgressPercent ?? 0,
+        contributionWeight: item?.contributionWeight ?? item?.ContributionWeight ?? 1,
+        estimatedHours: item?.estimatedHours ?? item?.EstimatedHours ?? 0,
+        totalActualHours: item?.totalActualHours ?? item?.TotalActualHours ?? 0
       }))
       .filter(item => item.userId)
       .filter((item, index, list) => list.findIndex(candidate => candidate.userId === item.userId) === index),
@@ -65,6 +71,7 @@ export const useWorkTaskStore = defineStore('workTask', {
     tasks: [],
     loading: false,
     error: null,
+    errorStatus: null,
     currentProjectId: null,
     fetchAbortController: null,
     fetchRequestId: 0
@@ -96,15 +103,20 @@ export const useWorkTaskStore = defineStore('workTask', {
     }).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)),
   },
   actions: {
+    normalizeTaskRecord(task = {}, fallbackProjectId = null) {
+      return normalizeTaskRecord(task, fallbackProjectId)
+    },
     clearTasks(projectId = null) {
       this.tasks = []
       this.error = null
+      this.errorStatus = null
       this.currentProjectId = projectId
     },
     async fetchTasks(projectId, options = {}) {
       if (!projectId) return;
 
       const { reset = true } = options
+      const previousProjectId = this.currentProjectId
       const requestId = this.fetchRequestId + 1
       this.fetchRequestId = requestId
       this.fetchAbortController?.abort()
@@ -113,9 +125,11 @@ export const useWorkTaskStore = defineStore('workTask', {
 
       this.loading = true;
       this.error = null;
+      this.errorStatus = null
       this.currentProjectId = projectId
 
-      if (reset) {
+      const shouldReset = reset && (previousProjectId !== projectId || !this.tasks.length)
+      if (shouldReset) {
         this.tasks = []
       }
 
@@ -125,7 +139,7 @@ export const useWorkTaskStore = defineStore('workTask', {
         });
 
         if (requestId !== this.fetchRequestId || this.currentProjectId !== projectId) {
-          return this.tasks
+          return this.currentProjectId === projectId ? this.tasks : []
         }
 
         this.tasks = (res.data?.data || [])
@@ -133,12 +147,13 @@ export const useWorkTaskStore = defineStore('workTask', {
         return this.tasks
       } catch (err) {
         if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') {
-          return this.tasks
+          return this.currentProjectId === projectId ? this.tasks : []
         }
 
         this.error = err.message;
+        this.errorStatus = Number(err?.response?.status || 0) || null
         console.error('Failed to fetch tasks:', err);
-        return []
+        return this.currentProjectId === projectId ? this.tasks : []
       } finally {
         if (requestId === this.fetchRequestId) {
           this.loading = false;

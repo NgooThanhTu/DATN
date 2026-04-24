@@ -40,7 +40,7 @@ namespace TaskManagement.Infrastructure.Services
         /// </summary>
         public void StoreOtp(string email, string otp)
         {
-            var cacheKey = $"OTP_{email.ToLower()}";
+            var cacheKey = $"OTP_{email.Trim().ToLowerInvariant()}";
             var cacheOptions = new MemoryCacheEntryOptions()
                 .SetAbsoluteExpiration(TimeSpan.FromMinutes(OtpExpirationMinutes));
 
@@ -53,11 +53,11 @@ namespace TaskManagement.Infrastructure.Services
         /// </summary>
         public bool ValidateOtp(string email, string otp)
         {
-            var cacheKey = $"OTP_{email.ToLower()}";
+            var cacheKey = $"OTP_{email.Trim().ToLowerInvariant()}";
 
             if (_cache.TryGetValue(cacheKey, out string? storedOtp))
             {
-                if (string.Equals(storedOtp, otp, StringComparison.Ordinal))
+                if (string.Equals(storedOtp?.Trim(), otp?.Trim(), StringComparison.OrdinalIgnoreCase))
                 {
                     // OTP hợp lệ → xóa khỏi cache (dùng 1 lần)
                     _cache.Remove(cacheKey);

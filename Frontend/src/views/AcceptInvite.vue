@@ -153,11 +153,12 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref, computed, nextTick } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import axiosClient from '@/api/axiosClient'
-import logoImg from '@/assets/logo_QLCV.png'
+  import { onMounted, reactive, ref, computed, nextTick } from 'vue'
+  import { useRoute, useRouter } from 'vue-router'
+  import { ElMessage } from 'element-plus'
+  import axiosClient from '@/api/axiosClient'
+  import { saveAuthSession } from '@/utils/authSession'
+  import logoImg from '@/assets/logo_QLCV.png'
 
 const route = useRoute()
 const router = useRouter()
@@ -322,9 +323,7 @@ const acceptInvite = async () => {
     redirectPath.value = data.redirectPath || '/dashboard'
 
     if (data.auth?.accessToken) {
-      const { accessToken, fullName, email, systemRoles, id } = data.auth
-      localStorage.setItem('accessToken', accessToken)
-      localStorage.setItem('user', JSON.stringify({ id, fullName, email, systemRoles }))
+      saveAuthSession(data.auth)
     }
 
     success.value = true

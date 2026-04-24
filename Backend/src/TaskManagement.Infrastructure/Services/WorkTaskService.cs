@@ -13,9 +13,8 @@ namespace TaskManagement.Infrastructure.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly IGamificationService _gamificationService;
-
-        // Roles that can see ALL tasks in a project
         private static readonly string[] ManagerRoles = { "PM", "PO", "SM", "PROJECT_MANAGER", "SCRUM_MASTER" };
+        private static readonly string[] SystemOverrideRoles = { "superadmin", "admin", "system admin", "organization admin", "accessadmin", "access admin" };
 
         public WorkTaskService(ApplicationDbContext context, IGamificationService gamificationService)
         {
@@ -25,16 +24,21 @@ namespace TaskManagement.Infrastructure.Services
 
         public async Task<List<WorkTaskResponseDto>> GetByProjectAsync(Guid projectId, Guid userId)
         {
-            // 1. Check user is a member of this project
-            var membership = await _context.ProjectMembers
-                .FirstOrDefaultAsync(pm => pm.ProjectId == projectId && pm.UserId == userId);
+            var hasSystemOverride = await _context.Users
+                .AsNoTracking()
+                .Where(user => user.Id == userId && user.IsActive && !user.IsDeleted)
+                .SelectMany(user => user.UserRoles.Select(ur => ur.Role.Name))
+                .AnyAsync(role => SystemOverrideRoles.Contains(role.Trim().ToLower()));
 
-            if (membership == null)
+            var membership = await _context.ProjectMembers
+                .AsNoTracking()
+                .FirstOrDefaultAsync(pm => pm.ProjectId == projectId && pm.UserId == userId && pm.Status);
+
+            if (!hasSystemOverride && membership == null)
             {
-                throw new UnauthorizedAccessException("Bạn không phải thành viên của dự án này.");
+                throw new UnauthorizedAccessException("Ban khong phai thanh vien active cua du an nay.");
             }
 
-            // 2. Load all tasks for this project
             var query = _context.WorkTasks
                 .Include(wt => wt.TaskStatus)
                 .Include(wt => wt.TaskType)
@@ -45,19 +49,6 @@ namespace TaskManagement.Infrastructure.Services
                 .Include(wt => wt.TaskAssignments)
                     .ThenInclude(ta => ta.User)
                 .Where(wt => wt.ProjectId == projectId && !wt.IsDeleted && !wt.IsArchived);
-
-            // 3. Role-based filtering
-            bool isManager = ManagerRoles.Contains(membership.ProjectRole, StringComparer.OrdinalIgnoreCase);
-
-            if (!isManager)
-            {
-                // DEV, QA, etc. → chỉ thấy tasks được assign cho mình hoặc mình tạo
-                query = query.Where(wt =>
-                    wt.ReporterId == userId ||
-                    wt.AssignedUserId == userId ||
-                    wt.TaskAssignments.Any(ta => ta.UserId == userId)
-                );
-            }
 
             var dtos = await query
                 .AsNoTracking()
@@ -105,6 +96,8 @@ namespace TaskManagement.Infrastructure.Services
                     DueDate = wt.DueDate,
                     PlannedStartDate = wt.PlannedStartDate,
                     PlannedEndDate = wt.PlannedEndDate,
+                    TotalEstimatedHours = wt.TotalEstimatedHours,
+                    TotalActualHours = wt.TotalActualHours,
                     ParentTaskId = wt.ParentTaskId,
                     CreatedAt = wt.CreatedAt,
                     UpdatedAt = wt.UpdatedAt,
@@ -662,12 +655,15 @@ namespace TaskManagement.Infrastructure.Services
                 DueDate = wt.DueDate,
                 PlannedStartDate = wt.PlannedStartDate,
                 PlannedEndDate = wt.PlannedEndDate,
+                TotalEstimatedHours = wt.TotalEstimatedHours,
+                TotalActualHours = wt.TotalActualHours,
                 ParentTaskId = wt.ParentTaskId,
                 CreatedAt = wt.CreatedAt,
                 UpdatedAt = wt.UpdatedAt,
                 RowVersion = wt.RowVersion,
                 SortOrder = wt.SortOrder,
-                SequenceId = wt.SequenceId
+                SequenceId = wt.SequenceId,
+                IsSubscribed = false
             };
         }
 
@@ -889,3 +885,4 @@ namespace TaskManagement.Infrastructure.Services
         }
     }
 }
+

@@ -1,4 +1,6 @@
 import * as signalR from '@microsoft/signalr'
+import { isExpectedNetworkError } from '@/utils/errorTelemetry'
+import { getStoredAccessToken } from '@/utils/authSession'
 
 class SignalRService {
   constructor() {
@@ -14,22 +16,22 @@ class SignalRService {
     }
 
     this.projectId = projectId
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5136/api'
+    const hubBaseUrl = apiBaseUrl.replace(/\/api\/?$/, '')
     this.connection = new signalR.HubConnectionBuilder()
-      .withUrl('/kanban-hub', {
-        // Use default options, or customize if needed
+      .withUrl(`${hubBaseUrl}/kanban-hub`, {
+        accessTokenFactory: () => getStoredAccessToken() || ''
       })
       .withAutomaticReconnect([0, 2000, 10000, 30000])
+      .configureLogging(signalR.LogLevel.None)
       .build()
 
     try {
       await this.connection.start()
-      console.log('SignalR Connected.')
       await this.connection.invoke('JoinProjectGroup', projectId)
     } catch (err) {
-      if (err.message && err.message.includes('405')) {
-          console.log('SignalR Hub temporarily suspended by backend (405). Skipping retry.')
-      } else {
-          console.error('SignalR Connection Error: ', err)
+      if (!isExpectedNetworkError(err) && !(err.message && err.message.includes('405'))) {
+        console.error('SignalR Connection Error:', err)
       }
       // Don't retry if hub is not available
       this.connection = null
@@ -45,7 +47,6 @@ class SignalRService {
       await this.connection.stop()
       this.connection = null
       this.projectId = null
-      console.log('SignalR Disconnected.')
     }
   }
 

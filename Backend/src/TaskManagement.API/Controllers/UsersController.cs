@@ -18,6 +18,8 @@ namespace TaskManagement.API.Controllers
     [Authorize]
     public class UsersController : ControllerBase
     {
+        private const int PasswordChangeCooldownDays = 7;
+
         private static readonly JsonSerializerOptions ProfileJsonOptions = new()
         {
             PropertyNameCaseInsensitive = true
@@ -75,6 +77,8 @@ namespace TaskManagement.API.Controllers
             var activeDepartment = user.DepartmentMemberships
                 .Select(dm => dm.Department)
                 .FirstOrDefault(department => department != null && department.IsActive && !department.IsDeleted);
+            var lastPasswordChangedAt = await GetPasswordChangedAtAsync(userId);
+            var canChangePasswordAt = lastPasswordChangedAt?.AddDays(PasswordChangeCooldownDays);
 
             return Ok(new
             {
@@ -92,7 +96,9 @@ namespace TaskManagement.API.Controllers
                     organizationName = extra.OrganizationName,
                     collaborationRules = extra.CollaborationRules,
                     hasPassword = !string.IsNullOrEmpty(user.PasswordHash),
-                    is2FaEnabled = user.Is2FAEnabled
+                    is2FaEnabled = user.Is2FAEnabled,
+                    lastPasswordChangedAt,
+                    canChangePasswordAt
                 }
             });
         }
@@ -199,16 +205,29 @@ namespace TaskManagement.API.Controllers
             var user = await _context.Users.FindAsync(userId);
             if (user == null) return NotFound(new { message = "User not found" });
 
+            var cooldown = await GetPasswordCooldownAsync(userId);
+            if (!cooldown.CanChange)
+            {
+                return BadRequest(new
+                {
+                    statusCode = 400,
+                    message = $"Password can only be changed once every {PasswordChangeCooldownDays} days. Please request admin support if this is urgent.",
+                    cooldown.LastChangedAt,
+                    cooldown.EligibleAt
+                });
+            }
+
             // Validate OTP
             if (string.IsNullOrEmpty(request.OtpCode))
                 return BadRequest(new { statusCode = 400, message = "Vui lòng nhập mã OTP." });
 
-            var isValidOtp = _otpService.ValidateOtp(user.Email, request.OtpCode);
+            var isValidOtp = _otpService.ValidateOtp(user.Email, request.OtpCode.Trim());
             if (!isValidOtp)
                 return BadRequest(new { statusCode = 400, message = "Mã OTP không hợp lệ hoặc đã hết hạn." });
 
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
             user.UpdatedAt = DateTime.UtcNow;
+            await SetPasswordChangedAtAsync(userId, user.UpdatedAt);
 
             await _context.SaveChangesAsync();
 
@@ -234,11 +253,74 @@ namespace TaskManagement.API.Controllers
             if (!string.Equals(user.Email, request.Email, StringComparison.OrdinalIgnoreCase))
                 return BadRequest(new { statusCode = 400, message = "Email không khớp với tài khoản của bạn." });
 
+            var cooldown = await GetPasswordCooldownAsync(userId);
+            if (!cooldown.CanChange)
+            {
+                return BadRequest(new
+                {
+                    statusCode = 400,
+                    message = $"Password can only be changed once every {PasswordChangeCooldownDays} days. Please request admin support if this is urgent.",
+                    cooldown.LastChangedAt,
+                    cooldown.EligibleAt
+                });
+            }
+
             var otpCode = _otpService.GenerateOtp();
             _otpService.StoreOtp(user.Email, otpCode);
             await _emailService.SendOtpEmailAsync(user.Email, otpCode);
 
             return Ok(new { statusCode = 200, message = "Đã gửi mã OTP đến email của bạn." });
+        }
+
+        [HttpPost("request-password-change-exception")]
+        public async Task<IActionResult> RequestPasswordChangeException()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out Guid userId))
+                return Unauthorized(new { statusCode = 401, message = "Unauthorized." });
+
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null) return NotFound(new { message = "User not found" });
+
+            var cooldown = await GetPasswordCooldownAsync(userId);
+            var eligibleAt = cooldown.EligibleAt ?? DateTime.UtcNow;
+
+            var adminEmails = await _context.Users
+                .Include(u => u.UserRoles)
+                .ThenInclude(ur => ur.Role)
+                .Where(u =>
+                    u.IsActive &&
+                    !u.IsDeleted &&
+                    u.UserRoles.Any(ur =>
+                        ur.Role != null &&
+                        (ur.Role.Name == "Admin" || ur.Role.Name == "SuperAdmin")))
+                .Select(u => u.Email)
+                .Distinct()
+                .ToListAsync();
+
+            if (adminEmails.Count == 0)
+            {
+                return BadRequest(new { statusCode = 400, message = "No system admin email is available for password-change support." });
+            }
+
+            foreach (var adminEmail in adminEmails)
+            {
+                await _emailService.SendPasswordChangeRequestEmailAsync(
+                    adminEmail,
+                    user.FullName,
+                    user.Email,
+                    cooldown.LastChangedAt,
+                    eligibleAt);
+            }
+
+            return Ok(new
+            {
+                statusCode = 200,
+                message = "Your request has been sent to the system admin.",
+                sentTo = adminEmails.Count,
+                cooldown.LastChangedAt,
+                eligibleAt
+            });
         }
 
         [HttpPost("send-set-password-otp")]
@@ -280,12 +362,13 @@ namespace TaskManagement.API.Controllers
             if (!string.IsNullOrEmpty(user.PasswordHash))
                 return BadRequest(new { message = "Tài khoản đã có mật khẩu." });
 
-            var isValid = _otpService.ValidateOtp(user.Email, request.OtpCode);
+            var isValid = _otpService.ValidateOtp(user.Email, request.OtpCode.Trim());
             if (!isValid)
                 return BadRequest(new { statusCode = 400, message = "Mã OTP không hợp lệ hoặc đã hết hạn." });
 
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
             user.UpdatedAt = DateTime.UtcNow;
+            await SetPasswordChangedAtAsync(userId, user.UpdatedAt);
 
             await _context.SaveChangesAsync();
 
@@ -309,6 +392,55 @@ namespace TaskManagement.API.Controllers
 
             await _context.SaveChangesAsync();
             return Ok(new { statusCode = 200, message = request.Enable ? "Đã bật 2FA." : "Đã tắt 2FA.", is2FaEnabled = user.Is2FAEnabled });
+        }
+
+        private static string PasswordChangedAtKey(Guid userId) => $"PasswordChangedAt_{userId}";
+
+        private async Task<DateTime?> GetPasswordChangedAtAsync(Guid userId)
+        {
+            var setting = await _context.SystemSettings
+                .FirstOrDefaultAsync(s => s.Key == PasswordChangedAtKey(userId));
+
+            if (setting == null || string.IsNullOrWhiteSpace(setting.Value))
+            {
+                return null;
+            }
+
+            return DateTime.TryParse(setting.Value, out var parsed)
+                ? DateTime.SpecifyKind(parsed, DateTimeKind.Utc)
+                : null;
+        }
+
+        private async Task<(bool CanChange, DateTime? LastChangedAt, DateTime? EligibleAt)> GetPasswordCooldownAsync(Guid userId)
+        {
+            var lastChangedAt = await GetPasswordChangedAtAsync(userId);
+            if (!lastChangedAt.HasValue)
+            {
+                return (true, null, null);
+            }
+
+            var eligibleAt = lastChangedAt.Value.AddDays(PasswordChangeCooldownDays);
+            return (DateTime.UtcNow >= eligibleAt, lastChangedAt, eligibleAt);
+        }
+
+        private async Task SetPasswordChangedAtAsync(Guid userId, DateTime changedAt)
+        {
+            var key = PasswordChangedAtKey(userId);
+            var setting = await _context.SystemSettings.FirstOrDefaultAsync(s => s.Key == key);
+            if (setting == null)
+            {
+                setting = new SystemSetting
+                {
+                    Id = Guid.NewGuid(),
+                    Key = key,
+                    SettingGroup = "Security",
+                    Description = "Last successful user password change timestamp."
+                };
+                _context.SystemSettings.Add(setting);
+            }
+
+            setting.Value = changedAt.ToUniversalTime().ToString("O");
+            setting.LastModifiedAt = DateTime.UtcNow;
         }
 
         /// <summary>

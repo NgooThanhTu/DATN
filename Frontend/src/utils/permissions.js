@@ -1,3 +1,5 @@
+import { getStoredUserSession } from '@/utils/authSession'
+
 const normalizeRole = (role) => (role || '').trim().toLowerCase()
 
 export const SYSTEM_ADMIN_ROLES = [
@@ -22,11 +24,7 @@ export const PROJECT_SETTINGS_ROLES = [
 ]
 
 export const getStoredUser = () => {
-  try {
-    return JSON.parse(localStorage.getItem('user') || '{}')
-  } catch (error) {
-    return {}
-  }
+  return getStoredUserSession()
 }
 
 export const getNormalizedSystemRoles = (user = getStoredUser()) => {

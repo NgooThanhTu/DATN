@@ -39,6 +39,12 @@
             <span>Rewards</span>
           </router-link>
         </li>
+        <li class="nav-item">
+          <router-link to="/ai" class="nav-link">
+            <i class="fa-solid fa-robot"></i>
+            <span>AI Assistant</span>
+          </router-link>
+        </li>
       </ul>
 
       <!-- Favorites Division -->
@@ -149,13 +155,14 @@ import { ElMessage } from 'element-plus'
 import { useSprintStore } from '@/store/useSprintStore'
 import { useProjectStore } from '@/store/useProjectStore'
 import { subscribeAdminRealtime } from '@/utils/adminRealtime'
+import { getScopedCurrentProjectId, setScopedCurrentProjectId } from '@/utils/projectContext'
 
 const route = useRoute()
 const router = useRouter()
 const showMorePanel = ref(false)
 const projectStore = useProjectStore()
 const currentProjectId = computed(() => {
-  return route.params.id || localStorage.getItem('currentProjectId') || 'default'
+  return route.params.id || getScopedCurrentProjectId() || 'default'
 })
 
 const props = defineProps({
@@ -176,7 +183,7 @@ watch(currentProjectId, async (newVal, oldVal) => {
       if (newVal !== oldVal) {
         projectStore.expandProject(newVal)
       }
-      localStorage.setItem('currentProjectId', newVal)
+      setScopedCurrentProjectId(newVal)
       sprintStore.fetchSprints(newVal)
       await projectStore.fetchProjectDetails(newVal)
    }
@@ -190,7 +197,7 @@ let unsubscribeAdminRealtime = null
 
 onMounted(() => {
   unsubscribeAdminRealtime = subscribeAdminRealtime(async ({ type, payload }) => {
-    const activeProjectId = route.params.id || localStorage.getItem('currentProjectId') || null
+    const activeProjectId = route.params.id || getScopedCurrentProjectId() || null
     if (payload?.projectId && activeProjectId && `${payload.projectId}` !== `${activeProjectId}`) {
       await projectStore.fetchAllProjects(true).catch(() => {})
       return

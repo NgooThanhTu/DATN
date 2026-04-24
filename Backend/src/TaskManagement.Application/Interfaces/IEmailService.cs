@@ -12,5 +12,12 @@ namespace TaskManagement.Application.Interfaces
             string? projectName,
             string acceptUrl,
             string? personalMessage);
+
+        Task SendPasswordChangeRequestEmailAsync(
+            string toEmail,
+            string requesterName,
+            string requesterEmail,
+            DateTime? lastChangedAt,
+            DateTime eligibleAt);
     }
 }

@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import axiosClient from '@/api/axiosClient'
+import { getStoredAccessToken } from '@/utils/authSession'
 import { getStoredUser, hasSystemAdminAccess } from '@/utils/permissions'
 import homeRoutes from './homeRoutes'
 import authRoutes from './authRoutes'
@@ -23,7 +24,7 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to, from, next) => {
-  const token = localStorage.getItem('accessToken')
+  const token = getStoredAccessToken()
   const publicPages = ['/login', '/register', '/', '/auth/github/callback', '/accept-invite']
   const authRequired = !publicPages.includes(to.path)
 

@@ -30,6 +30,159 @@
             </button>
           </div>
           <p v-if="repoStatus" class="repo-status">{{ repoStatus }}</p>
+          <div v-if="repoAnalysis" class="repo-analysis-preview">
+            <div class="analysis-title">{{ repoAnalysis.repository }}</div>
+            <p class="analysis-summary">{{ repoAnalysis.summary }}</p>
+            <div class="analysis-actions">
+              <div class="analysis-project">
+                <strong>Project tao task:</strong>
+                <span>{{ activeProjectName }}</span>
+              </div>
+              <div class="analysis-action-buttons">
+                <button class="ghost-btn" type="button" :disabled="createBacklogLoading || !canCreateIntoProject" @click="createBacklogItems('quick')">
+                  {{ createBacklogLoading === 'quick' ? 'Creating...' : 'Create quick wins' }}
+                </button>
+                <button class="ghost-btn" type="button" :disabled="createBacklogLoading || !canCreateIntoProject" @click="createBacklogItems('medium')">
+                  {{ createBacklogLoading === 'medium' ? 'Creating...' : 'Create medium tasks' }}
+                </button>
+                <button class="ghost-btn" type="button" :disabled="createBacklogLoading || !canCreateIntoProject" @click="createBacklogItems('risky')">
+                  {{ createBacklogLoading === 'risky' ? 'Creating...' : 'Create risky tasks' }}
+                </button>
+                <button class="ghost-btn" type="button" :disabled="createBacklogLoading || !canCreateIntoProject" @click="createBacklogItems('all')">
+                  {{ createBacklogLoading === 'all' ? 'Creating...' : 'Create all' }}
+                </button>
+              </div>
+            </div>
+            <div v-if="canManageProjectAi" class="operational-review-card">
+              <div class="review-head">
+                <div>
+                  <div class="analysis-col-title">Operational review</div>
+                  <p class="review-copy">PM/PO/SM/Admin co the chot backlog AI, xem tong estimate va dua task vao backlog hoac cycle dang chon.</p>
+                </div>
+                <div class="review-stats">
+                  <div class="review-stat">
+                    <span class="review-stat-label">Selected</span>
+                    <strong>{{ selectedBacklogItems.length }}</strong>
+                  </div>
+                  <div class="review-stat">
+                    <span class="review-stat-label">Estimate</span>
+                    <strong>{{ selectedEstimateHours }}h</strong>
+                  </div>
+                  <div class="review-stat">
+                    <span class="review-stat-label">Risky</span>
+                    <strong>{{ selectedRiskCount }}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div class="review-controls">
+                <label class="review-checkbox">
+                  <input type="checkbox" :checked="allBacklogSelected" @change="toggleAllBacklogSelections($event.target.checked)" />
+                  <span>Select all AI backlog items</span>
+                </label>
+
+                <div class="review-cycle-picker">
+                  <span>Target cycle</span>
+                  <select v-model="reviewTargetSprintId" class="repo-input">
+                    <option value="">Backlog</option>
+                    <option v-for="cycle in availablePlanningCycles" :key="cycle.id" :value="cycle.id">
+                      {{ cycle.name }}
+                    </option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="analysis-columns review-columns">
+                <div class="analysis-col">
+                  <div class="analysis-col-title">Quick wins</div>
+                  <label v-for="item in normalizedQuickWins" :key="item.selectionKey" class="review-item">
+                    <input
+                      type="checkbox"
+                      :checked="isBacklogItemSelected(item.selectionKey)"
+                      @change="toggleBacklogSelection(item.selectionKey, $event.target.checked)"
+                    />
+                    <span class="review-item-body">
+                      <strong>{{ item.title }}</strong>
+                      <small>{{ item.suggestedHours }}h · P{{ item.priority }}</small>
+                    </span>
+                  </label>
+                </div>
+                <div class="analysis-col">
+                  <div class="analysis-col-title">Medium tasks</div>
+                  <label v-for="item in normalizedMediumTasks" :key="item.selectionKey" class="review-item">
+                    <input
+                      type="checkbox"
+                      :checked="isBacklogItemSelected(item.selectionKey)"
+                      @change="toggleBacklogSelection(item.selectionKey, $event.target.checked)"
+                    />
+                    <span class="review-item-body">
+                      <strong>{{ item.title }}</strong>
+                      <small>{{ item.suggestedHours }}h · P{{ item.priority }}</small>
+                    </span>
+                  </label>
+                </div>
+                <div class="analysis-col">
+                  <div class="analysis-col-title">Risky tasks</div>
+                  <label v-for="item in normalizedRiskyTasks" :key="item.selectionKey" class="review-item">
+                    <input
+                      type="checkbox"
+                      :checked="isBacklogItemSelected(item.selectionKey)"
+                      @change="toggleBacklogSelection(item.selectionKey, $event.target.checked)"
+                    />
+                    <span class="review-item-body">
+                      <strong>{{ item.title }}</strong>
+                      <small>{{ item.suggestedHours }}h · P{{ item.priority }}</small>
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="review-foot">
+                <div class="review-test-plan">
+                  <div class="analysis-col-title">Test plan</div>
+                  <ul>
+                    <li v-for="(step, index) in repoAnalysis.testPlan || []" :key="`test-plan-${index}`">{{ step }}</li>
+                  </ul>
+                </div>
+                <div class="analysis-action-buttons">
+                  <button
+                    class="ghost-btn"
+                    type="button"
+                    :disabled="createBacklogLoading || !canCreateIntoProject || !selectedBacklogItems.length"
+                    @click="createReviewedBacklogItems"
+                  >
+                    {{ createBacklogLoading === 'review' ? 'Creating...' : `Create selected to ${reviewTargetSprintLabel}` }}
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="analysis-columns">
+              <div class="analysis-col">
+                <div class="analysis-col-title">Quick wins</div>
+                <ul>
+                  <li v-for="item in repoAnalysis.quickWins" :key="`quick-${item.title}`">
+                    {{ item.title }} · {{ item.suggestedHours }}h
+                  </li>
+                </ul>
+              </div>
+              <div class="analysis-col">
+                <div class="analysis-col-title">Medium tasks</div>
+                <ul>
+                  <li v-for="item in repoAnalysis.mediumTasks" :key="`medium-${item.title}`">
+                    {{ item.title }} · {{ item.suggestedHours }}h
+                  </li>
+                </ul>
+              </div>
+              <div class="analysis-col">
+                <div class="analysis-col-title">Risky tasks</div>
+                <ul>
+                  <li v-for="item in repoAnalysis.riskyTasks" :key="`risk-${item.title}`">
+                    {{ item.title }} · {{ item.suggestedHours }}h
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="chat-history">
@@ -114,15 +267,25 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import CustomizeSidebarModal from '../components/CustomizeSidebarModal.vue'
 import NexusLayout from '@/components/layout/NexusLayout.vue'
 import axiosClient from '@/api/axiosClient'
+import { useProjectStore } from '@/store/useProjectStore'
+import { useWorkTaskStore } from '@/store/useWorkTaskStore'
+import { useSprintStore } from '@/store/useSprintStore'
+import { broadcastAdminRealtime } from '@/utils/adminRealtime'
+import { hasSystemAdminAccess, normalizeProjectRole } from '@/utils/permissions'
+import { getScopedCurrentProjectId } from '@/utils/projectContext'
 
 const router = useRouter()
+const projectStore = useProjectStore()
+const workTaskStore = useWorkTaskStore()
+const sprintStore = useSprintStore()
 const currentUser = JSON.parse(localStorage.getItem('user') || '{}')
+const aiManagerProjectRoles = ['pm', 'po', 'sm', 'admin', 'project_manager', 'project_lead', 'scrum_master']
 const showCustomizeModal = ref(false)
 const sidebarPreferences = ref({ audit: true, users: true })
 
@@ -130,6 +293,10 @@ const userMessage = ref('')
 const isLoading = ref(false)
 const repoLoading = ref(false)
 const repoStatus = ref('')
+const repoAnalysis = ref(null)
+const createBacklogLoading = ref('')
+const selectedBacklogKeys = ref([])
+const reviewTargetSprintId = ref('')
 const repoForm = ref({
   url: '',
   token: localStorage.getItem('githubToken') || ''
@@ -161,6 +328,89 @@ const userInitials = computed(() => {
   const name = currentUser?.name || currentUser?.fullName || 'ME'
   return name.substring(0, 2).toUpperCase()
 })
+
+const currentProjectId = computed(() => getScopedCurrentProjectId())
+const activeProjectName = computed(() => {
+  const projectId = currentProjectId.value
+  if (!projectId) return 'Chua chon project'
+  const project = projectStore.allProjects.find(item => item.id === projectId) || projectStore.currentProject
+  return project?.name || `Project ${projectId}`
+})
+const currentProjectRecord = computed(() => {
+  const projectId = `${currentProjectId.value || ''}`
+  if (!projectId) {
+    return null
+  }
+
+  if (`${projectStore.currentProject?.id || ''}` === projectId) {
+    return projectStore.currentProject
+  }
+
+  return projectStore.allProjects.find(item => `${item.id || ''}` === projectId) || null
+})
+
+const currentProjectRole = computed(() => normalizeProjectRole(
+  currentProjectRecord.value?.myRole
+  || currentProjectRecord.value?.MyRole
+  || currentProjectRecord.value?.projectRole
+  || currentProjectRecord.value?.ProjectRole
+))
+
+const canManageProjectAi = computed(() => {
+  if (hasSystemAdminAccess(currentUser)) {
+    return true
+  }
+
+  return Boolean(currentProjectRole.value && aiManagerProjectRoles.includes(currentProjectRole.value))
+})
+
+const canCreateIntoProject = computed(() => Boolean(currentProjectId.value && repoAnalysis.value && canManageProjectAi.value))
+const availablePlanningCycles = computed(() => (sprintStore.sprints || []).filter(item => `${item.state || ''}`.toLowerCase() !== 'completed'))
+
+const buildSelectionKey = (category, item) => `${category}::${item.title}::${item.priority}::${item.suggestedHours}`
+const normalizeReviewItems = (items, category) => (items || []).map(item => ({
+  ...item,
+  category,
+  selectionKey: buildSelectionKey(category, item)
+}))
+
+const normalizedQuickWins = computed(() => normalizeReviewItems(repoAnalysis.value?.quickWins, 'quick-win'))
+const normalizedMediumTasks = computed(() => normalizeReviewItems(repoAnalysis.value?.mediumTasks, 'medium'))
+const normalizedRiskyTasks = computed(() => normalizeReviewItems(repoAnalysis.value?.riskyTasks, 'risky'))
+const allBacklogItems = computed(() => [
+  ...normalizedQuickWins.value,
+  ...normalizedMediumTasks.value,
+  ...normalizedRiskyTasks.value
+])
+const selectedBacklogItems = computed(() => allBacklogItems.value.filter(item => selectedBacklogKeys.value.includes(item.selectionKey)))
+const allBacklogSelected = computed(() => allBacklogItems.value.length > 0 && selectedBacklogItems.value.length === allBacklogItems.value.length)
+const selectedEstimateHours = computed(() => Math.round(selectedBacklogItems.value.reduce((sum, item) => sum + Number(item.suggestedHours || 0), 0) * 10) / 10)
+const selectedRiskCount = computed(() => selectedBacklogItems.value.filter(item => `${item.category}` === 'risky').length)
+const reviewTargetSprintLabel = computed(() => {
+  if (!reviewTargetSprintId.value) {
+    return 'backlog'
+  }
+  return availablePlanningCycles.value.find(item => item.id === reviewTargetSprintId.value)?.name || 'selected cycle'
+})
+
+const syncReviewSelectionFromAnalysis = () => {
+  selectedBacklogKeys.value = allBacklogItems.value.map(item => item.selectionKey)
+}
+
+const isBacklogItemSelected = (selectionKey) => selectedBacklogKeys.value.includes(selectionKey)
+
+const toggleBacklogSelection = (selectionKey, checked) => {
+  if (checked) {
+    selectedBacklogKeys.value = Array.from(new Set([...selectedBacklogKeys.value, selectionKey]))
+    return
+  }
+
+  selectedBacklogKeys.value = selectedBacklogKeys.value.filter(key => key !== selectionKey)
+}
+
+const toggleAllBacklogSelections = (checked) => {
+  selectedBacklogKeys.value = checked ? allBacklogItems.value.map(item => item.selectionKey) : []
+}
 
 const clearProgressTimer = () => {
   if (progressTimer) {
@@ -253,58 +503,152 @@ const analyzeRepository = async () => {
   }
 
   repoLoading.value = true
-  repoStatus.value = 'Dang doc metadata repo...'
+  repoStatus.value = 'Dang phan tich repo qua backend AI...'
 
   try {
     if (repoForm.value.token?.trim()) {
       localStorage.setItem('githubToken', repoForm.value.token.trim())
     }
+    const response = await axiosClient.post('/ai/repo-analysis', {
+      repoUrl,
+      gitHubToken: repoForm.value.token?.trim() || null,
+      focus: 'Repository planning, backlog, risks, and test strategy'
+    })
 
-    const headers = {
-      Accept: 'application/vnd.github+json'
+    const analysis = response.data?.data
+    if (!analysis) {
+      throw new Error('AI khong tra ve repo analysis hop le.')
     }
 
-    if (repoForm.value.token?.trim()) {
-      headers.Authorization = `Bearer ${repoForm.value.token.trim()}`
-    }
-
-    const [repoRes, issuesRes, readmeRes, languagesRes] = await Promise.all([
-      fetch(`https://api.github.com/repos/${parsed.owner}/${parsed.repo}`, { headers }),
-      fetch(`https://api.github.com/repos/${parsed.owner}/${parsed.repo}/issues?state=open&per_page=5`, { headers }),
-      fetch(`https://api.github.com/repos/${parsed.owner}/${parsed.repo}/readme`, { headers }),
-      fetch(`https://api.github.com/repos/${parsed.owner}/${parsed.repo}/languages`, { headers })
-    ])
-
-    if (!repoRes.ok) {
-      throw new Error('Khong doc duoc repo tu GitHub API.')
-    }
-
-    const repo = await repoRes.json()
-    const issues = issuesRes.ok ? await issuesRes.json() : []
-    const readme = readmeRes.ok ? await readmeRes.json() : null
-    const languages = languagesRes.ok ? await languagesRes.json() : {}
-    const readmeSnippet = readme?.content ? atob(readme.content).slice(0, 1200).replace(/\s+/g, ' ') : 'Khong doc duoc README.'
-
-    repoStatus.value = 'Dang tao prompt phan tich backlog...'
-
-    const prompt = [
-      `Phan tich GitHub repo ${parsed.owner}/${parsed.repo}.`,
-      `Mo ta: ${repo.description || 'Khong co mo ta.'}`,
-      `Ngon ngu chinh: ${Object.keys(languages).join(', ') || repo.language || 'Khong ro'}.`,
-      `Open issues: ${(issues || []).map(item => item.title).join(' | ') || 'Khong co issue mo.'}`,
-      `README snippet: ${readmeSnippet}`,
-      'Hay de xuat backlog gom: 1) quick wins, 2) medium tasks, 3) risky tasks, 4) test/verification plan.'
-    ].join(' ')
-
-    userMessage.value = prompt
-    repoStatus.value = 'Da chen prompt vao chat box. Dang gui cho AI...'
-    await sendMessage(prompt)
-    repoStatus.value = `Da phan tich repo ${parsed.owner}/${parsed.repo}.`
+    repoAnalysis.value = analysis
+    syncReviewSelectionFromAnalysis()
+    userMessage.value = analysis.suggestedPrompt || `Phan tich repo ${parsed.owner}/${parsed.repo} va de xuat backlog tiep theo.`
+    repoStatus.value = `Da phan tich repo ${analysis.repository}. Prompt da san sang trong chat box.`
+    chatHistory.value.push({
+      role: 'bot',
+      content: [
+        `Repo ${analysis.repository}: ${analysis.summary}`,
+        '',
+        `Quick wins: ${(analysis.quickWins || []).map(item => item.title).join(' | ') || 'Khong co'}`,
+        `Medium tasks: ${(analysis.mediumTasks || []).map(item => item.title).join(' | ') || 'Khong co'}`,
+        `Risky tasks: ${(analysis.riskyTasks || []).map(item => item.title).join(' | ') || 'Khong co'}`
+      ].join('\n')
+    })
   } catch (error) {
-    repoStatus.value = error.message || 'Khong phan tich duoc repo.'
+    repoStatus.value = error.response?.data?.message || error.message || 'Khong phan tich duoc repo.'
     ElMessage.error(repoStatus.value)
   } finally {
     repoLoading.value = false
+  }
+}
+
+const createBacklogItems = async (mode) => {
+  if (!repoAnalysis.value) {
+    ElMessage.warning('Hay phan tich repo truoc')
+    return
+  }
+
+  if (!currentProjectId.value) {
+    ElMessage.warning('Hay chon project tren sidebar truoc')
+    return
+  }
+
+  if (!canManageProjectAi.value) {
+    ElMessage.error('You do not have permission to create AI backlog items for this project.')
+    return
+  }
+
+  createBacklogLoading.value = mode
+  try {
+    const response = await axiosClient.post('/ai/repo-analysis/create-work-items', {
+      projectId: currentProjectId.value,
+      repository: repoAnalysis.value.repository,
+      includeQuickWins: mode === 'quick' || mode === 'all',
+      includeMediumTasks: mode === 'medium' || mode === 'all',
+      includeRiskyTasks: mode === 'risky' || mode === 'all',
+      quickWins: repoAnalysis.value.quickWins || [],
+      mediumTasks: repoAnalysis.value.mediumTasks || [],
+      riskyTasks: repoAnalysis.value.riskyTasks || []
+    })
+
+    const created = response.data?.data || []
+    if (created.length > 0) {
+      await Promise.all([
+        workTaskStore.fetchTasks(currentProjectId.value, { reset: false }).catch(() => []),
+        projectStore.fetchProjectDetails(currentProjectId.value, { force: true }).catch(() => null),
+        projectStore.fetchAllProjects(true).catch(() => [])
+      ])
+      broadcastAdminRealtime('project-settings-updated', { projectId: currentProjectId.value, source: 'ai-repo-create' })
+    }
+
+    ElMessage.success(response.data?.message || `Da tao ${created.length} work items`)
+    repoStatus.value = `Da tao ${created.length} work items vao ${activeProjectName.value}.`
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || 'Khong tao duoc AI backlog items')
+  } finally {
+    createBacklogLoading.value = ''
+  }
+}
+
+const createReviewedBacklogItems = async () => {
+  if (!repoAnalysis.value) {
+    ElMessage.warning('Hay phan tich repo truoc')
+    return
+  }
+
+  if (!currentProjectId.value) {
+    ElMessage.warning('Hay chon project tren sidebar truoc')
+    return
+  }
+
+  if (!canManageProjectAi.value) {
+    ElMessage.error('You do not have permission to create AI backlog items for this project.')
+    return
+  }
+
+  if (!selectedBacklogItems.value.length) {
+    ElMessage.warning('Hay chon it nhat mot AI backlog item')
+    return
+  }
+
+  createBacklogLoading.value = 'review'
+  try {
+    const response = await axiosClient.post('/ai/repo-analysis/create-work-items', {
+      projectId: currentProjectId.value,
+      targetSprintId: reviewTargetSprintId.value || null,
+      repository: repoAnalysis.value.repository,
+      includeQuickWins: false,
+      includeMediumTasks: false,
+      includeRiskyTasks: false,
+      selectedItems: selectedBacklogItems.value.map(({ title, category, suggestedHours, priority, reasoning }) => ({
+        title,
+        category,
+        suggestedHours,
+        priority,
+        reasoning
+      })),
+      quickWins: [],
+      mediumTasks: [],
+      riskyTasks: []
+    })
+
+    const created = response.data?.data || []
+    if (created.length > 0) {
+      await Promise.all([
+        workTaskStore.fetchTasks(currentProjectId.value, { reset: false }).catch(() => []),
+        projectStore.fetchProjectDetails(currentProjectId.value, { force: true }).catch(() => null),
+        projectStore.fetchAllProjects(true).catch(() => []),
+        sprintStore.fetchSprints(currentProjectId.value, { force: true }).catch(() => [])
+      ])
+      broadcastAdminRealtime('project-settings-updated', { projectId: currentProjectId.value, source: 'ai-operational-review' })
+    }
+
+    ElMessage.success(response.data?.message || `Da tao ${created.length} work items`)
+    repoStatus.value = `Da tao ${created.length} work items vao ${reviewTargetSprintLabel.value}.`
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || 'Khong tao duoc reviewed AI backlog items')
+  } finally {
+    createBacklogLoading.value = ''
   }
 }
 
@@ -318,6 +662,10 @@ const parseRepo = (url) => {
 }
 
 onMounted(() => {
+  projectStore.fetchAllProjects().catch(() => [])
+  if (currentProjectId.value) {
+    sprintStore.fetchSprints(currentProjectId.value).catch(() => [])
+  }
   const saved = localStorage.getItem('sidebarPreferences')
   if (saved) {
     try {
@@ -326,6 +674,41 @@ onMounted(() => {
       // ignore malformed preferences
     }
   }
+
+  const stashedRepoUrl = sessionStorage.getItem('sprinta-ai-repo-url')
+  const stashedPrompt = sessionStorage.getItem('sprinta-ai-prefill-message')
+  const stashedAnalysis = sessionStorage.getItem('sprinta-ai-repo-analysis')
+
+  if (stashedRepoUrl) {
+    repoForm.value.url = stashedRepoUrl
+  }
+
+  if (stashedPrompt) {
+    userMessage.value = stashedPrompt
+  }
+
+  if (stashedAnalysis) {
+    try {
+      repoAnalysis.value = JSON.parse(stashedAnalysis)
+      syncReviewSelectionFromAnalysis()
+    } catch {
+      repoAnalysis.value = null
+    }
+  }
+})
+
+watch(currentProjectId, (projectId) => {
+  if (!projectId) {
+    reviewTargetSprintId.value = ''
+    return
+  }
+
+  sprintStore.fetchSprints(projectId, { force: true }).catch(() => [])
+})
+
+watch(repoAnalysis, () => {
+  reviewTargetSprintId.value = ''
+  syncReviewSelectionFromAnalysis()
 })
 
 onBeforeUnmount(() => {
@@ -392,6 +775,198 @@ const handleSidebarSaved = (prefs) => {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   background: var(--color-surface);
+}
+
+.repo-analysis-preview {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border);
+}
+
+.analysis-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.analysis-summary {
+  margin: 8px 0 12px;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.analysis-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--color-background-soft);
+  border: 1px solid var(--color-border);
+}
+
+.analysis-project {
+  display: grid;
+  gap: 4px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.analysis-project strong {
+  color: var(--color-text-primary);
+}
+
+.analysis-action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.analysis-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.operational-review-card {
+  margin: 16px 0;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--color-surface-elevated, #141722) 92%, #0ea5e9 8%);
+}
+
+.review-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.review-copy {
+  margin: 6px 0 0;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.review-stats {
+  display: flex;
+  gap: 12px;
+}
+
+.review-stat {
+  min-width: 84px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.45);
+  border: 1px solid var(--color-border);
+}
+
+.review-stat-label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.review-controls {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.review-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.review-cycle-picker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 280px;
+}
+
+.review-cycle-picker span {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.review-columns .analysis-col {
+  min-height: 180px;
+}
+
+.review-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0;
+  cursor: pointer;
+}
+
+.review-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.review-item-body small {
+  color: var(--color-text-secondary);
+}
+
+.review-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.review-test-plan {
+  flex: 1;
+  min-width: 260px;
+}
+
+.review-test-plan ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.analysis-col {
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--color-background-soft);
+}
+
+.analysis-col-title {
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+}
+
+.analysis-col ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.analysis-col li {
+  margin-bottom: 6px;
+  color: var(--color-text-primary);
+  line-height: 1.4;
 }
 
 .repo-head,
@@ -666,6 +1241,14 @@ const handleSidebarSaved = (prefs) => {
 
   .repo-grid {
     flex-direction: column;
+  }
+
+  .analysis-actions {
+    flex-direction: column;
+  }
+
+  .analysis-action-buttons {
+    justify-content: flex-start;
   }
 }
 </style>
