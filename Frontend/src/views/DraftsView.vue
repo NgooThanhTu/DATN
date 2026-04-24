@@ -1,12 +1,13 @@
 <template>
   <NexusLayout>
     <div class="drafts-wrapper">
-      <!-- Header -->
-      <!-- Header -->
+      <!-- Header (Safe Styling Only) -->
       <header class="nexus-feature-header">
         <div class="header-info">
           <p class="eyebrow">Work Items</p>
-          <h1><i class="fa-solid fa-pen-nib"></i> Drafts <span class="text-muted ml-3 text-sm font-normal">{{ pagination.totalCount }}</span></h1>
+          <div class="title-row">
+            <h1><i class="fa-solid fa-pen-nib"></i> Drafts <span class="count-badge">{{ pagination.totalCount }}</span></h1>
+          </div>
           <p class="muted">Manage your unpublished work items and refine them before moving to a project.</p>
         </div>
         <div class="dr-right">
@@ -106,7 +107,7 @@
                       type="date"
                       format="YYYY-MM-DD"
                       value-format="YYYY-MM-DD"
-                      style="position: absolute; bottom: 0; left: 0; width: 0; height: 0; opacity: 0; padding: 0; border: 0; visibility: hidden;"
+                      style="position: absolute; bottom: 0; left: 0; width: 0; height: 0; opacity: 0; padding: 0; border: 0; display: none;"
                       @change="updateDraftProperty(draft, 'startDate', $event)"
                     />
                  </div>
@@ -123,7 +124,7 @@
                       type="date"
                       format="YYYY-MM-DD"
                       value-format="YYYY-MM-DD"
-                      style="position: absolute; bottom: 0; left: 0; width: 0; height: 0; opacity: 0; padding: 0; border: 0; visibility: hidden;"
+                      style="position: absolute; bottom: 0; left: 0; width: 0; height: 0; opacity: 0; padding: 0; border: 0; display: none;"
                       @change="updateDraftProperty(draft, 'dueDate', $event)"
                     />
                  </div>
@@ -181,8 +182,9 @@
          </div>
            </div>
          </div>
-         <div v-if="drafts.length === 0" style="padding: 24px; color: var(--color-text-muted);">
+         <div v-if="drafts.length === 0" class="empty-state">
             No drafts found.
+             <button class="empty-cta" @click="openModal">Draft a work item</button>
          </div>
          <div v-else class="drafts-pagination">
             <div class="pagination-summary">
@@ -299,7 +301,7 @@
                   type="date"
                   format="YYYY-MM-DD"
                   value-format="YYYY-MM-DD"
-                  style="position: absolute; bottom: 0; left: 0; width: 0; height: 0; opacity: 0; padding: 0; border: 0; visibility: hidden;"
+                  style="position: absolute; bottom: 0; left: 0; width: 0; height: 0; opacity: 0; padding: 0; border: 0; display: none;"
                 />
              </div>
 
@@ -315,7 +317,7 @@
                   type="date"
                   format="YYYY-MM-DD"
                   value-format="YYYY-MM-DD"
-                  style="position: absolute; bottom: 0; left: 0; width: 0; height: 0; opacity: 0; padding: 0; border: 0; visibility: hidden;"
+                  style="position: absolute; bottom: 0; left: 0; width: 0; height: 0; opacity: 0; padding: 0; border: 0; display: none;"
                 />
              </div>
 
@@ -858,249 +860,256 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .drafts-wrapper {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
+  max-width: 960px;
+  margin: 32px auto;
+  padding: 0 24px;
   background: var(--color-bg);
   color: var(--color-text-primary);
+  min-height: calc(100vh - 64px);
 }
 
-.dr-header {
+.nexus-feature-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 32px;
+}
+
+.header-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.eyebrow {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin-bottom: 4px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+h1 {
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.count-badge {
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 14px;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.muted {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.nexus-btn-primary {
+  background: var(--color-accent) !important;
+  color: #ffffff !important;
+  padding: 6px 14px !important;
+  border-radius: 6px !important;
+  font-weight: 600 !important;
+  font-size: 13px !important;
+  border: none !important;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  transition: opacity 0.2s;
+}
+
+.nexus-btn-primary:hover {
+  opacity: 0.9;
+}
+
+/* Body / List */
+.dr-body {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+.list-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 24px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--color-border);
+  transition: background 0.2s;
+  cursor: pointer;
 }
-.dr-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+
+.list-row:last-child {
+  border-bottom: none;
+}
+
+.list-row:hover {
+  background: var(--color-surface-hover);
+}
+
+.lr-title {
   font-size: 14px;
   font-weight: 500;
-}
-.text-muted { color: var(--color-text-muted); }
-.dr-title { color: var(--color-text-primary); }
-.dr-badge {
-  background: var(--color-surface);
-  color: #0EA5E9;
-  font-size: 11px;
-  padding: 2px 6px;
-  border-radius: 12px;
-  font-weight: 600;
-}
-
-.plane-primary-btn {
-  background: #0EA5E9;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  padding: 6px 12px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-.plane-primary-btn:hover { background: #0284C7; }
-
-/* List Styles */
-.dr-body { padding: 0 24px; overflow-y: auto; flex: 1; }
-.drafts-virtual-spacer { position: relative; width: 100%; }
-.drafts-virtual-inner { position: absolute; top: 0; left: 0; right: 0; }
-.list-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; border: 1px solid transparent; border-bottom: 1px solid var(--color-border); transition: background 0.2s, border 0.2s; cursor: pointer; }
-.list-row:hover { background: var(--color-surface-hover); border-radius: 4px; border-color: var(--color-border); }
-.lr-left { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
-.lr-title { font-size: 14px; font-weight: 500; color: var(--color-text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 300px; }
-.lr-right { display: flex; align-items: center; gap: 6px; }
-.text-xs { font-size: 12px; }
-.fw-500 { font-weight: 500; }
-
-/* Popover Content (Search + List) */
-.plane-search-input {
-  width: 100%;
-  background: var(--color-input-bg);
-  border: 1px solid var(--color-border);
   color: var(--color-text-primary);
-  padding: 6px 12px;
-  border-radius: 4px;
-  font-size: 13px;
-  outline: none;
-  box-sizing: border-box;
-}
-.plane-search-input:focus { border-color: #38BDF8; }
-.plane-list { max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
-.plane-list-item { 
-  display: flex; gap: 8px; align-items: center;
-  padding: 6px 8px; border-radius: 4px; cursor: pointer; color: var(--color-text-primary); font-size: 13px; 
-}
-.plane-list-item:hover { background: var(--color-surface-hover); }
-
-/* Legacy date picker override */
-.date-picker-wrap {
-  display: inline-block;
-  width: 110px;
 }
 
-/* Modal Styles */
+/* Empty State */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 24px;
+  text-align: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.empty-text {
+  font-size: 15px;
+  color: var(--color-text-secondary);
+  margin-bottom: 20px;
+}
+
+.empty-cta {
+  border: 1px solid var(--color-accent);
+  color: var(--color-accent);
+  background: transparent;
+  padding: 8px 20px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.empty-cta:hover {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+/* Modal and other styles preserved or tokenized */
 .modal-overlay {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.6);
+  background: rgba(0,0,0,0.4);
+  backdrop-filter: blur(2px);
   z-index: 1000;
   display: flex;
   align-items: center;
   justify-content: center;
 }
+
 .draft-modal {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  width: 700px;
-  border-radius: 8px;
+  width: 640px;
+  border-radius: 12px;
   padding: 24px;
-  box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
 }
 
-.modal-title { margin: 0; font-size: 16px; font-weight: 600; color: var(--color-text-primary); }
-.mt-4 { margin-top: 24px; }
-.mt-2 { margin-top: 12px; }
-
-.proj-badge { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500; background: var(--color-surface); padding: 4px 8px; border-radius: 4px; border: 1px solid var(--color-border); }
-
-.dm-title-input {
+.dm-title-input, .dm-desc-input {
   width: 100%;
-  background: var(--color-surface);
+  background: var(--color-bg);
   border: 1px solid var(--color-border);
   color: var(--color-text-primary);
-  padding: 12px 16px;
-  border-radius: 6px;
-  font-size: 14px;
+  padding: 12px;
+  border-radius: 8px;
   outline: none;
-  box-sizing: border-box;
 }
-.dm-title-input::placeholder { color: var(--color-text-muted); }
-.dm-title-input:focus { border-color: #38BDF8; }
 
-.dm-desc-input {
-  width: 100%;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  color: var(--color-text-primary);
-  padding: 12px 16px;
-  border-radius: 6px;
-  font-size: 14px;
-  outline: none;
-  height: 120px;
-  resize: none;
-  font-family: inherit;
-  box-sizing: border-box;
+.dm-title-input:focus, .dm-desc-input:focus {
+  border-color: var(--color-accent);
 }
-.dm-desc-input::placeholder { color: var(--color-text-muted); }
-.dm-desc-input:focus { border-color: #38BDF8; }
 
 .dm-toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
+  gap: 8px;
 }
+
 .dm-tool-btn {
-  background: transparent;
+  background: var(--color-bg-secondary);
   border: 1px solid var(--color-border);
-  color: var(--color-text-muted);
+  color: var(--color-text-secondary);
+  padding: 6px 12px;
+  border-radius: 6px;
   font-size: 12px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 26px;
-  padding: 0 8px;
-  border-radius: 4px;
   cursor: pointer;
-  white-space: nowrap;
-  transition: background 0.15s, color 0.15s;
 }
-.dm-tool-btn:hover { background: var(--color-surface-hover); color: var(--color-text-primary); }
-.text-primary { color: var(--color-text-primary) !important; border-color: var(--color-border) !important; background-color: var(--color-surface-hover); }
-.text-primary i { color: var(--color-text-primary) !important; }
+
+.dm-tool-btn:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
 
 .dm-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-top: 24px;
+  padding-top: 20px;
   border-top: 1px solid var(--color-border);
-  padding-top: 16px;
 }
-.toggle-wrap { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--color-text-muted); cursor: pointer; }
-.toggle-bg { width: 32px; height: 18px; background: var(--color-border); border-radius: 9px; position: relative; }
-.toggle-knob { width: 14px; height: 14px; background: var(--color-text-muted); border-radius: 50%; position: absolute; top: 2px; left: 2px; }
 
-.dm-footer-right { display: flex; gap: 12px; }
-.discard-btn { background: transparent; border: none; color: var(--color-text-muted); font-size: 13px; font-weight: 500; cursor: pointer; }
-.discard-btn:hover { color: var(--color-text-primary); }
-.save-btn { background: #0EA5E9; color: white; border: none; border-radius: 6px; padding: 6px 16px; font-size: 13px; font-weight: 500; cursor: pointer; }
-.save-btn:hover { background: #0284C7; }
-
-/* Move to project modal */
-.project-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  max-height: 300px;
-  overflow-y: auto;
-}
-.project-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+.save-btn {
+  background: var(--color-accent);
+  color: #fff;
+  border: none;
+  padding: 8px 20px;
   border-radius: 6px;
+  font-weight: 600;
   cursor: pointer;
-  font-size: 14px;
-  color: var(--color-text-primary);
-  transition: background 0.15s;
-  border: 1px solid transparent;
 }
-.project-item:hover {
-  background: var(--color-surface);
-  border-color: var(--color-border);
+
+.discard-btn {
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
 }
 
 .drafts-pagination {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 16px 0 24px;
-  border-top: 1px solid var(--color-border);
-  margin-top: 8px;
-}
-
-.pagination-summary {
-  color: var(--color-text-muted);
-  font-size: 12px;
-}
-
-.pagination-actions {
-  display: flex;
-  gap: 8px;
+  padding: 16px;
+  background: var(--color-surface);
 }
 
 .pagination-btn {
-  background: transparent;
+  background: var(--color-bg-secondary);
   border: 1px solid var(--color-border);
   color: var(--color-text-primary);
-  border-radius: 6px;
   padding: 6px 12px;
-  font-size: 12px;
+  border-radius: 6px;
   cursor: pointer;
 }
 
 .pagination-btn:disabled {
-  opacity: 0.45;
+  opacity: 0.5;
   cursor: not-allowed;
-}
-
-.pagination-btn:not(:disabled):hover {
-  background: var(--color-surface);
 }
 </style>
 

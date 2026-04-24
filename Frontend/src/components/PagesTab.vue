@@ -446,25 +446,13 @@ function pageMenuItems(page) {
           <span style="color: var(--color-text-primary); margin-left: 8px">Pages</span>
         </div>
         <div class="nexus-controls-row">
-          <button class="nexus-btn nexus-btn-primary" @click="createPage"><i class="fa-solid fa-plus"></i> Add page</button>
-        </div>
-      </div>
-
-      <div class="pages-nav">
-        <div class="nav-tab" :class="{ 'active': activeTab === 'Public' }" @click="activeTab = 'Public'">Public</div>
-        <div class="nav-tab" :class="{ 'active': activeTab === 'Private' }" @click="activeTab = 'Private'">Private</div>
-        <div class="nav-tab" :class="{ 'active': activeTab === 'Archived' }" @click="activeTab = 'Archived'">Archived</div>
-      </div>
-
-      <div class="pages-toolbar">
-         <div class="pt-left"></div>
-         <div class="pt-right">
-            <button class="icon-toggle"><i class="fa-solid fa-magnifying-glass"></i></button>
+            <!-- Consolidated Controls (Top Right) -->
+            <button class="nexus-btn-icon" @click="filterSearch = ''"><i class="fa-solid fa-magnifying-glass"></i></button>
             
             <el-popover placement="bottom-end" trigger="click" :width="220" popper-class="custom-dark-popover sort-popover" :offset="8" :show-arrow="false">
               <template #reference>
-                <button class="filter-btn outlined" style="padding-left: 10px; padding-right: 10px;">
-                  <i class="fa-solid fa-arrow-down-short-wide" style="font-size: 12px; margin-right: 2px;"></i> 
+                <button class="nexus-btn-outlined">
+                  <i class="fa-solid fa-arrow-down-short-wide"></i> 
                   {{ sortBy === 'name' ? 'Name' : (sortBy === 'date_created' ? 'Date created' : 'Date modified') }}
                 </button>
               </template>
@@ -481,9 +469,7 @@ function pageMenuItems(page) {
                   <span class="pm-label">Date modified</span>
                   <i v-if="sortBy === 'date_modified'" class="fa-solid fa-check pm-check"></i>
                 </div>
-                
                 <div class="pm-divider"></div>
-                
                 <div class="pm-item" @click="sortOrder = 'asc'">
                   <span class="pm-label">Ascending</span>
                   <i v-if="sortOrder === 'asc'" class="fa-solid fa-check pm-check"></i>
@@ -497,7 +483,7 @@ function pageMenuItems(page) {
 
             <el-popover placement="bottom-end" trigger="click" :width="280" popper-class="custom-dark-popover filter-popover" :offset="8" :show-arrow="false">
               <template #reference>
-                <button class="filter-btn outlined"><i class="fa-solid fa-bars-staggered" style="font-size: 12px;"></i> Filters</button>
+                <button class="nexus-btn-outlined"><i class="fa-solid fa-bars-staggered"></i> Filters</button>
               </template>
               <div class="filter-menu-container">
                 <div class="fm-search">
@@ -514,7 +500,6 @@ function pageMenuItems(page) {
                 
                 <div class="pm-divider"></div>
                 
-                <!-- Created date collapsible -->
                 <div class="fm-collapsible">
                   <div class="fm-col-header" @click="filterDateExpanded = !filterDateExpanded">
                     <span class="fm-col-title">Created date</span>
@@ -542,7 +527,6 @@ function pageMenuItems(page) {
                 
                 <div class="pm-divider"></div>
                 
-                <!-- Created by collapsible -->
                 <div class="fm-collapsible">
                   <div class="fm-col-header" @click="filterByExpanded = !filterByExpanded">
                     <span class="fm-col-title">Created by</span>
@@ -558,10 +542,17 @@ function pageMenuItems(page) {
                     </label>
                   </div>
                 </div>
-
               </div>
             </el-popover>
-         </div>
+
+            <button class="nexus-btn-primary" @click="createPage"><i class="fa-solid fa-plus"></i> Add page</button>
+        </div>
+      </div>
+
+      <div class="pages-nav">
+        <div class="nav-tab" :class="{ 'active': activeTab === 'Public' }" @click="activeTab = 'Public'">Public</div>
+        <div class="nav-tab" :class="{ 'active': activeTab === 'Private' }" @click="activeTab = 'Private'">Private</div>
+        <div class="nav-tab" :class="{ 'active': activeTab === 'Archived' }" @click="activeTab = 'Archived'">Archived</div>
       </div>
 
       <div class="pages-list" v-loading="loading">
@@ -620,111 +611,126 @@ function pageMenuItems(page) {
       <div class="editor-header">
         <div class="eh-left">
           <button class="back-btn" @click="activePage = null"><i class="fa-solid fa-chevron-left"></i></button>
-          <i class="fa-solid fa-certificate" style="color: #F59E0B"></i>
-          <span style="margin-left: 8px">{{ spaceName }}</span>
-          <i class="fa-solid fa-chevron-right" style="font-size: 8px; margin: 0 8px; color: var(--color-text-muted)"></i>
-          <i class="fa-regular fa-file-lines" style="color: var(--color-text-muted)"></i>
-          <span style="color: var(--color-text-muted); margin-left: 8px">Pages</span>
-          <i class="fa-solid fa-chevron-right" style="font-size: 8px; margin: 0 8px; color: var(--color-text-muted)"></i>
-          <span style="color: var(--color-text-primary); margin-left: 8px">{{ activePage.title || 'Untitled' }}</span>
-          <span v-if="saving" class="status-saving">Saving...</span>
-          <span v-else class="status-saved"><i class="fa-solid fa-check"></i> Saved</span>
+          <div class="nexus-breadcrumb">
+             <span class="text-muted">{{ spaceName }}</span>
+             <i class="fa-solid fa-chevron-right text-[10px] text-muted mx-1"></i>
+             <span class="text-muted">Pages</span>
+             <i class="fa-solid fa-chevron-right text-[10px] text-muted mx-1"></i>
+             <span class="font-semibold text-primary">{{ activePage.title || 'Untitled' }}</span>
+          </div>
+          <div class="flex items-center ml-4 px-2 py-0.5 rounded-full bg-surface-hover">
+            <span v-if="saving" class="status-saving text-[11px]">Saving...</span>
+            <span v-else class="status-saved text-[11px]"><i class="fa-solid fa-check text-green-500 mr-1"></i> Saved</span>
+          </div>
         </div>
         <div class="eh-right">
-           <el-tooltip placement="bottom" :content="activePage.isLocked ? 'Unlock Page' : 'Lock Page'">
-             <button class="icon-btn" @click="toggleLock(activePage)">
-               <i :class="activePage.isLocked ? 'fa-solid fa-lock text-amber-500' : 'fa-solid fa-unlock-keyhole'"></i>
-             </button>
-           </el-tooltip>
-           <el-tooltip placement="bottom" content="Copy Link">
-             <button class="icon-btn" @click="handlePageCommand({ action: 'copy-link', page: activePage })"><i class="fa-solid fa-link"></i></button>
-           </el-tooltip>
-           <el-tooltip placement="bottom" content="More actions">
-             <button class="icon-btn"><i class="fa-solid fa-ellipsis"></i></button>
-           </el-tooltip>
-           <div class="v-divider"></div>
-           <el-tooltip placement="bottom" content="Toggle sidebar">
-             <button class="icon-btn"><i class="fa-solid fa-table-columns"></i></button>
-           </el-tooltip>
+           <button class="nexus-btn-outlined !h-8 !px-3" @click="toggleLock(activePage)">
+             <i :class="activePage.isLocked ? 'fa-solid fa-lock text-amber-500' : 'fa-solid fa-unlock-keyhole'"></i>
+             <span class="ml-2">{{ activePage.isLocked ? 'Locked' : 'Lock' }}</span>
+           </button>
+           <button class="nexus-btn-outlined !h-8 !px-3" @click="handlePageCommand({ action: 'copy-link', page: activePage })">
+             <i class="fa-solid fa-link"></i>
+             <span class="ml-2">Share</span>
+           </button>
+           <el-dropdown trigger="click">
+             <button class="nexus-btn-icon !h-8 !w-8"><i class="fa-solid fa-ellipsis"></i></button>
+             <template #dropdown>
+               <el-dropdown-menu class="pages-menu">
+                 <el-dropdown-item @click="toggleStar(activePage)">
+                   <i :class="activePage.isStarred ? 'fa-solid fa-star text-yellow-500' : 'fa-regular fa-star'"></i>
+                   <span>{{ activePage.isStarred ? 'Unstar' : 'Star' }}</span>
+                 </el-dropdown-item>
+                 <el-dropdown-item @click="handlePageCommand({ action: 'delete', page: activePage })">
+                   <i class="fa-solid fa-trash text-red-500"></i>
+                   <span class="text-red-500">Delete</span>
+                 </el-dropdown-item>
+               </el-dropdown-menu>
+             </template>
+           </el-dropdown>
         </div>
       </div>
 
       <div class="wysiwyg-toolbar-wrapper">
-        <div class="wysiwyg-toolbar" v-if="editor">
-          <el-dropdown trigger="click" @command="setHeading">
-             <div class="tb-group hover-bg">Text <i class="fa-solid fa-chevron-down" style="font-size: 10px"></i></div>
-             <template #dropdown>
-               <el-dropdown-menu class="plane-dropdown">
-                  <el-dropdown-item command="p">Paragraph</el-dropdown-item>
-                  <el-dropdown-item command="1">Heading 1</el-dropdown-item>
-                  <el-dropdown-item command="2">Heading 2</el-dropdown-item>
-                  <el-dropdown-item command="3">Heading 3</el-dropdown-item>
-               </el-dropdown-menu>
-             </template>
-          </el-dropdown>
-          <div class="v-divider-tb"></div>
-          
-          <el-color-picker
-            v-model="pendingColor"
-            show-alpha
-            :predefine="['#F44336','#E91E63','#9C27B0','#673AB7','#3F51B5','#2196F3','#03A9F4','#00BCD4','#009688','#4CAF50','#8BC34A','#CDDC39','#FFEB3B','#FFC107','#FF9800','#FF5722','#795548','#9E9E9E','#607D8B','var(--color-text-muted)']"
-            size="small"
-            @change="applyColor"
-            class="plane-color-picker"
-          />
-          <div class="v-divider-tb"></div>
+        <div class="wysiwyg-toolbar-container">
+          <div class="wysiwyg-toolbar" v-if="editor">
+            <el-dropdown trigger="click" @command="setHeading">
+               <div class="tb-group hover-bg">Text <i class="fa-solid fa-chevron-down" style="font-size: 10px"></i></div>
+               <template #dropdown>
+                 <el-dropdown-menu class="plane-dropdown">
+                    <el-dropdown-item command="p">Paragraph</el-dropdown-item>
+                    <el-dropdown-item command="1">Heading 1</el-dropdown-item>
+                    <el-dropdown-item command="2">Heading 2</el-dropdown-item>
+                    <el-dropdown-item command="3">Heading 3</el-dropdown-item>
+                 </el-dropdown-menu>
+               </template>
+            </el-dropdown>
+            <div class="v-divider-tb"></div>
+            
+            <el-color-picker
+              v-model="pendingColor"
+              show-alpha
+              :predefine="['#F44336','#E91E63','#9C27B0','#673AB7','#3F51B5','#2196F3','#03A9F4','#00BCD4','#009688','#4CAF50','#8BC34A','#CDDC39','#FFEB3B','#FFC107','#FF9800','#FF5722','#795548','#9E9E9E','#607D8B']"
+              size="small"
+              @change="applyColor"
+              class="plane-color-picker"
+            />
+            <div class="v-divider-tb"></div>
 
-          <div class="tb-group">
-            <button class="tb-btn" :class="{ 'active': editor.isActive('bold') }" @click="editor.chain().focus().toggleBold().run()"><i class="fa-solid fa-bold"></i></button>
-            <button class="tb-btn" :class="{ 'active': editor.isActive('italic') }" @click="editor.chain().focus().toggleItalic().run()"><i class="fa-solid fa-italic"></i></button>
-            <button class="tb-btn" :class="{ 'active': editor.isActive('underline') }" @click="editor.chain().focus().toggleUnderline().run()"><i class="fa-solid fa-underline"></i></button>
-            <button class="tb-btn" :class="{ 'active': editor.isActive('strike') }" @click="editor.chain().focus().toggleStrike().run()"><i class="fa-solid fa-strikethrough"></i></button>
-          </div>
-          <div class="v-divider-tb"></div>
+            <div class="tb-group">
+              <button class="tb-btn" :class="{ 'active': editor.isActive('bold') }" @click="editor.chain().focus().toggleBold().run()"><i class="fa-solid fa-bold"></i></button>
+              <button class="tb-btn" :class="{ 'active': editor.isActive('italic') }" @click="editor.chain().focus().toggleItalic().run()"><i class="fa-solid fa-italic"></i></button>
+              <button class="tb-btn" :class="{ 'active': editor.isActive('underline') }" @click="editor.chain().focus().toggleUnderline().run()"><i class="fa-solid fa-underline"></i></button>
+            </div>
+            <div class="v-divider-tb"></div>
 
-          <div class="tb-group">
-            <button class="tb-btn" @click="editor.chain().focus().setTextAlign('left').run()"><i class="fa-solid fa-align-left"></i></button>
-            <button class="tb-btn" @click="editor.chain().focus().setTextAlign('center').run()"><i class="fa-solid fa-align-center"></i></button>
-            <button class="tb-btn" @click="editor.chain().focus().setTextAlign('right').run()"><i class="fa-solid fa-align-right"></i></button>
-          </div>
-          <div class="v-divider-tb"></div>
+            <div class="tb-group">
+              <button class="tb-btn" @click="editor.chain().focus().setTextAlign('left').run()"><i class="fa-solid fa-align-left"></i></button>
+              <button class="tb-btn" @click="editor.chain().focus().setTextAlign('center').run()"><i class="fa-solid fa-align-center"></i></button>
+              <button class="tb-btn" @click="editor.chain().focus().setTextAlign('right').run()"><i class="fa-solid fa-align-right"></i></button>
+            </div>
+            <div class="v-divider-tb"></div>
 
-          <div class="tb-group">
-            <button class="tb-btn" @click="editor.chain().focus().toggleBulletList().run()"><i class="fa-solid fa-list-ul"></i></button>
-            <button class="tb-btn" @click="editor.chain().focus().toggleOrderedList().run()"><i class="fa-solid fa-list-ol"></i></button>
-            <button class="tb-btn" @click="editor.chain().focus().toggleTaskList().run()"><i class="fa-solid fa-list-check"></i></button>
-          </div>
-          <div class="v-divider-tb"></div>
+            <div class="tb-group">
+              <button class="tb-btn" @click="editor.chain().focus().toggleBulletList().run()"><i class="fa-solid fa-list-ul"></i></button>
+              <button class="tb-btn" @click="editor.chain().focus().toggleOrderedList().run()"><i class="fa-solid fa-list-ol"></i></button>
+              <button class="tb-btn" @click="editor.chain().focus().toggleTaskList().run()"><i class="fa-solid fa-list-check"></i></button>
+            </div>
+            <div class="v-divider-tb"></div>
 
-          <div class="tb-group">
-            <button class="tb-btn" @click="editor.chain().focus().toggleCodeBlock().run()"><i class="fa-solid fa-code"></i></button>
-            <button class="tb-btn" @click="() => imageFileInput?.click()"><i class="fa-solid fa-image"></i></button>
-            <input type="file" ref="imageFileInput" style="display: none" accept="image/*" multiple @change="handleImageUpload" />
-            <el-popover v-model:visible="tablePickerVisible" trigger="click" placement="bottom" :width="200" popper-class="plane-popover dark">
-              <template #reference>
-                <button class="tb-btn"><i class="fa-solid fa-table"></i></button>
-              </template>
-              <div class="p-2 bg-[#1B1C20] border border-[#27272A] rounded-lg">
-                <div class="text-[11px] text-gray-400 mb-2 text-center font-medium">{{ hoverTableRows || 0 }} x {{ hoverTableCols || 0 }} Table</div>
-                <div class="grid-picker" @mouseleave="hoverTableRows=0; hoverTableCols=0">
-                  <div v-for="r in 10" :key="'r'+r" class="grid-row">
-                    <div v-for="c in 10" :key="'r'+r+'c'+c" 
-                         class="grid-cell"
-                         :class="{ 'active': r <= hoverTableRows && c <= hoverTableCols }"
-                         @mouseover="hoverTableRows=r; hoverTableCols=c"
-                         @click="insertTable(r, c)"></div>
+            <div class="tb-group">
+              <button class="tb-btn" @click="editor.chain().focus().toggleCodeBlock().run()"><i class="fa-solid fa-code"></i></button>
+              <button class="tb-btn" @click="() => imageFileInput?.click()"><i class="fa-solid fa-image"></i></button>
+              <input type="file" ref="imageFileInput" style="display: none" accept="image/*" multiple @change="handleImageUpload" />
+              <el-popover v-model:visible="tablePickerVisible" trigger="click" placement="bottom" :width="200" popper-class="plane-popover dark">
+                <template #reference>
+                  <button class="tb-btn"><i class="fa-solid fa-table"></i></button>
+                </template>
+                <div class="p-2 bg-[#1B1C20] border border-[#27272A] rounded-lg">
+                  <div class="text-[11px] text-gray-400 mb-2 text-center font-medium">{{ hoverTableRows || 0 }} x {{ hoverTableCols || 0 }} Table</div>
+                  <div class="grid-picker" @mouseleave="hoverTableRows=0; hoverTableCols=0">
+                    <div v-for="r in 10" :key="'r'+r" class="grid-row">
+                      <div v-for="c in 10" :key="'r'+r+'c'+c" 
+                           class="grid-cell"
+                           :class="{ 'active': r <= hoverTableRows && c <= hoverTableCols }"
+                           @mouseover="hoverTableRows=r; hoverTableCols=c"
+                           @click="insertTable(r, c)"></div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </el-popover>
+              </el-popover>
+            </div>
           </div>
         </div>
       </div>
 
-      <div class="editor-canvas">
-        <button class="add-icon-btn"><i class="fa-regular fa-face-smile"></i> Icon</button>
-        <input class="editor-title-input" v-model="activePage.title" @input="handleContentInput" placeholder="Untitled" />
-        <editor-content :editor="editor" class="editor-tiptap-content" />
+      <div class="editor-scroll-area">
+        <div class="editor-content-container">
+          <div class="canvas-inner">
+            <button class="add-icon-btn"><i class="fa-regular fa-face-smile"></i> Add icon</button>
+            <input class="editor-title-input" v-model="activePage.title" @input="handleContentInput" placeholder="Untitled" />
+            <editor-content :editor="editor" class="editor-tiptap-content" />
+          </div>
+        </div>
       </div>
 
       <transition name="fade">
@@ -775,10 +781,6 @@ function pageMenuItems(page) {
 .nav-tab { padding: 14px 0; font-size: 13px; font-weight: 500; color: var(--color-text-muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .nav-tab.active { color: #38BDF8; border-bottom: 2px solid #38BDF8; }
 
-.pages-toolbar { display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; }
-.pt-right { display: flex; gap: 12px; }
-.filter-btn.outlined { background: transparent; border: 1px solid var(--color-border); color: var(--color-text-primary); padding: 6px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
-.filter-btn:hover { background: var(--color-border); }
 
 /* List */
 .pages-list { padding: 0 24px 24px; }
@@ -793,36 +795,41 @@ function pageMenuItems(page) {
 .icon-btn { background: transparent; border: none; color: var(--color-text-muted); font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .icon-btn:hover { color: var(--color-text-primary); }
 .action-hide { opacity: 1; transition: opacity 0.2s; }
-.btn-box { width: 28px; height: 28px; background: transparent; border: 1px solid transparent; border-radius: 4px; }
-.btn-box:hover { background: var(--color-border); border-color: #3F3F46; }
+.btn-box { width: 28px; height: 28px; }
 
-/* Editor */
-.editor-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; border-b.back-btn { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 4px; padding: 4px 8px; color: var(--color-text-muted); cursor: pointer; margin-right: 12px; }
+/* Editor View Refactoring */
+.page-editor-view { display: flex; flex-direction: column; height: 100vh; background: var(--color-bg); overflow: hidden; }
+.editor-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; border-bottom: 1px solid var(--color-border); background: var(--color-bg); z-index: 20; }
+.eh-left { display: flex; align-items: center; gap: 12px; }
+.eh-right { display: flex; align-items: center; gap: 8px; }
+.back-btn { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 6px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text-secondary); cursor: pointer; transition: all 0.2s; }
+.back-btn:hover { background: var(--color-surface-hover); color: var(--color-text-primary); }
 .status-saving { margin-left:16px; color:#F59E0B; font-size:12px; }
 .status-saved { margin-left:16px; color:#10B981; font-size:12px; opacity:0.7; }
-.v-divider { width:1px; height:16px; background:var(--color-border); margin:0 12px; }
 
-.wysiwyg-toolbar-wrapper { display: flex; justify-content: center; padding: 12px 0; border-bottom: 1px solid var(--color-border); background: var(--color-bg); position: sticky; top: 0; z-index: 10; }
-.wysiwyg-toolbar { display: flex; align-items: center; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 8px; padding: 4px; box-shadow: var(--shadow-md); }
+.wysiwyg-toolbar-wrapper { background: var(--color-bg); position: sticky; top: 0; z-index: 10; padding: 12px 0; border-bottom: 1px solid var(--color-border); }
+.wysiwyg-toolbar-container { max-width: 720px; margin: 0 auto; width: 100%; padding: 0 16px; display: flex; justify-content: center; }
+.wysiwyg-toolbar { display: flex; align-items: center; gap: 6px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 10px; padding: 6px 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
 .tb-group { display: flex; align-items: center; gap: 2px; padding: 0 4px; }
-.tb-btn { background: transparent; border: none; width: 32px; height: 32px; border-radius: 4px; color: var(--color-text-muted); display: flex; align-items: center; justify-content: center; cursor: pointer; }
-.tb-btn:hover, .tb-btn.active { color: var(--color-text-primary); background: var(--color-surface-hover); }
-.v-divider-tb { width:1px; height:20px; background:var(--color-border); margin:0 4px; }
-.hover-bg:hover { background: var(--color-surface-hover); border-radius: 4px; }}
-.v-divider-tb { width:1px; height:20px; background:#2D2F36; margin:0 4px; }
+.tb-btn { background: transparent; border: none; width: 28px; height: 28px; border-radius: 4px; color: var(--color-text-muted); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; }
+.tb-btn:hover, .tb-btn.active { background: var(--color-surface-hover); color: var(--color-text-primary); }
+.v-divider-tb { width:1px; height:20px; background:var(--color-border); margin:0 6px; }
 .hover-bg:hover { background: var(--color-border); border-radius: 4px; }
-.toolbar-aa { font-family: serif; font-style: italic; font-weight: bold; margin-left: 4px; }
 
-.editor-canvas { max-width: 800px; margin: 0 auto; width: 100%; padding: 64px 32px; flex: 1; }
-.editor-title-input { background: transparent; border: none; font-size: 48px; font-weight: 700; color: var(--color-text-primary); outline: none; margin-bottom: 24px; width: 100%; letter-spacing: -0.02em; }
-.add-icon-btn { background: transparent; border: none; color: var(--color-text-muted); font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding: 4px 8px; border-radius: 4px; }
-.add-icon-btn:hover { background: var(--color-surface); color: var(--color-text-primary); }
+.editor-scroll-area { flex: 1; overflow-y: auto; padding: 0; background: var(--color-bg); }
+.editor-content-container { width: 100%; min-height: 100%; display: flex; justify-content: center; padding-top: 40px; padding-bottom: 80px; }
+.canvas-inner { width: 100%; max-width: 720px; padding: 0 16px; }
+.editor-title-input { background: transparent; border: none !important; font-size: 36px; font-weight: 700; color: var(--color-text-primary); outline: none !important; margin-bottom: 20px; width: 100%; letter-spacing: -0.03em; padding: 0 !important; height: auto !important; box-shadow: none !important; }
+.editor-title-input::placeholder { color: var(--color-text-disabled); opacity: 0.3; }
+.add-icon-btn { background: transparent; border: none; color: var(--color-text-muted); font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding: 4px 0; opacity: 0.5; transition: opacity 0.2s; }
+.add-icon-btn:hover { opacity: 1; }
 
-.editor-tiptap-content :deep(.ProseMirror) { min-height: 500px; outline: none; font-size: 17px; line-height: 1.8; color: var(--color-text-secondary); }
-.editor-tiptap-content :deep(.ProseMirror p.is-editor-empty:first-child::before) { content: attr(data-placeholder); float: left; color: var(--color-text-muted); pointer-events: none; height: 0; }
-.editor-tiptap-content :deep(p) { margin-bottom: 1em; }
-.editor-tiptap-content :deep(h1) { font-size: 2em; margin: 1em 0 0.5em; color: var(--color-text-primary); }
-.editor-tiptap-content :deep(h2) { font-size: 1.5em; margin: 1em 0 0.5em; color: var(--color-text-primary); }
+.editor-tiptap-content :deep(.ProseMirror) { min-height: 400px; outline: none; font-size: 16px; line-height: 1.7; color: var(--color-text-primary); }
+.editor-tiptap-content :deep(.ProseMirror p.is-editor-empty:first-child::before) { content: "Press '/' for commands..."; float: left; color: var(--color-text-disabled); pointer-events: none; height: 0; font-style: italic; opacity: 0.5; }
+.editor-tiptap-content :deep(p) { margin-bottom: 1.2em; }
+.editor-tiptap-content :deep(h1) { font-size: 2.2em; font-weight: 800; margin: 1.5em 0 0.8em; }
+.editor-tiptap-content :deep(h2) { font-size: 1.8em; font-weight: 700; margin: 1.2em 0 0.6em; }
+.editor-tiptap-content :deep(h3) { font-size: 1.4em; font-weight: 600; margin: 1em 0 0.5em; }
 .editor-tiptap-content :deep(ul) { list-style-type: disc; margin-left: 1.5em; margin-bottom: 1em; }
 .editor-tiptap-content :deep(ol) { list-style-type: decimal; margin-left: 1.5em; margin-bottom: 1em; }
 .editor-tiptap-content :deep(table) { border-collapse: collapse; table-layout: fixed; width: 100%; margin: 1em 0; overflow: hidden; border: 1px solid var(--color-border); }

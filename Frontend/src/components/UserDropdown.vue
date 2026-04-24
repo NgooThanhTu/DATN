@@ -100,6 +100,7 @@ const canAccessAdmin = computed(() => hasSystemAdminAccess(currentUser.value))
 const userDisplayName = computed(() => currentUser.value?.fullName || currentUser.value?.name || currentUser.value?.email?.split('@')?.[0] || 'User')
 const userEmail = computed(() => currentUser.value?.email || 'user@example.com')
 const userInitial = computed(() => userDisplayName.value.charAt(0).toUpperCase() || 'U')
+
 const avatarColor = computed(() => {
   const colors = ['#579dff', '#c97cf4', '#00b8d9', '#22a06b', '#f5cd47', '#e2483d']
   const index = userDisplayName.value.length % colors.length
@@ -146,7 +147,6 @@ const selectTheme = (theme) => {
   border-radius: 2px;
   padding: 8px 0;
   border: 1px solid var(--color-border);
-  box-shadow: var(--shadow-xl);
 }
 .user-menu-header { display: flex; padding: 12px 16px; gap: 12px; align-items: center; border-bottom: 1px solid var(--color-border); margin-bottom: 4px; }
 .header-avatar {
@@ -231,7 +231,7 @@ const selectTheme = (theme) => {
   border: 1px solid var(--color-border) !important;
   border-radius: 12px !important;
   padding: 0 !important;
-  box-shadow: var(--shadow-xl) !important;
+  box-shadow: none !important;
 }
 .user-dropdown-popper .el-dropdown-menu__item {
   padding: 10px 16px !important;

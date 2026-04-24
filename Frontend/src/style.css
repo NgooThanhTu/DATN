@@ -59,24 +59,40 @@
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
   --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1);
   --transition-speed: 0.25s;
+
+  /* RADIUS SYSTEM (MODERN & SOFT) */
+  --radius-button: 10px;
+  --radius-input: 8px;
+  --radius-label: 8px;
+  --radius-card: 14px;
+  --radius-small: 6px;
+
+  /* ELEMENT PLUS OVERRIDES */
+  --el-border-radius-base: 10px;
+  --el-border-radius-small: 8px;
+  --el-border-radius-round: 20px;
+  --el-border-radius-circle: 100%;
+
+  --accent-color: var(--color-accent);
 }
+
 
 [data-theme='dark'] {
   /* DARK THEME TOKENS - OPTIMIZED FOR DEPTH & CONTRAST */
-  --color-bg: #020617;           /* Slate-950 */
-  --color-surface: #0f172a;      /* Slate-900 */
-  --color-surface-hover: #1e293b;/* Slate-800 */
+  --color-bg: #0f172a;           /* Standardized Dark Background */
+  --color-surface: #1e293b;      /* Standardized Surface */
+  --color-surface-hover: #334155;/* Standardized Hover */
   
-  --color-text-primary: #f8fafc;   /* Slate-50 */
-  --color-text-secondary: #e2e8f0; /* Slate-200 */
-  --color-text-muted: #94a3b8;    /* Slate-400 */
+  --color-text-primary: #e2e8f0;   /* Light Slate */
+  --color-text-secondary: #94a3b8; /* Muted Slate */
+  --color-text-muted: #64748b;    
   --color-text-disabled: #475569;
   --color-text-inverse: #ffffff;
   
-  --color-border: #1e293b;       /* Slate-800 */
+  --color-border: #1e293b;       
   --color-border-hover: #334155;
   
-  --color-input-bg: #020617;      
+  --color-input-bg: #0f172a;      
   --color-input-border: #334155;
   
   --color-accent: #38bdf8;       /* Sky-400 */
@@ -99,15 +115,15 @@
   --color-danger-bg: rgba(248, 113, 113, 0.15);
 
   /* New Semantic Tokens (Dark Optimized) */
-  --bg-primary: #0b1220;
-  --bg-secondary: #111827;
-  --bg-tertiary: #1f2937;
-  --text-primary: #e5e7eb;
-  --text-secondary: #9ca3af;
-  --border-color: #1f2937;
+  --bg-primary: #0f172a;
+  --bg-secondary: #1e293b;
+  --bg-tertiary: #334155;
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --border-color: #1e293b;
   --input-bg: #0f172a;
-  --table-bg: #111827;
-  --hover-bg: #1f2937;
+  --table-bg: #1e293b;
+  --hover-bg: #334155;
 
   /* Aliases */
   --bg-color: var(--bg-primary);
@@ -120,7 +136,10 @@
   --shadow-md: 0 10px 15px -3px rgba(0,0,0,0.6);
   --shadow-lg: 0 20px 25px -5px rgba(0,0,0,0.7);
   --shadow-xl: 0 25px 50px -12px rgba(0,0,0,0.8);
+
+  --accent-color: var(--color-accent);
 }
+
 
 /* HELPER CLASSES FOR HIERARCHY */
 .text-hero { font-size: 32px; font-weight: 850; letter-spacing: -0.03em; color: var(--color-text-primary); }
@@ -163,7 +182,7 @@ p {
 .card, .panel {
   background-color: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: 2px;
+  border-radius: var(--radius-card);
   box-shadow: var(--shadow-sm);
   color: var(--color-text-primary);
 }
@@ -176,7 +195,7 @@ input, select, textarea,
   background-color: var(--input-bg) !important;
   color: var(--text-primary) !important;
   border: 1px solid var(--border-color) !important;
-  border-radius: 2px !important;
+  border-radius: var(--radius-input) !important;
   padding: 4px 12px !important;
   height: 34px !important;
   outline: none;
@@ -211,42 +230,51 @@ label, .el-form-item__label, .field-label {
 }
 
 /* Button Refinement - Sharp & Professional */
-.btn-primary, .primary-btn, .el-button--primary {
+.btn-primary, .primary-btn, .el-button--primary, .nexus-btn-primary {
   background-color: var(--color-accent) !important;
   color: #ffffff !important;
   border: none !important;
   padding: 8px 16px !important;
-  height: 34px !important;
-  border-radius: 2px !important;
-  font-weight: 600 !important;
+  height: 36px !important;
+  border-radius: var(--radius-button) !important;
+  font-weight: 500 !important;
+  font-size: 13px !important;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.btn-primary:hover, .primary-btn:hover, .el-button--primary:hover, .nexus-btn-primary:hover {
+  background-color: var(--color-accent-hover) !important;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-accent) 25%, transparent) !important;
+  transform: translateY(-1px);
+}
+
+.btn-secondary, .secondary-btn, .el-button--default, .nexus-btn-outlined, .filter-btn.outlined {
+  background-color: transparent !important;
+  color: var(--color-text-secondary) !important;
+  border: 1px solid var(--color-border) !important;
+  padding: 8px 16px !important;
+  height: 36px !important;
+  border-radius: var(--radius-button) !important;
+  font-weight: 500 !important;
   font-size: 13px !important;
   cursor: pointer;
   transition: all 0.2s;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
 }
 
-.btn-primary:hover, .primary-btn:hover, .el-button--primary:hover {
-  background-color: var(--color-accent-hover) !important;
-  transform: none !important;
-}
-
-.btn-secondary, .secondary-btn, .el-button--default {
-  background-color: var(--color-surface) !important;
+.btn-secondary:hover, .secondary-btn:hover, .nexus-btn-outlined:hover, .filter-btn.outlined:hover {
+  background-color: var(--color-surface-hover) !important;
+  border-color: var(--color-border-hover) !important;
   color: var(--color-text-primary) !important;
-  border: 1px solid var(--color-border) !important;
-  padding: 8px 16px !important;
-  height: 34px !important;
-  border-radius: 2px !important;
-  font-weight: 600 !important;
-  font-size: 13px !important;
-  cursor: pointer;
-}
-
-.btn-secondary:hover, .secondary-btn:hover {
-  background-color: var(--color-surface-hover);
-  border-color: var(--color-border-hover);
 }
 
 /* Element Plus Specific Overrides */
@@ -306,7 +334,7 @@ label, .el-form-item__label, .field-label {
 .settings-card {
   background-color: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: 2px;
+  border-radius: var(--radius-card);
   padding: 20px;
   margin-bottom: 24px;
   box-shadow: var(--shadow-sm);
@@ -381,3 +409,351 @@ label, .el-form-item__label, .field-label {
   color: var(--color-text-primary);
 }
 
+
+/* 
+  COMPREHENSIVE RADIUS SYSTEM
+  Overrides scoped styles to ensure system-wide consistency.
+*/
+
+/* Buttons & Interactive Elements */
+.btn-primary, .primary-btn, .el-button--primary,
+.btn-secondary, .secondary-btn, .el-button--default,
+.nexus-btn, .export-btn, .plane-primary-btn, .favorite-btn,
+.auth-btn, .social-btn, .nav-link, .nav-primary,
+.row-actions button, .dialog-actions button {
+  border-radius: var(--radius-button) !important;
+}
+
+/* Inputs & Form Fields */
+input, select, textarea, 
+.el-input__inner, .el-textarea__inner, .el-input__wrapper,
+.search-shell, .ai-input-wrapper, .task-form input, 
+.task-form select, .task-form textarea {
+  border-radius: var(--radius-input) !important;
+}
+
+/* Tags, Badges & Labels */
+.badge, .tag, .el-tag, .lr-badge, .dd-tag, .project-icon, .dbox, .box {
+  border-radius: var(--radius-label) !important;
+}
+
+/* Cards & Containers */
+.card, .panel, .settings-card, .project-card, .hero-panel, 
+.stat-box, .metric-card, .empty-state, .helper-panel,
+.kanban-card, .issue-row, .task-row, .stack-row, .module-card,
+.auth-card, .info-card {
+  border-radius: var(--radius-card) !important;
+}
+
+/* Small UI blocks & Scrollbars */
+.color-swatch, .status-indicator, 
+::-webkit-scrollbar-thumb {
+  border-radius: var(--radius-small) !important;
+}
+
+/* 
+  PREMIUM POPUP UI ENHANCEMENTS
+  Targeting dialogs, popovers, and their internal forms.
+*/
+
+/* 1. Global Modal & Popover Containers */
+.el-dialog, .el-popover.dark, .plane-popover, .standard-dialog {
+  border-radius: 16px !important;
+  overflow: hidden;
+  box-shadow: var(--shadow-xl) !important;
+  border: 1px solid var(--color-border) !important;
+}
+
+/* 2. Premium Button Overrides for Popups */
+.el-dialog .btn-primary, 
+.el-dialog .primary-btn, 
+.el-dialog .el-button--primary,
+.el-dialog .btn-primary-sm,
+.el-popover .btn-primary {
+  height: 48px !important;
+  padding: 0 24px !important;
+  border-radius: 14px !important;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  letter-spacing: 0.01em;
+}
+
+.el-dialog .btn-secondary, 
+.el-dialog .secondary-btn, 
+.el-dialog .el-button--default,
+.el-dialog .btn-secondary-sm,
+.el-popover .btn-secondary {
+  height: 48px !important;
+  padding: 0 24px !important;
+  border-radius: 14px !important;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+}
+
+/* 3. Popup Form Elements */
+.el-dialog input, 
+.el-dialog select, 
+.el-dialog textarea,
+.el-dialog .el-input__wrapper,
+.el-popover input {
+  border-radius: 12px !important;
+  height: 44px !important;
+  background-color: var(--bg-tertiary) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+.el-dialog .field-label, 
+.el-popover .field-label {
+  border-radius: 8px;
+  font-weight: 700 !important;
+  font-size: 11px !important;
+  color: var(--color-text-muted) !important;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px !important;
+}
+
+/* 4. Labels & Tags in Popups */
+.el-dialog .tag, 
+.el-dialog .el-tag, 
+.el-dialog .badge,
+.el-popover .tag {
+  border-radius: 8px !important;
+  padding: 4px 10px !important;
+  font-weight: 600 !important;
+}
+
+/* 5. Hover Effects & Transitions */
+.el-dialog button:hover, 
+.el-popover button:hover {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 
+  ACTION BAR ALIGNMENT SYSTEM
+  Standardizes the cluster of Search, Sort, Filter, and Action buttons.
+*/
+.nexus-controls-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+  flex-wrap: wrap;
+}
+
+/* Search Icon Button Style */
+.nexus-btn-icon, .icon-toggle {
+  width: 36px !important;
+  height: 36px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 8px !important;
+  background: transparent !important;
+  border: 1px solid var(--color-border) !important;
+  color: var(--color-text-muted) !important;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.nexus-btn-icon:hover, .icon-toggle:hover {
+  background: var(--color-surface-hover) !important;
+  color: var(--color-text-primary) !important;
+  border-color: var(--color-border-hover) !important;
+}
+
+/* Breadcrumb refinements */
+.nexus-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* 
+  KANBAN SHADOW-FREE OVERRIDES 
+  Ensures all shadows are removed when in Kanban context.
+*/
+body.no-shadow-context .card,
+body.no-shadow-context .panel,
+body.no-shadow-context .kanban-card,
+body.no-shadow-context .issue-card,
+body.no-shadow-context .el-dialog,
+body.no-shadow-context .el-popper,
+body.no-shadow-context .el-popover,
+body.no-shadow-context .el-dropdown-menu,
+body.no-shadow-context .plane-popover,
+body.no-shadow-context .jira-user-menu,
+body.no-shadow-context .user-dropdown-popper,
+body.no-shadow-context .filter-builder,
+body.no-shadow-context .analytics-panel,
+body.no-shadow-context .task-side-panel,
+body.no-shadow-context .modal-content,
+body.no-shadow-context .btn-primary,
+body.no-shadow-context .primary-btn,
+body.no-shadow-context .el-button--primary,
+body.no-shadow-context .create-centered-modal,
+body.no-shadow-context [class*="shadow"] {
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+/* Global Shadow suppression for any element that might creep in */
+body.no-shadow-context * {
+  --shadow-sm: none !important;
+  --shadow-md: none !important;
+  --shadow-lg: none !important;
+  --shadow-xl: none !important;
+}
+
+/* 
+  STRICT PROJECT ADMINISTRATION EXCLUSION
+  Ensures that Project Administration remains sharp/untouched as per rules.
+  This block MUST remain at the bottom of the file for cascade precedence.
+*/
+.project-settings-page,
+.project-settings-page *,
+.project-admin-forbidden,
+.project-admin-forbidden * {
+  border-radius: 2px !important;
+}
+
+
+/* ── CALENDAR ICON & DATE PICKER THEME SYNC ── */
+
+/* Global Calendar Icon Inheritance */
+i.fa-calendar, 
+i.fa-calendar-day, 
+i.fa-calendar-days, 
+i.fa-regular.fa-calendar {
+  color: currentColor;
+  opacity: 0.8;
+}
+
+/* Base style for containers holding these icons */
+.calendar-icon-wrap, 
+.t-btn-date,
+.vh-right,
+.plane-table th {
+  color: var(--text-secondary);
+}
+
+/* Global Element Plus Date Picker & Panel Overrides */
+.el-picker-panel,
+.el-date-picker,
+.el-date-range-picker,
+.el-popper.is-light.el-picker__popper {
+  background-color: var(--bg-secondary) !important;
+  border: 1px solid var(--border-color) !important;
+  color: var(--text-primary) !important;
+  box-shadow: var(--shadow-lg) !important;
+}
+
+.el-date-table th {
+  border-bottom: 1px solid var(--border-color) !important;
+  color: var(--text-secondary) !important;
+}
+
+.el-date-table td.next-month,
+.el-date-table td.prev-month {
+  color: var(--color-text-disabled) !important;
+}
+
+.el-date-table td.available:hover {
+  color: var(--accent-color) !important;
+}
+
+.el-date-table td.current:not(.disabled) .el-date-table-cell__text {
+  background-color: var(--accent-color) !important;
+  color: #ffffff !important;
+}
+
+.el-date-table td.today .el-date-table-cell__text {
+  color: var(--accent-color) !important;
+  font-weight: 700;
+}
+
+.el-picker-panel__footer {
+  background-color: var(--bg-secondary) !important;
+  border-top: 1px solid var(--border-color) !important;
+}
+
+.el-date-picker__header--bordered {
+  border-bottom: 1px solid var(--border-color) !important;
+}
+
+.el-date-picker__header-label {
+  color: var(--text-primary) !important;
+}
+
+.el-picker-panel__icon-btn {
+  color: var(--text-secondary) !important;
+}
+
+.el-picker-panel__icon-btn:hover {
+  color: var(--accent-color) !important;
+}
+
+/* Date Picker Input Icon Inheritance */
+.el-input__prefix-inner i, 
+.el-input__suffix-inner i {
+  color: var(--text-secondary) !important;
+  transition: color 0.2s;
+}
+
+.el-input.is-active .el-input__prefix-inner i,
+.el-input.is-active .el-input__suffix-inner i,
+.el-input:focus-within .el-input__prefix-inner i {
+  color: var(--accent-color) !important;
+}
+
+/* Table Hover Row Sync */
+.plane-table tr:hover {
+  background-color: var(--hover-bg) !important;
+}
+
+/* Global Element Plus Dialog (Modal) Overrides */
+.el-dialog {
+  background-color: var(--bg-secondary) !important;
+  border-radius: 12px !important;
+  box-shadow: var(--shadow-xl) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+.el-dialog__header {
+  padding: 20px 24px 16px !important;
+  margin-right: 0 !important;
+  border-bottom: 1px solid var(--border-color) !important;
+}
+
+.el-dialog__title {
+  color: var(--text-primary) !important;
+  font-size: 18px !important;
+  font-weight: 700 !important;
+}
+
+.el-dialog__body {
+  padding: 24px !important;
+  color: var(--text-primary) !important;
+}
+
+.el-dialog__footer {
+  padding: 16px 24px 20px !important;
+  border-top: 1px solid var(--border-color) !important;
+}
+
+.el-dialog__close {
+  color: var(--text-secondary) !important;
+}
+
+.el-dialog__close:hover {
+  color: var(--accent-color) !important;
+}
+
+/* Base Dialog Action Buttons */
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}

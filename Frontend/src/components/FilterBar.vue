@@ -310,7 +310,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  box-shadow: var(--shadow-md);
+  box-shadow: none !important;
 }
 
 .filter-builder label {

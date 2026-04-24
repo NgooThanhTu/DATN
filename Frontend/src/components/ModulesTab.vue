@@ -430,10 +430,13 @@ onUnmounted(() => {
       </div>
 
       <div class="nexus-controls-row">
-        <input v-model="moduleSearch" class="nexus-search-input" type="text" placeholder="Search modules..." />
+        <!-- Unified clustering: Search -> Sort -> Filter -> Add Button -->
+        <div class="flex items-center gap-2">
+           <input v-model="moduleSearch" class="nexus-search-input" type="text" placeholder="Search modules..." style="width: 200px" />
+        </div>
 
         <el-dropdown trigger="click" @command="(value) => { sortBy = value.field; sortDirection = value.direction }">
-          <button class="nexus-btn nexus-btn-outlined" type="button">
+          <button class="nexus-btn-outlined" type="button">
             <i class="fa-solid fa-arrow-up-z-a"></i> Sort
           </button>
           <template #dropdown>
@@ -447,7 +450,7 @@ onUnmounted(() => {
         </el-dropdown>
 
         <el-dropdown trigger="click" @command="(value) => statusFilter = value">
-          <button class="nexus-btn nexus-btn-outlined" type="button">
+          <button class="nexus-btn-outlined" type="button">
             <i class="fa-solid fa-filter"></i>
             {{ statusFilter === 'all' ? 'All statuses' : statusConfig[statusFilter]?.label }}
           </button>
@@ -461,20 +464,20 @@ onUnmounted(() => {
           </template>
         </el-dropdown>
 
-        <div class="view-toggles flex items-center gap-1 bg-[#16181d] p-1 rounded-md">
-          <button class="nexus-btn nexus-btn-icon !h-7 !w-7 !border-none" :class="{ 'bg-[#27272a] text-white': viewMode === 'list' }" @click="viewMode = 'list'">
+        <div class="view-toggles flex items-center gap-1 bg-[#16181d] p-1 rounded-md" style="height: 36px">
+          <button class="nexus-btn-icon !h-7 !w-7 !border-none" :class="{ 'bg-[#27272a] text-white': viewMode === 'list' }" @click="viewMode = 'list'">
             <i class="fa-solid fa-bars"></i>
           </button>
-          <button class="nexus-btn nexus-btn-icon !h-7 !w-7 !border-none" :class="{ 'bg-[#27272a] text-white': viewMode === 'grid' }" @click="viewMode = 'grid'">
+          <button class="nexus-btn-icon !h-7 !w-7 !border-none" :class="{ 'bg-[#27272a] text-white': viewMode === 'grid' }" @click="viewMode = 'grid'">
             <i class="fa-solid fa-border-all"></i>
           </button>
-          <button class="nexus-btn nexus-btn-icon !h-7 !w-7 !border-none" :class="{ 'bg-[#27272a] text-white': viewMode === 'status' }" @click="viewMode = 'status'">
+          <button class="nexus-btn-icon !h-7 !w-7 !border-none" :class="{ 'bg-[#27272a] text-white': viewMode === 'status' }" @click="viewMode = 'status'">
             <i class="fa-solid fa-table-list"></i>
           </button>
         </div>
 
-        <button class="filter-action" type="button" @click="showRestoreModal = true">Restore Modules</button>
-        <button class="primary-action" @click="openCreateModal">Add Module</button>
+        <button class="nexus-btn-outlined" type="button" @click="showRestoreModal = true">Restore</button>
+        <button class="nexus-btn-primary" @click="openCreateModal"><i class="fa-solid fa-plus"></i> Add Module</button>
       </div>
     </header>
 

@@ -312,7 +312,7 @@ function formatDateOnly(value) {
 .cal-btn {
   border: 1px solid var(--color-border);
   border-radius: 4px;
-  background: #111317;
+  background: var(--bg-secondary);
   color: var(--color-text-secondary);
   cursor: pointer;
 }
@@ -342,7 +342,7 @@ function formatDateOnly(value) {
   right: 0;
   z-index: 20;
   min-width: 220px;
-  background: #111317;
+  background: var(--bg-tertiary);
   border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 10px;
@@ -353,7 +353,7 @@ function formatDateOnly(value) {
   display: flex;
   gap: 8px;
   align-items: center;
-  color: #d4d4d8;
+  color: var(--text-secondary);
   font-size: 13px;
   padding: 6px 0;
 }
@@ -384,7 +384,7 @@ function formatDateOnly(value) {
 }
 
 .cal-day-cell:hover {
-  background: #12161b;
+  background: var(--hover-bg);
 }
 
 .cal-day-cell.other-month {
@@ -419,7 +419,7 @@ function formatDateOnly(value) {
 .day-task-chip {
   border-radius: 4px;
   padding: 4px 6px;
-  background: #15181c;
+  background: var(--bg-tertiary);
   font-size: 11px;
   cursor: pointer;
 }
@@ -471,7 +471,7 @@ function formatDateOnly(value) {
   max-width: calc(100vw - 24px);
   border: 1px solid #2d2f36;
   border-radius: 8px;
-  background: #111317;
+  background: var(--bg-secondary);
   padding: 10px;
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35);
   pointer-events: none;
@@ -500,7 +500,7 @@ function formatDateOnly(value) {
 
 .tooltip-text {
   font-size: 12px;
-  color: #d4d4d8;
+  color: var(--text-secondary);
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;

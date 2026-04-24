@@ -377,7 +377,7 @@ const downloadWordActivity = () => {
               </div>
               <div class="lr-right">
                 <el-dropdown trigger="click" @command="value => updateTaskProperty(item.task, 'statusName', value)">
-                  <div class="lr-badge cursor-pointer hover:bg-[#1E2025]">
+                  <div class="lr-badge cursor-pointer hover:bg-[var(--color-bg-secondary)]">
                     <i class="fa-solid fa-circle-check" v-if="item.state.toUpperCase() === 'DONE'"></i>
                     <i class="fa-solid fa-circle-half-stroke" v-else-if="item.state.toUpperCase() === 'IN PROGRESS'"></i>
                     <i class="fa-regular fa-circle" v-else></i>
@@ -395,7 +395,7 @@ const downloadWordActivity = () => {
                 </el-dropdown>
 
                 <el-dropdown trigger="click" @command="value => updateTaskProperty(item.task, 'priority', value)">
-                  <div class="lr-badge cursor-pointer hover:bg-[#1E2025]">
+                  <div class="lr-badge cursor-pointer hover:bg-[var(--color-bg-secondary)]">
                     <i class="fa-solid fa-angles-up text-red-500" v-if="item.priority === 1"></i>
                     <i class="fa-solid fa-chevron-up text-orange-500" v-else-if="item.priority === 2"></i>
                     <i class="fa-solid fa-minus text-blue-500" v-else-if="item.priority === 3"></i>
@@ -587,10 +587,11 @@ const downloadWordActivity = () => {
 }
 
 .chart-col {
-  background: #111315;
-  border: 1px solid #1E2025;
-  border-radius: 8px;
-  padding: 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 20px;
+  transition: all 0.3s ease;
 }
 
 .empty-chart {

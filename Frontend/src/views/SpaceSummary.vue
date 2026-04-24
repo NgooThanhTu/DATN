@@ -253,7 +253,7 @@
                          <div class="avatar-xs ms-auto cursor-pointer hover:bg-[var(--color-border)]" v-if="getTaskAssigneeSummary(element).label">
                            {{ getTaskAssigneeSummary(element).avatar }}
                          </div>
-                         <div class="avatar-xs ms-auto cursor-pointer hover:bg-[var(--color-border)]" style="border: 1px dashed #3f3f46; background: transparent; color: #3f3f46;" v-else><i class="fa-solid fa-user"></i></div>
+                         <div class="avatar-xs ms-auto cursor-pointer hover:bg-[var(--color-border)]" style="border: 1px dashed var(--color-text-muted); background: transparent; color: var(--color-text-muted);" v-else><i class="fa-solid fa-user"></i></div>
                        </template>
                        <div class="popover-content">
                          <input type="text" class="plane-search-input" v-model="assigneeSearch" placeholder="Search members" />
@@ -506,6 +506,18 @@ const displayOrder = ref('manual')
 const groupBy = ref('status')
 const analyticsInsightMode = ref('priority')
 const activeSprintFilterId = computed(() => route.query.sprintId || route.params.cycleId || null)
+
+watch(currentTab, (val) => {
+  if (val === 'board') {
+    document.body.classList.add('no-shadow-context')
+  } else {
+    document.body.classList.remove('no-shadow-context')
+  }
+}, { immediate: true })
+
+onUnmounted(() => {
+  document.body.classList.remove('no-shadow-context')
+})
 const activeModuleFilterId = computed(() => route.query.moduleId || null)
 const activeCarryOverSprintId = computed(() => route.query.carryOverFromSprintId || null)
 const carryOverTaskIds = ref([])
@@ -1932,7 +1944,6 @@ onUnmounted(() => {
 }
 .issue-card.active-card {
   border-color: var(--color-border);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
 }
 
 .issue-sequence { font-size: 11px; color: var(--color-text-muted); margin: 0; }
@@ -2273,19 +2284,49 @@ onUnmounted(() => {
 }
 
 .plane-dropdown {
-  background: var(--color-border) !important;
-  border: 1px solid #333 !important;
+  background: var(--bg-secondary) !important;
+  border: 1px solid var(--border-color) !important;
 }
+
+:global(.plane-popover) {
+  background: var(--bg-secondary) !important;
+  border: 1px solid var(--border-color) !important;
+  padding: 12px !important;
+  box-shadow: var(--shadow-lg) !important;
+  border-radius: var(--radius-input) !important;
+  color: var(--text-primary) !important;
+}
+
+.no-shadow-context :global(.plane-popover) {
+  box-shadow: none !important;
+}
+
+:global(.plane-popover .el-popper__arrow::before) {
+  background: var(--bg-secondary) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
 
 .plane-search-input {
   width: 100%;
-  background: transparent;
-  border: 1px solid var(--color-border);
-  color: var(--color-text-primary);
-  border-radius: 2px;
-  padding: 8px 10px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: var(--radius-small);
+  padding: 8px 12px;
   outline: none;
+  font-size: 13px;
+  transition: all 0.2s;
 }
+
+.plane-search-input:focus {
+  border-color: var(--color-accent);
+}
+
+.plane-search-input::placeholder {
+  color: var(--color-text-muted);
+}
+
 
 .plane-list {
   display: flex;
@@ -2298,16 +2339,27 @@ onUnmounted(() => {
 .plane-list-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: var(--color-text-secondary);
+  gap: 10px;
+  color: var(--text-primary);
   cursor: pointer;
-  padding: 6px 8px;
-  border-radius: 2px;
+  padding: 8px 10px;
+  border-radius: var(--radius-small);
+  transition: all 0.2s;
+  font-size: 13px;
 }
 
+
 .plane-list-item:hover {
-  background: var(--color-border);
+  background: var(--hover-bg);
 }
+
+.plane-list-item input[type="checkbox"] {
+  accent-color: var(--color-accent);
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
 
 /* Analytics Sidebar */
 .analytics-overlay {
@@ -2323,7 +2375,7 @@ onUnmounted(() => {
   max-width: 90vw;
   background: var(--color-surface);
   height: 100%;
-  box-shadow: -5px 0 20px rgba(0,0,0,0.5);
+  box-shadow: none !important;
   display: flex;
   flex-direction: column;
   transform: translateX(100%);

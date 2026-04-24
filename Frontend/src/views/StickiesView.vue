@@ -39,7 +39,7 @@
           v-for="sticky in stickies" 
           :key="sticky.id" 
           :class="{ 'is-new': sticky.isNew }"
-          :data-sticky-color="sticky.color || 'zinc'"
+          :style="getDynamicColorStyle(sticky.color)"
         >
              <div 
                 contenteditable="true"
@@ -64,13 +64,13 @@
                         <div class="text-[12px] font-medium text-gray-300 mb-3 px-1">Background colors</div>
                         <div class="color-grid">
                            <div 
-                             v-for="c in backgroundColors" 
-                             :key="c.id" 
+                             v-for="c in COLOR_PALETTE" 
+                             :key="c" 
                              class="color-swatch"
-                             :data-sticky-color="c.id"
-                             @click="sticky.color = c.id; debouncedSave()"
+                             :style="{ background: c }"
+                             @click="sticky.color = c; debouncedSave()"
                            >
-                             <i v-if="sticky.color === c.id" class="fa-solid fa-check text-[10px]"></i>
+                             <i v-if="sticky.color === c || (!COLOR_PALETTE.includes(sticky.color) && c === COLOR_PALETTE[0])" class="fa-solid fa-check text-[10px]" :style="{ color: getContrastTextColor(c) }"></i>
                            </div>
                         </div>
                      </div>
@@ -98,21 +98,7 @@ import { ref, onMounted, nextTick } from 'vue'
 import NexusLayout from '@/components/layout/NexusLayout.vue'
 import { ElNotification } from 'element-plus'
 
-// Sticky color palette - dark theme friendly
-const backgroundColors = [
-  { id: 'zinc', label: 'Gray' },
-  { id: 'red', label: 'Red' },
-  { id: 'purple', label: 'Purple' },
-  { id: 'amber', label: 'Amber' },
-  { id: 'green', label: 'Green' },
-  { id: 'teal', label: 'Teal' },
-  { id: 'blue', label: 'Blue' },
-  { id: 'indigo', label: 'Indigo' },
-  { id: 'stone', label: 'Stone' },
-  { id: 'lime', label: 'Lime' },
-  { id: 'rose', label: 'Rose' },
-  { id: 'cyan', label: 'Cyan' }
-]
+import { COLOR_PALETTE, getContrastTextColor, getRandomPaletteColor, getDynamicColorStyle } from '@/utils/colors'
 
 const stickies = ref([])
 // Holds textarea DOM element refs keyed by sticky id
@@ -159,9 +145,7 @@ const getRandomColor = () => {
   const lastColor = stickies.value.length > 0
     ? stickies.value[stickies.value.length - 1].color
     : null
-  const available = backgroundColors.filter(c => c.id !== lastColor)
-  const pool = available.length > 0 ? available : backgroundColors
-  return pool[Math.floor(Math.random() * pool.length)].id
+  return getRandomPaletteColor(lastColor)
 }
 
 const addSticky = async () => {
@@ -298,37 +282,7 @@ const formatText = (command) => {
   align-items: start; /* prevents stretching */
 }
 
-/* Color Variable Definitions (Universal) */
-[data-sticky-color="zinc"] { --s-bg: #f4f4f5; --s-text: #18181b; --s-border: #e4e4e7; }
-[data-sticky-color="red"] { --s-bg: #fee2e2; --s-text: #991b1b; --s-border: #fecaca; }
-[data-sticky-color="purple"] { --s-bg: #f3e8ff; --s-text: #6b21a8; --s-border: #e9d5ff; }
-[data-sticky-color="amber"] { --s-bg: #fef3c7; --s-text: #92400e; --s-border: #fde68a; }
-[data-sticky-color="green"] { --s-bg: #dcfce7; --s-text: #166534; --s-border: #bbf7d0; }
-[data-sticky-color="teal"] { --s-bg: #ccfbf1; --s-text: #115e59; --s-border: #99f6e4; }
-[data-sticky-color="blue"] { --s-bg: #dbeafe; --s-text: #1e40af; --s-border: #bfdbfe; }
-[data-sticky-color="indigo"] { --s-bg: #e0e7ff; --s-text: #3730a3; --s-border: #c7d2fe; }
-[data-sticky-color="stone"] { --s-bg: #f5f5f4; --s-text: #1c1917; --s-border: #e7e5e4; }
-[data-sticky-color="lime"] { --s-bg: #ecfccb; --s-text: #3f6212; --s-border: #d9f99d; }
-[data-sticky-color="rose"] { --s-bg: #ffe4e6; --s-text: #9f1239; --s-border: #fecdd3; }
-[data-sticky-color="cyan"] { --s-bg: #ecfeff; --s-text: #083344; --s-border: #cffafe; }
-
-/* Dark Theme Overrides */
-[data-theme="dark"] [data-sticky-color="zinc"] { --s-bg: #27272a; --s-text: #f4f4f5; --s-border: #3f3f46; }
-[data-theme="dark"] [data-sticky-color="red"] { --s-bg: #4c2b2d; --s-text: #fca5a5; --s-border: #7f1d1d; }
-[data-theme="dark"] [data-sticky-color="purple"] { --s-bg: #4a314d; --s-text: #e9d5ff; --s-border: #701a75; }
-[data-theme="dark"] [data-sticky-color="amber"] { --s-bg: #5c4532; --s-text: #fde68a; --s-border: #92400e; }
-[data-theme="dark"] [data-sticky-color="green"] { --s-bg: #1b4d3e; --s-text: #bbf7d0; --s-border: #064e3b; }
-[data-theme="dark"] [data-sticky-color="teal"] { --s-bg: #1d4c5c; --s-text: #99f6e4; --s-border: #134e4a; }
-[data-theme="dark"] [data-sticky-color="blue"] { --s-bg: #1e3a8a; --s-text: #bfdbfe; --s-border: #1e40af; }
-[data-theme="dark"] [data-sticky-color="indigo"] { --s-bg: #3b2e58; --s-text: #c7d2fe; --s-border: #312e81; }
-[data-theme="dark"] [data-sticky-color="stone"] { --s-bg: #292524; --s-text: #f5f5f4; --s-border: #44403c; }
-[data-theme="dark"] [data-sticky-color="lime"] { --s-bg: #365314; --s-text: #d9f99d; --s-border: #1a2e05; }
-[data-theme="dark"] [data-sticky-color="rose"] { --s-bg: #7c2d12; --s-text: #fecdd3; --s-border: #4c0519; }
-[data-theme="dark"] [data-sticky-color="cyan"] { --s-bg: #164e63; --s-text: #cffafe; --s-border: #083344; }
-
 .sticky-card {
-  background-color: var(--s-bg);
-  color: var(--s-text);
   border-radius: 2px;
   height: 280px;
   display: flex;
@@ -336,7 +290,11 @@ const formatText = (command) => {
   box-shadow: var(--shadow-sm);
   transition: transform 0.2s, box-shadow 0.2s, background-color 0.3s;
   animation: slideInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  border: 1px solid var(--s-border);
+  border: 1px solid rgba(0,0,0,0.1);
+}
+
+[data-theme="dark"] .sticky-card {
+  border: 1px solid rgba(255,255,255,0.1);
 }
 
 .sticky-card:hover { 
@@ -365,7 +323,7 @@ const formatText = (command) => {
   background: transparent;
   border: none;
   outline: none;
-  color: var(--s-text);
+  color: inherit;
   padding: 16px;
   font-family: inherit;
   font-size: 15px;
@@ -376,7 +334,7 @@ const formatText = (command) => {
   white-space: pre-wrap;
   word-break: break-word;
 }
-.sticky-input::placeholder { color: var(--s-text); opacity: 0.4; font-style: normal; font-weight: normal;}
+.sticky-input::placeholder { color: inherit; opacity: 0.5; font-style: normal; font-weight: normal;}
 
 .sticky-footer {
   display: flex;
@@ -392,7 +350,7 @@ const formatText = (command) => {
 .sf-btn {
   background: transparent;
   border: none;
-  color: var(--s-text);
+  color: inherit;
   opacity: 0.6;
   cursor: pointer;
   padding: 6px;
@@ -425,15 +383,16 @@ const formatText = (command) => {
 .color-swatch {
   width: 32px;
   height: 32px;
-  border-radius: 2px;
+  border-radius: 4px;
   cursor: pointer;
   transition: transform 0.15s;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: var(--s-bg);
-  border: 1px solid var(--s-border);
-  color: var(--s-text);
+  border: 1px solid rgba(0,0,0,0.1);
+}
+[data-theme="dark"] .color-swatch {
+  border: 1px solid rgba(255,255,255,0.1);
 }
 .color-swatch:hover {
   transform: scale(1.15);

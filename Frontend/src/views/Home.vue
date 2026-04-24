@@ -38,7 +38,7 @@ const features = [
   },
   {
     title: 'Bao cao va tong hop',
-    desc: 'Tong hop thong tin de doi ngu nhin nhanh tinh trang du an va nhung viec can xu ly.',
+    desc: 'Tong hop thong tin de doi ngu nhin nhanh tinh rang du an va nhung viec can xu ly.',
     icon: TrendingUp,
     color: '#16a34a',
     bg: '#f0fdf4'
@@ -411,5 +411,3 @@ const features = [
   }
 }
 </style>
-
-
