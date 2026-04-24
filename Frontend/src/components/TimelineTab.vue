@@ -15,10 +15,11 @@ const taskStore = useWorkTaskStore()
 const sourceTasks = computed(() => props.tasks || taskStore.tasks)
 const loading = computed(() => taskStore.loading)
 const today = ref(new Date())
-const viewMode = ref('Week')
+const viewMode = ref('Day')
 const showOptions = ref(false)
 const createMode = ref(false)
 const scrollContainer = ref(null)
+const leftPanelRows = ref(null)
 const dragState = ref(null)
 const clickedBucket = ref(null)
 const timelineAnchorDate = ref(new Date())
@@ -30,6 +31,7 @@ const expanded = ref({
 })
 
 const viewModes = [
+  { key: 'Day', unit: 'day', cellWidth: 64 },
   { key: 'Week', unit: 'week', cellWidth: 120 },
   { key: 'Month', unit: 'month', cellWidth: 140 },
   { key: 'Quarter', unit: 'quarter', cellWidth: 180 }
@@ -42,7 +44,10 @@ const timelineRange = computed(() => {
   const start = startOfDay(timelineAnchorDate.value)
   const end = startOfDay(timelineAnchorDate.value)
 
-  if (viewMode.value === 'Week') {
+  if (viewMode.value === 'Day') {
+    start.setTime(addDays(timelineAnchorDate.value, -10).getTime())
+    end.setTime(addDays(timelineAnchorDate.value, 25).getTime())
+  } else if (viewMode.value === 'Week') {
     const currentWeekStart = startOfWeek(timelineAnchorDate.value)
     start.setTime(addDays(currentWeekStart, -35).getTime())
     end.setTime(addDays(currentWeekStart, 48).getTime())
@@ -287,6 +292,15 @@ const onMouseUp = async (event) => {
   }
 }
 
+const syncScroll = (e) => {
+  const { scrollTop } = e.target
+  if (e.target === scrollContainer.value) {
+    if (leftPanelRows.value) leftPanelRows.value.scrollTop = scrollTop
+  } else {
+    if (scrollContainer.value) scrollContainer.value.scrollTop = scrollTop
+  }
+}
+
 const shiftTimeline = (direction) => {
   const next = new Date(timelineAnchorDate.value)
   if (viewMode.value === 'Week') {
@@ -337,12 +351,18 @@ onMounted(() => {
   updateViewportWidth()
   window.addEventListener('resize', updateViewportWidth)
   window.setTimeout(goToToday, 120)
+  
+  if (scrollContainer.value) scrollContainer.value.addEventListener('scroll', syncScroll)
+  if (leftPanelRows.value) leftPanelRows.value.addEventListener('scroll', syncScroll)
 })
 
 onUnmounted(() => {
   document.removeEventListener('mousemove', onMouseMove)
   document.removeEventListener('mouseup', onMouseUp)
   window.removeEventListener('resize', updateViewportWidth)
+  
+  if (scrollContainer.value) scrollContainer.value.removeEventListener('scroll', syncScroll)
+  if (leftPanelRows.value) leftPanelRows.value.removeEventListener('scroll', syncScroll)
 })
 
 function buildBuckets(start, end, unit) {
@@ -356,7 +376,14 @@ function buildBuckets(start, end, unit) {
     let subLabel = ''
     let groupLabel = ''
 
-    if (unit === 'week') {
+    if (unit === 'day') {
+      bucketEnd = endOfDay(bucketStart)
+      label = `${bucketStart.getDate()}`
+      const dayNames = ['Su', 'M', 'T', 'W', 'Th', 'F', 'Sa']
+      subLabel = dayNames[bucketStart.getDay()]
+      groupLabel = bucketStart.toLocaleString('en-US', { month: 'short', year: 'numeric' })
+      cursor.setDate(cursor.getDate() + 1)
+    } else if (unit === 'week') {
       const normalizedWeekStart = startOfWeek(bucketStart)
       bucketEnd = endOfDay(addDays(normalizedWeekStart, 6))
       label = `W${getWeekNumber(normalizedWeekStart)}`
@@ -503,6 +530,12 @@ function getWeekNumber(value) {
   const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1))
   return Math.ceil((((date - yearStart) / 86400000) + 1) / 7)
 }
+
+function isWeekend(date) {
+  if (!date) return false
+  const day = date.getDay()
+  return day === 0 || day === 6
+}
 </script>
 
 <template>
@@ -550,11 +583,11 @@ function getWeekNumber(value) {
     <div class="tl-body">
       <div class="tl-left-panel">
         <div class="tl-left-header">
-          <div class="tl-col-workitems">Work Items</div>
-          <div class="tl-col-duration">Duration</div>
+          <div class="tl-col-workitems">WORK ITEMS</div>
+          <div class="tl-col-duration">DURATION</div>
         </div>
 
-        <div class="tl-left-rows" :style="{ minHeight: `${rowsCanvasHeight}px` }">
+        <div class="tl-left-rows" ref="leftPanelRows" :style="{ minHeight: `${rowsCanvasHeight}px` }">
           <div
             v-for="task in visibleTasks"
             :key="task.id"
@@ -598,7 +631,12 @@ function getWeekNumber(value) {
               :key="`${bucket.label}-${index}`"
               type="button"
               class="tl-day-cell"
-              :class="{ 'is-today': containsDay(bucket.start, bucket.end, today.value), 'create-enabled': createMode, 'bucket-selected': clickedBucket && formatDateOnly(clickedBucket.start) === formatDateOnly(bucket.start) }"
+              :class="{ 
+                'is-today': containsDay(bucket.start, bucket.end, today.value), 
+                'create-enabled': createMode, 
+                'bucket-selected': clickedBucket && formatDateOnly(clickedBucket.start) === formatDateOnly(bucket.start),
+                'weekend': viewMode === 'Day' && isWeekend(bucket.start)
+              }"
               :style="{ width: `${cellWidth}px` }"
               @click="handleTimelineCanvasClick(bucket)"
             >
@@ -615,7 +653,11 @@ function getWeekNumber(value) {
                 :key="`grid-${index}`"
                 type="button"
                 class="tl-grid-line"
-                :class="{ 'is-today': containsDay(bucket.start, bucket.end, today.value), 'create-active': createMode }"
+                :class="{ 
+                  'is-today': containsDay(bucket.start, bucket.end, today.value), 
+                  'create-active': createMode,
+                  'weekend': viewMode === 'Day' && isWeekend(bucket.start)
+                }"
                 :style="{ left: `${index * cellWidth}px`, width: `${cellWidth}px` }"
                 @click="handleTimelineCanvasClick(bucket)"
               ></button>
@@ -643,7 +685,7 @@ function getWeekNumber(value) {
             </div>
 
             <button class="tl-bar-row tl-add-canvas-row" type="button" @click="requestQuickAdd(clickedBucket)">
-              <span class="canvas-add-label">Click to add a new work item</span>
+              <span class="canvas-add-label">Click để thêm work item mới</span>
             </button>
           </div>
         </div>
@@ -656,352 +698,279 @@ function getWeekNumber(value) {
 .plane-timeline {
   display: flex;
   flex-direction: column;
-  height: auto;
-  min-height: 100%;
-  background: #0d0f11;
-  color: #e4e4e7;
+  height: 100%;
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 12px;
   overflow: hidden;
 }
 
-.tl-header,
-.tl-header-left,
-.tl-header-right,
-.tl-view-modes {
-  display: flex;
-  align-items: center;
-}
-
+/* HEADER (TOP NAV) - Stylized minimally to match */
 .tl-header {
+  display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 16px;
-  padding: 14px 24px;
+  padding: 8px 16px;
+  background: var(--color-bg);
   border-bottom: 1px solid var(--color-border);
 }
 
-.create-mode-banner {
+.tl-header-left, .tl-header-right, .tl-view-modes {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 24px;
-  border-bottom: 1px solid var(--color-border);
-  background: linear-gradient(90deg, rgba(14, 165, 233, 0.16), rgba(59, 130, 246, 0.06));
-  color: #bae6fd;
-  font-size: 13px;
-}
-
-.tl-header-left,
-.tl-header-right {
-  gap: 12px;
-}
-
-.tl-nav-actions {
-  display: flex;
   gap: 8px;
 }
 
-.tl-task-count {
-  font-size: 13px;
-  color: var(--color-text-secondary);
-}
-
-.tl-view-modes {
-  gap: 4px;
-  background: #15181c;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  padding: 2px;
-}
-
-.mode-btn,
 .tl-btn {
-  border: 0;
-  border-radius: 4px;
+  height: 24px;
+  padding: 0 8px;
+  font-size: 11px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  border-radius: 0;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.tl-btn:hover {
+  background: var(--color-surface-hover);
+}
+
+.tl-btn.active {
+  background: var(--color-accent);
+  color: #ffffff;
+  border-color: var(--color-accent);
+}
+
+.mode-btn {
+  height: 24px;
+  padding: 0 10px;
+  font-size: 11px;
+  border: none;
   background: transparent;
   color: var(--color-text-secondary);
   cursor: pointer;
 }
 
-.mode-btn {
-  padding: 5px 12px;
-  font-size: 12px;
+.mode-btn.active {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
 }
 
-.tl-btn {
-  padding: 6px 12px;
-  border: 1px solid var(--color-border);
-  background: #111317;
-  font-size: 12px;
-}
-
-.mode-btn.active,
-.tl-btn.active {
-  background: #1f2937;
-  color: #ffffff;
-}
-
-.display-options {
-  position: relative;
-}
-
-.display-menu {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 12;
-  min-width: 220px;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: #111317;
-  padding: 10px;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
-}
-
-.option-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: #d4d4d8;
-  padding: 6px 0;
-}
-
+/* BODY LAYOUT */
 .tl-body {
   display: flex;
   flex: 1;
-  min-height: max-content;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
 }
 
+/* LEFT PANEL */
 .tl-left-panel {
-  width: 440px;
-  min-width: 440px;
-  border-right: 2px solid var(--color-border);
+  width: 280px;
+  min-width: 280px;
+  border-right: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
-  min-height: 0;
   background: var(--color-bg);
-  position: sticky;
-  left: 0;
   z-index: 5;
 }
 
 .tl-left-header {
   display: flex;
-  height: 88px;
+  height: 40px;
+  align-items: center;
   border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg);
 }
 
-.tl-col-workitems,
-.tl-col-duration {
+.tl-col-workitems, .tl-col-duration {
+  height: 100%;
   display: flex;
   align-items: center;
-  font-size: 12px;
+  padding: 0 12px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
 }
 
 .tl-col-workitems {
   flex: 1;
-  gap: 8px;
-  padding: 0 12px;
-  color: var(--color-text-secondary);
-  font-weight: 600;
-  text-transform: uppercase;
 }
 
 .tl-col-duration {
-  width: 96px;
-  justify-content: center;
+  width: 80px;
+  justify-content: flex-end;
   border-left: 1px solid var(--color-border);
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-  font-weight: 600;
 }
 
 .tl-left-rows {
   flex: 1;
-  overflow: visible;
+  overflow-y: auto;
+  scrollbar-width: none; /* Hide scrollbar for sync */
 }
+.tl-left-rows::-webkit-scrollbar { display: none; }
 
 .tl-task-row {
-  width: 100%;
-  height: 52px;
   display: flex;
-  border: 0;
+  height: 40px;
+  align-items: center;
   border-bottom: 1px solid var(--color-border);
-  background: transparent;
-  color: inherit;
   cursor: pointer;
-  text-align: left;
+  background: transparent;
+  width: 100%;
+  border-top: 0;
+  border-left: 0;
+  border-right: 0;
+  padding: 0;
 }
 
 .tl-task-row:hover {
-  background: var(--color-surface);
+  background: var(--color-surface-hover);
 }
 
-.tl-task-row .tl-col-workitems,
-.tl-task-row .tl-col-duration {
+.tl-task-row .tl-col-workitems {
+  font-size: 12px;
   text-transform: none;
+  letter-spacing: normal;
+  color: var(--color-text-primary);
+  font-weight: 400;
+}
+
+.tl-task-row .tl-col-duration {
+  font-size: 11px;
+  color: var(--color-text-secondary);
   font-weight: 400;
 }
 
 .task-key {
-  color: var(--color-text-muted);
-  font-size: 12px;
-  min-width: 86px;
+  color: var(--color-text-secondary);
+  margin-right: 8px;
+  opacity: 0.7;
 }
 
 .task-title-text {
-  overflow: hidden;
+  flex: 1;
   white-space: nowrap;
+  overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.task-emoji {
-  margin-left: auto;
-  color: #94a3b8;
-}
-
 .tl-add-row {
-  align-items: center;
+  color: var(--color-text-secondary);
+  font-size: 14px;
 }
 
 .add-text {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   padding: 0 12px;
-  color: var(--color-text-secondary);
-  font-size: 13px;
 }
 
+/* RIGHT PANEL */
 .tl-right-panel {
   flex: 1;
-  min-height: 0;
   overflow-x: auto;
-  overflow-y: visible;
+  overflow-y: auto;
+  background: var(--color-bg);
 }
 
 .tl-gantt {
-  min-height: max-content;
   position: relative;
-  padding-bottom: 24px;
+  min-height: 100%;
 }
 
-.tl-create-banner {
+/* HEADER ROWS */
+.tl-group-row, .tl-day-row {
+  display: flex;
   position: sticky;
   top: 0;
-  z-index: 6;
-  margin: 0 0 8px;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--color-border);
-  background: linear-gradient(90deg, rgba(56, 189, 248, 0.12), rgba(37, 99, 235, 0.08));
-  color: #c4e7ff;
-  font-size: 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.tl-group-row,
-.tl-day-row {
-  display: flex;
-  position: sticky;
   z-index: 4;
-  background: #101216;
 }
 
 .tl-group-row {
-  top: 0;
-  height: 34px;
+  height: 24px;
+  background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
 }
 
 .tl-day-row {
-  top: 34px;
-  height: 48px;
+  top: 24px;
+  height: 40px;
+  background: var(--color-bg);
   border-bottom: 1px solid var(--color-border);
-}
-
-.tl-group-cell,
-.tl-day-cell {
-  border-right: 1px solid var(--color-border);
 }
 
 .tl-group-cell {
   display: flex;
   align-items: center;
-  padding: 0 10px;
-  color: var(--color-text-secondary);
+  padding: 0 12px;
   font-size: 11px;
-  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  border-right: 1px solid var(--color-border);
 }
 
 .tl-day-cell {
-  border: 0;
-  background: transparent;
-  color: #d4d4d8;
   display: flex;
   flex-direction: column;
+  align-items: center;
   justify-content: center;
-  gap: 3px;
-  padding: 6px 4px;
-}
-
-.tl-day-cell.create-enabled:hover {
-  background: rgba(56, 189, 248, 0.08);
-}
-
-.tl-day-cell.bucket-selected {
-  background: rgba(56, 189, 248, 0.18);
-}
-
-.tl-day-cell.is-today {
-  background: rgba(37, 99, 235, 0.12);
+  border-right: 1px solid var(--color-border);
+  background: transparent;
+  border-top: 0;
+  border-left: 0;
+  border-bottom: 0;
+  padding: 0;
 }
 
 .day-num {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 13px;
+  color: var(--color-text-primary);
 }
 
-.day-dow,
-.bucket-progress {
+.day-dow {
   font-size: 10px;
-  color: var(--color-text-muted);
+  color: var(--color-text-secondary);
+  margin-top: 2px;
 }
 
-.bucket-progress {
-  color: #38bdf8;
+.tl-day-cell.weekend {
+  background: var(--color-surface);
 }
 
+/* GRID & BARS */
 .tl-bars-container {
   position: relative;
-  min-height: max-content;
+  min-height: calc(100% - 64px);
 }
 
 .tl-grid-lines {
   position: absolute;
-  inset: 0;
-  z-index: 0;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  pointer-events: none;
 }
 
 .tl-grid-line {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  border: 0;
+  height: 100%;
   border-right: 1px solid var(--color-border);
-  background: transparent;
-  cursor: default;
+  opacity: 0.3; /* Subtle vertical lines */
 }
 
-.tl-grid-line.create-active:hover {
-  background: rgba(56, 189, 248, 0.08);
-  cursor: crosshair;
-}
-
-.tl-grid-line.is-today {
-  background: rgba(37, 99, 235, 0.08);
+/* Weekend columns */
+.tl-grid-line.weekend {
+  background: var(--color-surface);
+  opacity: 0.15;
 }
 
 .today-line {
@@ -1009,64 +978,49 @@ function getWeekNumber(value) {
   top: 0;
   bottom: 0;
   width: 2px;
-  background: #3b82f6;
+  background: var(--color-accent);
   z-index: 2;
-  box-shadow: 0 0 18px rgba(59, 130, 246, 0.4);
 }
 
 .tl-bar-row {
-  position: relative;
-  height: 52px;
+  height: 40px;
   border-bottom: 1px solid var(--color-border);
+  position: relative;
 }
 
 .tl-task-bar {
   position: absolute;
-  top: 11px;
-  height: 30px;
-  border-radius: 8px;
+  top: 8px;
+  height: 24px;
+  background: var(--color-accent);
+  color: #ffffff;
   display: flex;
   align-items: center;
-  padding: 0 12px;
-  color: #ffffff;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 500;
   cursor: pointer;
   z-index: 3;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28);
+  border-radius: 0; /* NO rounded corners */
 }
 
 .tl-task-bar:hover {
-  filter: brightness(1.06);
+  filter: brightness(1.1);
 }
-
-.resize-handle {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 8px;
-  cursor: ew-resize;
-}
-
-.resize-handle.left { left: 0; }
-.resize-handle.right { right: 0; }
 
 .bar-label {
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-  font-weight: 600;
 }
 
 .tl-add-canvas-row {
   width: 100%;
+  height: 40px;
   border: 0;
   background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
-}
-
-.tl-add-canvas-row:hover {
-  background: rgba(56, 189, 248, 0.05);
+  position: relative;
+  cursor: crosshair;
 }
 
 .canvas-add-label {
@@ -1074,6 +1028,32 @@ function getWeekNumber(value) {
   left: 12px;
   top: 12px;
   font-size: 12px;
+  color: var(--color-text-secondary);
+  font-style: italic;
+  opacity: 0.7;
+}
+
+/* SCROLLBAR */
+.tl-right-panel::-webkit-scrollbar {
+  height: 2px;
+  width: 2px;
+}
+
+.tl-right-panel::-webkit-scrollbar-track {
+  background: var(--color-surface);
+}
+
+.tl-right-panel::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+}
+
+/* UTILS */
+.create-mode-banner {
+  padding: 8px 16px;
+  background: var(--color-accent);
+  color: #ffffff;
+  font-size: 11px;
+  text-align: center;
 }
 </style>
 

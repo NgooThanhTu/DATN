@@ -358,9 +358,9 @@ onMounted(async () => {
 }
 
 .secondary-btn {
-  background: var(--color-surface);
+  background: transparent;
   border-color: var(--color-border);
-  color: var(--color-text-primary);
+  color: var(--text-secondary);
 }
 
 .small {
@@ -527,11 +527,20 @@ onMounted(async () => {
 .task-form textarea {
   width: 100%;
   border: 1px solid var(--border-color);
-  border-radius: 2px;
+  border-radius: 4px;
   padding: 10px 12px;
-  background: var(--bg-primary);
+  background: var(--bg-tertiary);
   color: var(--text-primary);
   font: inherit;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.task-form input:focus,
+.task-form select:focus,
+.task-form textarea:focus {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.1);
 }
 
 @media (max-width: 768px) {

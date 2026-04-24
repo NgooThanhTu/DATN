@@ -411,7 +411,7 @@ watch(() => props.projectId, fetchOptions)
 .plane-search-input {
   border: 1px solid var(--color-border);
   border-radius: 6px;
-  background: #111317;
+  background: var(--bg-tertiary);
   color: var(--color-text-primary);
 }
 
@@ -432,8 +432,8 @@ watch(() => props.projectId, fetchOptions)
 .page-btn {
   border: 1px solid var(--color-border);
   border-radius: 6px;
-  background: #111317;
-  color: #d4d4d8;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
   padding: 7px 10px;
   cursor: pointer;
 }
@@ -456,7 +456,7 @@ watch(() => props.projectId, fetchOptions)
   padding: 10px;
   border-radius: 8px;
   border: 1px solid var(--color-border);
-  background: #111317;
+  background: var(--bg-tertiary);
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
 }
 

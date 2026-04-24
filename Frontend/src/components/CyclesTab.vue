@@ -562,13 +562,14 @@ onUnmounted(() => {
       </div>
 
       <div class="nexus-controls-row">
-        <div class="nexus-controls-row" v-if="showCycleSearch">
-          <input v-model="cycleSearchQuery" class="nexus-search-input" type="text" placeholder="Search cycles..." />
+        <!-- Unified clustering: Search -> Filter -> Add Button -->
+        <div class="flex items-center gap-2" v-if="showCycleSearch">
+           <input v-model="cycleSearchQuery" class="nexus-search-input" type="text" placeholder="Search cycles..." style="width: 200px" />
         </div>
-        <button class="nexus-btn nexus-btn-icon" type="button" @click="showCycleSearch = !showCycleSearch" :class="{ active: showCycleSearch }"><i class="fa-solid fa-magnifying-glass"></i></button>
+        <button class="nexus-btn-icon" type="button" @click="showCycleSearch = !showCycleSearch" :class="{ active: showCycleSearch }"><i class="fa-solid fa-magnifying-glass"></i></button>
         
         <div class="cycle-filter-wrapper">
-          <button class="nexus-btn nexus-btn-outlined" type="button" @click="showCycleFilters = !showCycleFilters" :class="{ active: showCycleFilters || hasCycleFilters }">
+          <button class="nexus-btn-outlined" type="button" @click="showCycleFilters = !showCycleFilters" :class="{ active: showCycleFilters || hasCycleFilters }">
             <i class="fa-solid fa-filter"></i> Filters
           </button>
           <div class="cycle-filter-menu" v-if="showCycleFilters" @click.stop>
@@ -580,7 +581,10 @@ onUnmounted(() => {
             <button class="clear-filter-btn" type="button" @click="clearCycleFilters">Clear filters</button>
           </div>
         </div>
-        <button class="nexus-btn nexus-btn-primary" type="button" @click="showCreateModal = true"><i class="fa-solid fa-plus"></i> Add cycle</button>
+        
+        <button class="nexus-btn-primary" type="button" @click="showCreateModal = true">
+          <i class="fa-solid fa-plus"></i> Add cycle
+        </button>
       </div>
     </header>
 
@@ -1002,7 +1006,7 @@ onUnmounted(() => {
   transition: border-color 0.2s, background 0.2s;
 }
 
-.cycle-card.hover-card:hover { border-color: #3F3F46; background: #1B1D22; }
+.cycle-card.hover-card:hover { border-color: var(--accent-color); background: var(--hover-bg); }
 .cycle-card.collapsed { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; }
 .cc-top { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--color-border); }
 .cct-left, .cct-right { display: flex; align-items: center; gap: 12px; }
@@ -1016,9 +1020,9 @@ onUnmounted(() => {
 .task-count-badge { font-size: 12px; color: #A1A1AA; display: flex; align-items: center; gap: 6px; }
 .carry-over-panel {
   margin-top: 12px;
-  border: 1px solid #27272A;
+  border: 1px solid var(--border-color);
   border-radius: 10px;
-  background: #111315;
+  background: var(--bg-tertiary);
   padding: 16px;
 }
 .carry-over-toolbar {
@@ -1037,9 +1041,9 @@ onUnmounted(() => {
 }
 .carry-over-search,
 .carry-over-select {
-  background: #0D0F11;
-  border: 1px solid #27272A;
-  color: #E4E4E7;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
   border-radius: 8px;
   padding: 8px 10px;
   font-size: 13px;

@@ -272,20 +272,28 @@
                </button>
                <i class="fa-solid fa-arrow-right icon-btn" @click="showTaskModal = false"></i>
             </div>
-            <div class="sph-right">
-               <button class="unsub-btn" @click="toggleSubscription"><i :class="isSubscribed ? 'fa-regular fa-bell-slash' : 'fa-regular fa-bell'"></i> {{ isSubscribed ? 'Unsubscribe' : 'Subscribe' }}</button>
-               <button class="icon-btn icon-action-btn" @click="copyTaskLink" title="Copy link"><i class="fa-solid fa-link"></i></button>
-               <el-dropdown trigger="click" @command="handleTaskMenuCommand">
-                 <button class="icon-btn icon-action-btn" title="More actions"><i class="fa-solid fa-ellipsis"></i></button>
-                 <template #dropdown>
-                   <el-dropdown-menu class="theme-dropdown">
-                     <el-dropdown-item command="copy"><i class="fa-solid fa-link mr-2"></i> Copy link</el-dropdown-item>
-                     <el-dropdown-item command="duplicate"><i class="fa-regular fa-clone mr-2"></i> Duplicate</el-dropdown-item>
-                     <el-dropdown-item command="archive"><i class="fa-solid fa-box-archive mr-2"></i> Archive soon</el-dropdown-item>
-                   </el-dropdown-menu>
-                 </template>
-               </el-dropdown>
-            </div>
+             <div class="sph-right">
+                <button class="s-btn s-btn-outline" @click="toggleSubscription">
+                   <i :class="isSubscribed ? 'fa-regular fa-bell-slash' : 'fa-regular fa-bell'"></i> 
+                   {{ isSubscribed ? 'Unsubscribe' : 'Subscribe' }}
+                </button>
+                <button class="s-btn" @click="copyTaskLink">
+                   <i class="fa-solid fa-link"></i> 
+                   Copy link
+                </button>
+                <el-dropdown trigger="click" @command="handleTaskMenuCommand">
+                  <button class="s-btn s-btn-icon" title="More actions">
+                     <i class="fa-solid fa-ellipsis"></i>
+                  </button>
+                  <template #dropdown>
+                    <el-dropdown-menu class="theme-dropdown">
+                      <el-dropdown-item command="copy"><i class="fa-solid fa-link mr-2"></i> Copy link</el-dropdown-item>
+                      <el-dropdown-item command="duplicate"><i class="fa-regular fa-clone mr-2"></i> Duplicate</el-dropdown-item>
+                      <el-dropdown-item command="archive"><i class="fa-solid fa-box-archive mr-2"></i> Archive soon</el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
+             </div>
          </div>
          
          <div class="sp-body">
@@ -320,7 +328,7 @@
                 <i class="fa-solid fa-align-left icon-hover" @mousedown.prevent="execEditorCommand('justifyLeft', null, 'description')"></i>
                 <i class="fa-solid fa-align-center icon-hover" @mousedown.prevent="execEditorCommand('justifyCenter', null, 'description')"></i>
                 <i class="fa-solid fa-align-right icon-hover" @mousedown.prevent="execEditorCommand('justifyRight', null, 'description')"></i>
-                <div class="w-[1px] h-4 bg-gray-700 mx-1"></div>
+                <div class="toolbar-sep"></div>
                 <i class="fa-solid fa-bold icon-hover" @mousedown.prevent="execEditorCommand('bold', null, 'description')"></i>
                 <i class="fa-solid fa-italic icon-hover" @mousedown.prevent="execEditorCommand('italic', null, 'description')"></i>
                 <i class="fa-solid fa-underline icon-hover" @mousedown.prevent="execEditorCommand('underline', null, 'description')"></i>
@@ -328,7 +336,7 @@
                 <i class="fa-solid fa-list-ul icon-hover" @mousedown.prevent="execEditorCommand('insertUnorderedList', null, 'description')"></i>
                 <i class="fa-solid fa-list-ol icon-hover" @mousedown.prevent="execEditorCommand('insertOrderedList', null, 'description')"></i>
                 <i class="fa-solid fa-file-code icon-hover" :class="{ 'is-active': codeMode.description }" @mousedown.prevent="toggleCodeBlockMode('description')"></i>
-                <div class="w-[1px] h-4 bg-gray-700 mx-1"></div>
+                <div class="toolbar-sep"></div>
                 <i class="fa-regular fa-image icon-hover" @mousedown.prevent="triggerDescriptionImageUpload"></i>
               </div>
               <div
@@ -357,15 +365,15 @@
             </div>
 
             <!-- Action Chips -->
-            <div class="sp-toolbar">
-               <button class="s-btn" @click="startCreateSubtask"><i class="fa-solid fa-layer-group"></i> Add sub-work item</button>
-               <button class="s-btn" :disabled="isAiBreakingDown" @click="createSubtasksWithAI">
-                 <i class="fa-solid fa-wand-magic-sparkles"></i>
-                 {{ isAiBreakingDown ? 'AI is preparing...' : 'AI split into subtasks' }}
-               </button>
-               
-               <button class="s-btn" @click="triggerDescriptionFileUpload"><i class="fa-solid fa-paperclip"></i> Attach</button>
-            </div>
+             <div class="sp-toolbar">
+                <button class="s-btn" @click="startCreateSubtask"><i class="fa-solid fa-layer-group"></i> Add sub-work item</button>
+                <button class="s-btn s-btn-primary" :disabled="isAiBreakingDown" @click="createSubtasksWithAI">
+                  <i class="fa-solid fa-wand-magic-sparkles"></i>
+                  {{ isAiBreakingDown ? 'AI is preparing...' : 'AI split into subtasks' }}
+                </button>
+                
+                <button class="s-btn" @click="triggerDescriptionFileUpload"><i class="fa-solid fa-paperclip"></i> Attach</button>
+             </div>
             <div v-if="aiSubtaskPreview.length" class="ai-preview-panel">
               <div class="ai-preview-head">
                 <div>
@@ -686,7 +694,7 @@
                        format="YYYY-MM-DD"
                        value-format="YYYY-MM-DD"
                        :disabled-date="disablePastDates"
-                       style="position:absolute; bottom:0; left:0; width:0; height:0; opacity:0; padding:0; border:0; visibility:hidden;"
+                       style="position:absolute; bottom:0; left:0; width:0; height:0; opacity:0; padding:0; border:0; display:none;"
                        @change="val => handleTaskDateChange('plannedStartDate', val)"
                      />
                    </div>
@@ -708,7 +716,7 @@
                        format="YYYY-MM-DD"
                        value-format="YYYY-MM-DD"
                        :disabled-date="disableDueDates"
-                       style="position:absolute; bottom:0; left:0; width:0; height:0; opacity:0; padding:0; border:0; visibility:hidden;"
+                       style="position:absolute; bottom:0; left:0; width:0; height:0; opacity:0; padding:0; border:0; display:none;"
                        @change="val => handleTaskDateChange('dueDate', val)"
                      />
                    </div>
@@ -1013,30 +1021,30 @@
                   <div class="feed-content w-full relative">
                     <div class="flex items-center justify-between">
                        <div>
-                          <span class="font-bold text-white text-[13px]">{{ entry.comment.fullName || 'User' }}</span> 
-                          <span class="text-gray-500 text-xs ml-2">commented {{ formatDate(entry.comment.createdAt) }} <span v-if="entry.comment.isEdited" class="italic">(edited)</span></span>
+                          <span class="font-bold text-[var(--color-text-primary)] text-[13px]">{{ entry.comment.fullName || 'User' }}</span> 
+                          <span class="text-[var(--color-text-muted)] text-xs ml-2">commented {{ formatDate(entry.comment.createdAt) }} <span v-if="entry.comment.isEdited" class="italic">(edited)</span></span>
                        </div>
                        
                        <!-- Hover Actions -->
-                       <div class="hidden group-hover:flex items-center gap-1 bg-[#16181D] border border-[#27272A] rounded p-0.5 shadow-lg absolute right-0 -top-2">
+                       <div class="hidden group-hover:flex items-center gap-1 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded p-0.5 shadow-lg absolute right-0 -top-2">
                           <el-popover  placement="bottom-end" trigger="click" popper-class="plane-popover dark !p-0" :width="320">
                              <template #reference>
-                                <i class="fa-regular fa-face-smile text-gray-400 hover:text-white cursor-pointer px-1.5 py-1 rounded hover:bg-gray-700"></i>
+                                <i class="fa-regular fa-face-smile text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] cursor-pointer px-1.5 py-1 rounded hover:bg-[var(--color-surface-hover)]"></i>
                              </template>
-                             <div class="popover-content bg-[#1E2025]">
-                                <div class="p-2 border-b border-gray-700 relative">
+                             <div class="popover-content bg-[var(--bg-secondary)]">
+                                <div class="p-2 border-b border-[var(--border-color)] relative">
                                   <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 text-xs"></i>
-                                  <input type="text" v-model="emojiSearch" class="w-full bg-[#111] border border-gray-700 rounded text-white py-1.5 pl-8 pr-2 text-xs focus:outline-none focus:border-blue-500" placeholder="Search..." />
+                                  <input type="text" v-model="emojiSearch" class="w-full bg-[var(--color-surface)] border border-[var(--border-color)] rounded text-[var(--color-text-primary)] py-1.5 pl-8 pr-2 text-xs focus:outline-none focus:border-blue-500" placeholder="Search..." />
                                 </div>
                                 <div class="p-2 text-xs font-semibold text-gray-400">Smileys & emotion</div>
                                 <div class="grid grid-cols-8 gap-1 p-2 max-h-[160px] overflow-y-auto no-scrollbar">
-                                  <div v-for="emoji in filteredEmojis" :key="emoji" @click="addReaction(entry.comment, emoji)" class="cursor-pointer text-lg text-center hover:bg-gray-700 rounded p-1">{{ emoji }}</div>
+                                  <div v-for="emoji in filteredEmojis" :key="emoji" @click="addReaction(entry.comment, emoji)" class="cursor-pointer text-lg text-center hover:bg-[var(--color-surface-hover)] rounded p-1">{{ emoji }}</div>
                                 </div>
                              </div>
                           </el-popover>
                           
                           <el-dropdown  trigger="click" placement="bottom-end">
-                             <i class="fa-solid fa-ellipsis text-gray-400 hover:text-white cursor-pointer px-1.5 py-1 rounded hover:bg-gray-700"></i>
+                             <i class="fa-solid fa-ellipsis text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] cursor-pointer px-1.5 py-1 rounded hover:bg-[var(--color-surface-hover)]"></i>
                              <template #dropdown>
                                <el-dropdown-menu class="dark-dropdown" style="width: 150px;">
                                  <el-dropdown-item @click="startEditingComment(entry.comment)"><i class="fa-solid fa-pen mr-2"></i> Edit</el-dropdown-item>
@@ -1050,16 +1058,16 @@
                     
                     <!-- Editable vs Normal -->
                     <div v-if="editingCommentId === entry.comment.id" class="mt-2">
-                       <div class="editor-wrap !bg-[#1E2025]">
+                       <div class="editor-wrap !bg-[var(--color-surface)]">
                           <textarea class="c-input bg-transparent border-none !h-[60px]" v-model="editingContent" autofocus></textarea>
                           <div class="c-toolbar flex justify-end gap-2 p-2">
-                             <button class="px-3 py-1.5 text-xs rounded border border-gray-600 text-gray-300 hover:bg-gray-700 transition" @click="cancelEditingComment">Cancel</button>
+                             <button class="px-3 py-1.5 text-xs rounded border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition" @click="cancelEditingComment">Cancel</button>
                              <button class="px-3 py-1.5 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 transition" @click="saveEditedComment(entry.comment.id, entry.comment)">Update</button>
                           </div>
                        </div>
                     </div>
                     <div v-else>
-                       <div class="mt-1 text-[14px] text-gray-300 format-comment-content" v-html="formatCommentDisplay(entry.comment.content)"></div>
+                       <div class="mt-1 text-[14px] text-[var(--color-text-secondary)] format-comment-content" v-html="formatCommentDisplay(entry.comment.content)"></div>
                         <div v-if="entry.comment.attachments?.length" class="comment-attachments">
                            <button
                              v-for="attachment in entry.comment.attachments"
@@ -1078,7 +1086,7 @@
                        
                        <!-- Reactions -->
                        <div class="flex flex-wrap gap-2 mt-2" v-if="entry.comment.reactions && Object.keys(entry.comment.reactions).length > 0">
-                          <div v-for="(count, emoji) in entry.comment.reactions" :key="emoji" class="flex items-center gap-1.5 bg-[#1E2025] border border-[#27272A] rounded-full px-2.5 py-0.5 cursor-pointer hover:bg-gray-700 transition-colors" @click="addReaction(entry.comment, emoji)">
+                          <div v-for="(count, emoji) in entry.comment.reactions" :key="emoji" class="flex items-center gap-1.5 bg-[var(--color-surface-hover)] border border-[var(--color-border)] rounded-full px-2.5 py-0.5 cursor-pointer hover:bg-[var(--color-surface-hover)] transition-colors" @click="addReaction(entry.comment, emoji)">
                              <span class="text-sm mt-px">{{ emoji }}</span> <span class="text-xs text-blue-400 font-medium">{{ count }}</span>
                           </div>
                        </div>
@@ -1090,11 +1098,11 @@
             <div v-else class="activity-empty-state">No activity yet.</div>
 
             <div class="comment-box">
-               <p class="text-[13px] font-semibold mb-2 text-gray-400">Add comment</p>
+               <p class="text-[13px] font-semibold mb-2 text-[var(--color-text-muted)]">Add comment</p>
                <div class="editor-wrap !pt-2">
                   <div v-if="pendingAttachments.length > 0" class="px-3 pb-2 flex flex-wrap gap-2">
-                     <div v-for="(file, idx) in pendingAttachments" :key="idx" class="flex items-center gap-1.5 bg-[#1E2025] border border-gray-700 rounded px-2 py-1 text-xs text-gray-300">
-                        <i class="fa-regular fa-file-lines text-gray-400"></i>
+                     <div v-for="(file, idx) in pendingAttachments" :key="idx" class="flex items-center gap-1.5 bg-[var(--color-surface-hover)] border border-[var(--color-border)] rounded px-2 py-1 text-xs text-[var(--color-text-secondary)]">
+                        <i class="fa-regular fa-file-lines text-[var(--color-text-muted)]"></i>
                         <span class="max-w-[150px] truncate">{{ file.name }}</span>
                         <i class="fa-solid fa-xmark ml-1 cursor-pointer hover:text-red-400" @click="pendingAttachments.splice(idx, 1)"></i>
                      </div>
@@ -1112,24 +1120,31 @@
                   <input ref="commentFileInput" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip,.rar,.ppt,.pptx" style="display:none" multiple @change="handleCommentFileChange($event, false)" />
                   <div class="c-toolbar">
                      <div class="ct-left">
-                       <i class="fa-solid fa-align-left icon-hover" @mousedown.prevent="execEditorCommand('justifyLeft', null, 'comment')"></i>
-                       <i class="fa-solid fa-align-center icon-hover" @mousedown.prevent="execEditorCommand('justifyCenter', null, 'comment')"></i>
-                       <i class="fa-solid fa-align-right icon-hover" @mousedown.prevent="execEditorCommand('justifyRight', null, 'comment')"></i>
-                       <div class="w-[1px] h-4 bg-gray-700 mx-1"></div>
+                       <!-- Group 1: Text -->
                        <i class="fa-solid fa-bold icon-hover" @mousedown.prevent="execEditorCommand('bold', null, 'comment')"></i> 
                        <i class="fa-solid fa-italic icon-hover" @mousedown.prevent="execEditorCommand('italic', null, 'comment')"></i> 
                        <i class="fa-solid fa-underline icon-hover" @mousedown.prevent="execEditorCommand('underline', null, 'comment')"></i> 
                        <i class="fa-solid fa-strikethrough icon-hover" @mousedown.prevent="execEditorCommand('strikeThrough', null, 'comment')"></i>
-                       <i class="fa-solid fa-code icon-hover ml-1" @mousedown.prevent="wrapSelectionWithInlineCode('comment')"></i>
+                       
+                       <div class="toolbar-sep"></div>
+                       
+                       <!-- Group 2: Code -->
+                       <i class="fa-solid fa-code icon-hover" @mousedown.prevent="wrapSelectionWithInlineCode('comment')"></i>
                        <i class="fa-solid fa-file-code icon-hover" :class="{ 'is-active': codeMode.comment }" @mousedown.prevent="toggleCodeBlockMode('comment')"></i>
-                       <div class="w-[1px] h-4 bg-gray-700 mx-1"></div>
+                       
+                       <div class="toolbar-sep"></div>
+                       
+                       <!-- Group 3: List -->
                        <i class="fa-solid fa-list-ul icon-hover" @mousedown.prevent="execEditorCommand('insertUnorderedList', null, 'comment')"></i> 
                        <i class="fa-solid fa-list-ol icon-hover" @mousedown.prevent="execEditorCommand('insertOrderedList', null, 'comment')"></i> 
-                       <div class="w-[1px] h-4 bg-gray-700 mx-1"></div>
+                       
+                       <div class="toolbar-sep"></div>
+                       
+                       <!-- Group 4: Insert -->
                        <i class="fa-regular fa-image icon-hover" @mousedown.prevent="triggerCommentImageUpload"></i> 
                        <i class="fa-solid fa-paperclip icon-hover" @mousedown.prevent="triggerCommentFileUpload"></i>
                      </div>
-                     <button class="c-submit" :style="commentHasContent ? { background: 'var(--color-accent)', color: '#fff', cursor: 'pointer' } : {}" :disabled="!commentHasContent" @click="submitComment">Comment</button>
+                     <button class="c-submit" :disabled="!commentHasContent" @click="submitComment">Comment</button>
                   </div>
                </div>
             </div>
@@ -3731,14 +3746,14 @@ watch(() => props.selectedTask, (newTask) => {
 .gap-2 { gap: 8px; } .gap-3 { gap: 12px; } .gap-4 { gap: 16px; } .gap-5 { gap: 20px; } .gap-8 { gap: 32px; }
 .text-muted { color: #A1A1AA; }
 .text-primary { color: #38BDF8; }
-.bg-dark { background: #16181D; }
-.bg-dark-2 { background: #111111; }
-.border-gray { border-color: #27272A; }
+.bg-dark { background: var(--bg-tertiary); }
+.bg-dark-2 { background: var(--bg-primary); }
+.border-gray { border-color: var(--border-color); }
 .icon-btn { cursor: pointer; transition: color 0.2s; } .icon-btn:hover { color: #E5E7EB; }
 .nav-icon-btn {
   width: 28px;
   height: 28px;
-  border: 1px solid #27272A;
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   background: transparent;
   color: #A1A1AA;
@@ -3746,9 +3761,9 @@ watch(() => props.selectedTask, (newTask) => {
 }
 .nav-icon-btn:hover {
   color: #E5E7EB;
-  background: #1E1F21;
+  background: var(--hover-bg);
 }
-.icon-hover { cursor: pointer; padding: 4px; border-radius: 4px; } .icon-hover:hover { background: #27272A; }
+.icon-hover { cursor: pointer; padding: 4px; border-radius: 4px; } .icon-hover:hover { background: var(--hover-bg); }
 .icon-hover.is-active {
   background: #1D4ED8;
   color: #FFFFFF;
@@ -3861,11 +3876,10 @@ watch(() => props.selectedTask, (newTask) => {
   right: 0;
   bottom: 0;
   width: min(800px, 90vw);
-  background: var(--color-surface);
+  background: var(--color-bg);
   border-left: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
-  box-shadow: var(--shadow-xl);
 }
 
 .sp-header {
@@ -3877,10 +3891,16 @@ watch(() => props.selectedTask, (newTask) => {
   border-bottom: 1px solid var(--color-border);
 }
 
+.sph-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .sp-body {
   flex: 1;
   overflow-y: auto;
-  padding: 32px 40px;
+  padding: 24px 32px;
 }
 
 .sp-breadcrumb {
@@ -3891,16 +3911,83 @@ watch(() => props.selectedTask, (newTask) => {
 }
 
 .sp-title {
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 800;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
   outline: none;
   color: var(--color-text-primary);
+  line-height: 1.3;
+}
+
+.sp-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 24px;
+  margin-bottom: 24px;
+}
+
+/* ACTION BUTTONS */
+.s-btn {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+  transition: all 0.2s ease;
+}
+
+.s-btn-primary {
+  background: var(--color-accent);
+  color: #ffffff;
+  border: 1px solid var(--color-accent);
+}
+
+.s-btn-outline {
+  background: transparent;
+  border: 1px solid var(--color-border);
+}
+
+.s-btn-icon {
+  padding: 0;
+  width: 28px;
+  min-width: 28px;
+}
+
+.s-btn i {
+  font-size: 12px;
+}
+
+.s-btn:hover:not(:disabled) {
+  background: var(--color-bg-secondary);
+  border-color: var(--color-border);
+  filter: brightness(1.1);
+}
+
+.s-btn-primary:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.s-btn-outline:hover:not(:disabled) {
+  background: var(--color-bg-secondary);
+}
+
+.s-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .rich-editor {
   min-height: 60px;
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.6;
   color: var(--color-text-secondary);
   outline: none;
@@ -3908,7 +3995,7 @@ watch(() => props.selectedTask, (newTask) => {
 
 .rich-editor[data-placeholder]:empty:before {
   content: attr(data-placeholder);
-  color: var(--color-text-muted);
+  color: var(--color-text-secondary);
 }
 
 .props-grid {
@@ -3925,7 +4012,7 @@ watch(() => props.selectedTask, (newTask) => {
 
 .p-label {
   font-size: 13px;
-  color: var(--color-text-muted);
+  color: var(--color-text-secondary);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -3936,7 +4023,7 @@ watch(() => props.selectedTask, (newTask) => {
   align-items: center;
   gap: 10px;
   padding: 6px 12px;
-  background: var(--color-surface);
+  background: var(--color-bg-secondary);
   border: 1px solid transparent;
   border-radius: 2px;
   color: var(--color-text-primary);
@@ -3946,12 +4033,12 @@ watch(() => props.selectedTask, (newTask) => {
 }
 
 .property-trigger:hover {
-  background: var(--color-surface-hover);
+  background: var(--color-bg);
   border-color: var(--color-border);
 }
 
 .property-value {
-  color: #F4F4F5;
+  color: var(--color-text-primary);
   font-weight: 500;
 }
 .t-btn-number {
@@ -3960,10 +4047,10 @@ watch(() => props.selectedTask, (newTask) => {
 .estimate-inline-input,
 .estimate-hours-input {
   width: 72px;
-  border: 1px solid #27272A;
+  border: 1px solid var(--color-border);
   border-radius: 6px;
-  background: #111111;
-  color: #E4E4E7;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
   padding: 4px 8px;
   font-size: 12px;
 }
@@ -3983,25 +4070,25 @@ watch(() => props.selectedTask, (newTask) => {
   flex-wrap: wrap;
 }
 .secondary-mini-btn {
-  border: 1px solid #27272A;
-  background: #18181B;
-  color: #E4E4E7;
+  border: 1px solid var(--border-color);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
   border-radius: 6px;
   padding: 5px 10px;
   font-size: 12px;
   cursor: pointer;
-  transition: border-color 0.2s ease, background 0.2s ease;
+  transition: all 0.2s ease;
 }
 .secondary-mini-btn:hover:not(:disabled) {
-  border-color: #3B82F6;
-  background: #1F2937;
+  border-color: var(--color-accent);
+  background: var(--color-bg);
 }
 .secondary-mini-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 .session-status-copy {
-  color: #A1A1AA;
+  color: var(--color-text-secondary);
   font-size: 12px;
   min-width: 120px;
 }
@@ -4019,7 +4106,7 @@ watch(() => props.selectedTask, (newTask) => {
 .estimate-unit,
 .estimate-helper-text,
 .t-btn-number small {
-  color: #A1A1AA;
+  color: var(--color-text-secondary);
   font-size: 12px;
 }
 .estimate-suggestion-btn {
@@ -4027,11 +4114,11 @@ watch(() => props.selectedTask, (newTask) => {
   width: fit-content;
 }
 .muted-val {
-  color: #71717A;
+  color: var(--color-text-secondary);
 }
 
 .btn-add-label {
-  background: #27272A;
+  background: var(--color-bg);
   border: none;
   border-radius: 4px;
   padding: 4px 10px;
@@ -4041,7 +4128,7 @@ watch(() => props.selectedTask, (newTask) => {
 }
 
 .icon-filter-btn {
-  background: #27272A;
+  background: var(--color-bg-secondary);
   border: none;
   color: #A1A1AA;
   padding: 6px 10px;
@@ -4054,7 +4141,7 @@ watch(() => props.selectedTask, (newTask) => {
   padding: 14px;
   border: 1px solid var(--color-border);
   border-radius: 10px;
-  background: color-mix(in srgb, var(--color-surface) 88%, #0ea5e9 12%);
+  background: color-mix(in srgb, var(--color-bg-secondary) 88%, #0ea5e9 12%);
 }
 
 .ai-preview-head {
@@ -4095,7 +4182,7 @@ watch(() => props.selectedTask, (newTask) => {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 10px 12px;
-  background: var(--color-surface);
+  background: var(--color-bg-secondary);
 }
 
 .ai-assignee-top {
@@ -4119,7 +4206,7 @@ watch(() => props.selectedTask, (newTask) => {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 12px;
-  background: var(--color-surface);
+  background: var(--color-bg-secondary);
 }
 
 .ai-preview-top {
@@ -4156,17 +4243,93 @@ watch(() => props.selectedTask, (newTask) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-text-muted);
+  color: var(--color-text-secondary);
 }
 
 .muted-val {
-  color: var(--color-text-muted);
+  color: var(--color-text-secondary);
 }
 
 .editor-wrap {
   border: 1px solid var(--color-border);
-  border-radius: 2px;
-  background: var(--color-input-bg);
+  border-radius: 6px;
+  background: var(--color-bg-secondary);
+  overflow: hidden;
+}
+
+.comment-box {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--color-border);
+}
+
+.comment-editor {
+  min-height: 80px;
+  padding: 12px 16px !important;
+}
+
+.c-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--color-bg-secondary);
+  border-top: 1px solid var(--color-border);
+}
+
+.ct-left {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.toolbar-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--color-border);
+  margin: 0 4px;
+}
+
+.icon-hover {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.icon-hover:hover {
+  background: var(--color-bg);
+}
+
+.icon-hover.is-active {
+  background: var(--color-accent);
+  color: #ffffff;
+}
+
+.c-submit {
+  height: 28px;
+  padding: 0 12px;
+  background: var(--color-accent);
+  color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.c-submit:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.c-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .theme-dropdown {
@@ -4192,7 +4355,7 @@ watch(() => props.selectedTask, (newTask) => {
 }
 
 .t-btn-date:deep(.el-input__inner) {
-  color: #D4D4D8 !important;
+  color: var(--color-text-primary) !important;
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
@@ -4209,7 +4372,7 @@ watch(() => props.selectedTask, (newTask) => {
 }
 
 .property-date-picker:deep(.el-input__wrapper:hover) {
-  border-color: #27272A;
-  background: #1A1B1F !important;
+  border-color: var(--color-border-hover);
+  background: var(--bg-tertiary) !important;
 }
 </style>

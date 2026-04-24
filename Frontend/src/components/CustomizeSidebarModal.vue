@@ -204,16 +204,15 @@ const saveChanges = () => {
   color: #8c9bab;
   font-size: 14px;
   cursor: grab;
-  display: flex;
+  display: none; /* hidden by default */
   align-items: center;
   justify-content: center;
-  visibility: hidden; /* show on hover */
 }
 .nav-item:hover .drag-handle {
-  visibility: visible;
+  display: flex;
 }
 .drag-handle.invisible {
-  visibility: hidden !important;
+  display: none !important;
 }
 
 :deep(.custom-checkbox .el-checkbox__inner) {
@@ -252,15 +251,14 @@ const saveChanges = () => {
   font-size: 14px;
   width: 28px;
   height: 28px;
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
   border-radius: 4px;
   cursor: pointer;
-  visibility: hidden;
 }
 .nav-item:hover .more-actions {
-  visibility: visible;
+  display: flex;
 }
 .more-actions:hover {
   background-color: #3b444b;

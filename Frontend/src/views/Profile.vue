@@ -7,7 +7,14 @@
       <div class="profile-container" v-loading="isLoading">
         <div class="profile-header-section sharp-card">
           <div class="header-image-box" :style="coverBannerStyle" @click="triggerCoverUpload" title="Click to change cover">
-            <div class="avatar-inside-wrapper" @click.stop>
+            <div class="banner-upload-prompt" v-if="!profileData.coverUrl">
+              <i class="fa-regular fa-image"></i>
+              <span>Add cover</span>
+            </div>
+          </div>
+
+          <div class="profile-header-info-row">
+            <div class="avatar-container" @click.stop>
               <el-dropdown trigger="click" @command="handleAvatarCommand">
                 <div class="large-profile-avatar" :style="avatarStyle">
                   {{ profileData.avatarUrl ? '' : getInitials(profileData.fullName) }}
@@ -25,13 +32,6 @@
               </el-dropdown>
             </div>
 
-            <div class="banner-upload-prompt" v-if="!profileData.coverUrl">
-              <i class="fa-regular fa-image"></i>
-              <span>Add cover</span>
-            </div>
-          </div>
-
-          <div class="header-footer">
             <div class="profile-name-block">
               <strong>{{ profileData.publicName || profileData.fullName || 'Member' }}</strong>
               <span>{{ profileData.jobTitle || 'Update your job title' }}</span>
@@ -636,6 +636,7 @@ onUnmounted(() => {
   height: 180px;
   display: flex;
   align-items: center;
+  justify-content: center;
   position: relative;
   cursor: pointer;
   border-radius: 2px 2px 0 0;
@@ -646,92 +647,112 @@ onUnmounted(() => {
   filter: brightness(0.88);
 }
 
-.avatar-inside-wrapper {
-  position: absolute;
-  left: 30px;
-  bottom: -50px;
+.banner-upload-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text-secondary);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.banner-upload-prompt i {
+  font-size: 24px;
+}
+
+.banner-upload-prompt span {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.profile-header-info-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 24px;
+  padding: 0 40px 24px;
+  background-color: var(--bg-secondary);
+  border-radius: 0 0 2px 2px;
+}
+
+.avatar-container {
+  margin-top: -60px;
   z-index: 10;
+  position: relative;
 }
 
 .large-profile-avatar {
-  height: 120px;
-  width: 120px;
+  height: 140px;
+  width: 140px;
   background-color: var(--color-accent);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 40px;
+  font-size: 48px;
   font-weight: 700;
   color: #ffffff;
-  border: 4px solid var(--bg-primary);
+  border: 6px solid var(--bg-primary);
   cursor: pointer;
   position: relative;
   overflow: hidden;
-  transition: filter 0.2s;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  transition: all 0.2s;
 }
 
 .large-profile-avatar:hover {
-  filter: brightness(0.8);
+  filter: brightness(0.85);
+  transform: scale(1.02);
 }
 
 .avatar-hover-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0);
+  background: rgba(0, 0, 0, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  transition: background 0.2s;
+  transition: opacity 0.2s;
   color: white;
-  font-size: 22px;
+  font-size: 24px;
   opacity: 0;
 }
 
 .large-profile-avatar:hover .avatar-hover-overlay {
-  background: rgba(0, 0, 0, 0.4);
   opacity: 1;
-}
-
-.banner-upload-prompt {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  color: rgba(255, 255, 255, 0.7);
-  font-weight: 600;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-  pointer-events: none;
-}
-
-.header-footer {
-  background-color: var(--bg-secondary);
-  border-radius: 0 0 2px 2px;
-  padding: 24px 24px 12px;
-  display: flex;
-  justify-content: space-between;
-  gap: 24px;
-  align-items: flex-start;
 }
 
 .profile-name-block {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
+  padding-bottom: 8px;
 }
 
 .profile-name-block strong {
   color: var(--color-text-primary);
-  font-size: 22px;
-  font-weight: 700;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
 }
 
 .profile-name-block span {
   color: var(--color-text-secondary);
-  font-size: 14px;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+@media (max-width: 640px) {
+  .profile-header-info-row {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding-bottom: 32px;
+  }
+  .avatar-container {
+    margin-top: -70px;
+  }
 }
 
 .profile-content-form {
@@ -1078,10 +1099,7 @@ onUnmounted(() => {
     font-size: 24px;
   }
 
-  .avatar-inside-wrapper {
-    left: 20px;
-    bottom: -40px;
-  }
+
 
   .profile-content-form {
     padding: 0 16px;

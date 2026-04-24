@@ -744,9 +744,11 @@ const handleSidebarSaved = (prefs) => {
 <style scoped>
 .ai-page-flex-wrapper {
   display: flex;
-  height: calc(100vh - 56px);
-  width: calc(100% + 80px);
-  margin: -40px;
+  height: calc(100vh - 64px);
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  background: var(--bg-primary);
 }
 
 .ai-container {
@@ -757,7 +759,7 @@ const handleSidebarSaved = (prefs) => {
 }
 
 .ai-page-header {
-  padding: 24px 40px 12px;
+  padding: 20px 32px 12px;
 }
 
 .header-left {
@@ -775,18 +777,19 @@ const handleSidebarSaved = (prefs) => {
 .header-pill {
   padding: 4px 10px;
   border-radius: 999px;
-  background: #e0f2fe;
-  color: #0c4a6e;
+  background: var(--bg-tertiary);
+  color: var(--accent-color);
   font-size: 12px;
   font-weight: 600;
+  border: 1px solid var(--border-color);
 }
 
 .repo-panel {
-  margin: 0 40px 12px;
+  margin: 0 32px 12px;
   padding: 16px;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  background: var(--color-surface);
+  background: var(--bg-secondary);
 }
 
 .repo-analysis-preview {
@@ -814,8 +817,8 @@ const handleSidebarSaved = (prefs) => {
   margin-bottom: 14px;
   padding: 12px;
   border-radius: 8px;
-  background: var(--color-background-soft);
-  border: 1px solid var(--color-border);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
 }
 
 .analysis-project {
@@ -958,7 +961,7 @@ const handleSidebarSaved = (prefs) => {
 .analysis-col {
   padding: 12px;
   border-radius: 8px;
-  background: var(--color-background-soft);
+  background: var(--bg-tertiary);
 }
 
 .analysis-col-title {
@@ -1021,11 +1024,15 @@ const handleSidebarSaved = (prefs) => {
 .repo-input {
   flex: 1;
   min-width: 0;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
-  background: var(--color-bg);
-  color: var(--color-text-primary);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
   padding: 10px 12px;
+  outline: none;
+}
+.repo-input:focus {
+  border-color: var(--accent-color);
 }
 
 .repo-actions {
@@ -1043,7 +1050,7 @@ const handleSidebarSaved = (prefs) => {
 
 .chat-history {
   flex: 1;
-  padding: 28px 40px;
+  padding: 20px 32px;
   display: flex;
   flex-direction: column;
   gap: 28px;
@@ -1051,8 +1058,8 @@ const handleSidebarSaved = (prefs) => {
 }
 
 .chat-row {
-  gap: 16px;
-  max-width: 85%;
+  gap: 12px;
+  max-width: 70%;
   align-items: flex-start;
 }
 
@@ -1071,31 +1078,33 @@ const handleSidebarSaved = (prefs) => {
 }
 
 .bot-icon-circle {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  color: #579dff;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--accent-color);
 }
 
 .user-avatar-circle {
-  background: #0ea5e9;
+  background: var(--accent-color);
   color: #ffffff;
   font-weight: 700;
 }
 
 .bubble {
-  min-width: 160px;
-  padding: 14px 16px;
-  border-radius: 8px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  color: var(--color-text-primary);
-  line-height: 1.6;
+  min-width: 120px;
+  max-width: 100%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  line-height: 1.5;
+  font-size: 14px;
 }
 
 .bubble.primary {
-  background: #0ea5e9;
+  background: var(--accent-color);
   color: #ffffff;
-  border-color: #0ea5e9;
+  border-color: var(--accent-color);
 }
 
 .thinking-steps {
@@ -1115,25 +1124,31 @@ const handleSidebarSaved = (prefs) => {
 }
 
 .ai-chat-input-wrapper {
-  padding: 0 40px 32px;
+  padding: 0 32px 24px;
 }
 
 .input-box {
   align-items: center;
   gap: 10px;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: var(--color-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--bg-tertiary);
   padding: 0 14px;
+  transition: all 0.2s;
+}
+.input-box:focus-within {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2);
 }
 
 .input-box input {
   flex: 1;
   border: 0;
   background: transparent;
-  color: var(--color-text-primary);
-  padding: 16px 0;
+  color: var(--text-primary);
+  padding: 12px 0;
   outline: none;
+  font-size: 14px;
 }
 
 .attach-btn {
@@ -1160,10 +1175,10 @@ const handleSidebarSaved = (prefs) => {
 }
 
 .ai-details-panel {
-  width: 340px;
-  padding: 32px 24px;
-  border-left: 1px solid var(--color-border);
-  background: var(--color-surface);
+  width: 300px;
+  padding: 24px 20px;
+  border-left: 1px solid var(--border-color);
+  background: var(--bg-secondary);
 }
 
 .section-label {
@@ -1186,13 +1201,18 @@ const handleSidebarSaved = (prefs) => {
 
 .q-link {
   width: 100%;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
-  background: var(--color-surface);
-  color: var(--color-text-primary);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
   padding: 10px 12px;
   text-align: left;
   cursor: pointer;
+  transition: all 0.2s;
+}
+.q-link:hover {
+  background: var(--hover-bg);
+  border-color: var(--accent-color);
 }
 
 .mt-30 {
@@ -1208,9 +1228,9 @@ const handleSidebarSaved = (prefs) => {
 }
 
 .upgrade-card {
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  background: var(--color-surface);
+  background: var(--bg-tertiary);
   padding: 18px;
 }
 

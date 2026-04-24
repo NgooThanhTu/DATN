@@ -190,12 +190,12 @@ const getPrioIcon = (pr) => {
       <!-- Header -->
       <header class="vh-header">
         <div class="vh-left">
-           <span class="breadcrumb"><i class="fa-solid fa-layer-group"></i> Views <i class="fa-solid fa-chevron-right separator"></i> All work items <i class="fa-solid fa-chevron-down ms-2" style="font-size: 10px;"></i></span>
+           <span class="breadcrumb"><i class="fa-solid fa-layer-group"></i> Views <i class="fa-solid fa-chevron-right separator"></i> All work items <i class="fa-solid fa-chevron-down ms-2 text-[10px]"></i></span>
         </div>
         
         <!-- Filter Controls -->
-        <div class="analytics-filters" style="display: flex; gap: 8px; align-items: center; background: #111315; padding: 4px 12px; border-radius: 8px; border: 1px solid #1E2025; margin: 0 16px;">
-            <div class="scope-selector" style="display: flex; background: #0D0F11; border-radius: 6px; padding: 2px;">
+        <div class="analytics-filters">
+            <div class="scope-selector">
                 <button 
                     @click="analyticsScope = 'all'; selectedProjectId = null"
                     :class="['scope-btn', { active: analyticsScope === 'all' }]"
@@ -210,29 +210,28 @@ const getPrioIcon = (pr) => {
                 >Archived projects</button>
             </div>
 
-            <div class="project-selector-wrap" style="position: relative;">
+            <div class="project-selector-wrap">
                 <select 
                     v-model="selectedProjectId"
-                    style="background: transparent; border: 1px solid #27272A; color: #E4E4E7; padding: 4px 12px; border-radius: 4px; font-size: 13px; min-width: 160px; outline: none; cursor: pointer;"
+                    class="vh-select"
                     :disabled="analyticsScope === 'all'"
-                    :style="{ opacity: analyticsScope === 'all' ? 0.5 : 1 }"
                 >
-                    <option :value="null" style="background: #1E2025;">Filter by project</option>
-                    <option v-for="p in filteredProjects" :key="p.id" :value="p.id" style="background: #1E2025;">
+                    <option :value="null">Filter by project</option>
+                    <option v-for="p in filteredProjects" :key="p.id" :value="p.id">
                         {{ p.name }}
                     </option>
                 </select>
             </div>
         </div>
 
-        <div class="vh-right" style="display: flex; gap: 8px; align-items: center;">
-           <input type="text" v-model="filters.search" placeholder="Search tasks..." style="background: transparent; border: 1px solid var(--color-border); color: var(--color-text-primary); padding: 4px 8px; border-radius: 4px; font-size: 13px;" />
-           <select v-model="filters.status" style="background: transparent; border: 1px solid var(--color-border); color: var(--color-text-primary); padding: 4px 8px; border-radius: 4px; font-size: 13px;">
-              <option value="" style="background: var(--color-border);">All Status</option>
-              <option value="BACKLOG" style="background: var(--color-border);">Backlog</option>
-              <option value="TO DO" style="background: var(--color-border);">To Do</option>
-              <option value="IN PROGRESS" style="background: var(--color-border);">In Progress</option>
-              <option value="DONE" style="background: var(--color-border);">Done</option>
+        <div class="vh-right">
+           <input type="text" v-model="filters.search" placeholder="Search tasks..." class="vh-input" />
+           <select v-model="filters.status" class="vh-select">
+              <option value="">All Status</option>
+              <option value="BACKLOG">Backlog</option>
+              <option value="TO DO">To Do</option>
+              <option value="IN PROGRESS">In Progress</option>
+              <option value="DONE">Done</option>
            </select>
            <button class="plane-toolbar-btn" @click="showFilters = !showFilters"><i class="fa-solid fa-filter"></i></button>
            <el-dropdown trigger="click" popper-class="display-popper-final" placement="bottom-end" :hide-on-click="false" :z-index="5000">
@@ -373,7 +372,8 @@ const getPrioIcon = (pr) => {
   justify-content: space-between;
   align-items: center;
   padding: 16px 24px;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
 }
 .breadcrumb {
   display: flex;
@@ -381,38 +381,55 @@ const getPrioIcon = (pr) => {
   gap: 8px;
   font-size: 14px;
   font-weight: 500;
-  color: var(--color-text-muted);
+  color: var(--text-secondary);
 }
-.separator { font-size: 10px; color: var(--color-text-muted); border-right: 1px solid var(--color-border); padding-right: 8px; margin-right: 8px; }
+.separator { font-size: 10px; color: var(--color-text-muted); padding-right: 8px; margin-right: 8px; }
 .ms-2 { margin-left: 8px; }
 
 .vh-right {
   display: flex;
   gap: 12px;
+  align-items: center;
 }
 .plane-toolbar-btn {
   background: transparent;
   border: none;
-  color: #D4D4D8;
+  color: var(--text-secondary);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   padding: 6px 12px;
   border-radius: 6px;
-  transition: background 0.2s;
+  transition: all 0.2s;
   display: flex;
   align-items: center;
   gap: 6px;
 }
-.plane-toolbar-btn:hover { background: var(--color-border); }
+.plane-toolbar-btn:hover { background: var(--hover-bg); color: var(--text-primary); }
 .global-filter-bar {
   padding: 12px 24px 0;
 }
 
+.analytics-filters {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  background: var(--bg-secondary);
+  padding: 4px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  margin: 0 16px;
+}
+.scope-selector {
+  display: flex;
+  background: var(--bg-primary);
+  border-radius: 6px;
+  padding: 2px;
+}
 .scope-btn {
   background: transparent;
   border: none;
-  color: #A1A1AA;
+  color: var(--text-secondary);
   padding: 4px 12px;
   font-size: 12px;
   font-weight: 500;
@@ -420,20 +437,33 @@ const getPrioIcon = (pr) => {
   border-radius: 4px;
   transition: all 0.2s;
 }
-.scope-btn:hover { color: #E4E4E7; }
+.scope-btn:hover { color: var(--text-primary); background: var(--hover-bg); }
 .scope-btn.active {
-  background: #1E2025;
-  color: #E4E4E7;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
 }
 
-.project-selector-wrap select:focus {
-  border-color: #3B82F6 !important;
-  box-shadow: 0 0 0 1px #3B82F6 !important;
+.vh-input, .vh-select {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  outline: none;
+  transition: all 0.2s;
 }
-.project-selector-wrap select:hover:not(:disabled) {
-  border-color: #3F3F46;
+.vh-select { min-width: 140px; cursor: pointer; }
+.vh-select option { background: var(--bg-secondary); color: var(--text-primary); }
+
+.vh-input:focus, .vh-select:focus {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2);
 }
+
+.project-selector-wrap { position: relative; }
+.project-selector-wrap select:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .plane-primary-btn {
   background: #0EA5E9;
@@ -466,10 +496,10 @@ const getPrioIcon = (pr) => {
 .plane-table th {
   padding: 12px 16px;
   font-weight: 500;
-  color: var(--color-text-muted);
-  border-bottom: 2px solid var(--color-border);
-  border-right: 1px solid var(--color-border);
-  background: var(--color-bg);
+  color: var(--text-secondary);
+  border-bottom: 2px solid var(--border-color);
+  border-right: 1px solid var(--border-color);
+  background: var(--bg-secondary);
   position: sticky;
   top: 0;
   z-index: 10;
@@ -503,15 +533,16 @@ td i { width: 14px; text-align: center; }
 
 .display-scroll-vfinal {
   width: 330px;
-  background: var(--color-surface);
+  background: var(--bg-secondary);
   border-radius: 12px;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border-color);
   max-height: 520px;
   overflow-y: auto;
   overflow-x: hidden;
+  box-shadow: var(--shadow-xl);
 }
 .display-scroll-vfinal::-webkit-scrollbar { width: 5px; }
-.display-scroll-vfinal::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 10px; }
+.display-scroll-vfinal::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 10px; }
 .st-content { padding: 20px; padding-bottom: 30px; }
 .st-sect { margin-bottom: 24px; }
 .st-sect-header { display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: 700; color: var(--color-text-muted); margin-bottom: 12px; }
@@ -527,8 +558,8 @@ td i { width: 14px; text-align: center; }
   content: "\f00c"; font-family: "Font Awesome 6 Free"; font-weight: 900; font-size: 8px; color: var(--color-accent);
   position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
 }
-.st-label { font-size: 13px; color: var(--color-text-secondary); }
-.divider { height: 1px; background: #2D2F36; margin: 16px 0; }
+.st-label { font-size: 13px; color: var(--text-secondary); }
+.divider { height: 1px; background: var(--border-color); margin: 16px 0; }
 .st-check { display: flex; align-items: center; gap: 10px; cursor: pointer; }
 .st-check input { display: none; }
 .checkmark { width: 15px; height: 15px; border: 1.5px solid #3F3F46; border-radius: 4px; position: relative; }

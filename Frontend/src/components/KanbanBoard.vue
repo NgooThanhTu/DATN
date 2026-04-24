@@ -87,6 +87,7 @@ function getPriorityInfo(priority) {
   return map[priority] || map[0]
 }
 
+
 function getInitials(name) {
   if (!name) return '?'
   return name.split(' ').map(word => word[0]).join('').substring(0, 2).toUpperCase()
@@ -423,14 +424,14 @@ function handleColumnClick(column) {
   background: var(--color-surface);
   padding: 16px;
   cursor: pointer;
-  box-shadow: var(--shadow-sm);
+  box-shadow: none !important;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .kanban-card:hover {
   border-color: var(--color-accent);
   transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+  box-shadow: none !important;
 }
 
 .card-top {

@@ -368,13 +368,17 @@ watch(projectId, async () => {
 
       <div class="nexus-controls-row">
         <template v-if="!activeView">
-            <div class="nexus-controls-row" v-if="showViewSearch">
-               <input v-model="filterSearch" class="nexus-search-input" type="text" placeholder="Search views..." />
+            <!-- Consolidated Clusters -->
+            <div class="flex items-center gap-2" v-if="showViewSearch">
+               <input v-model="filterSearch" class="nexus-search-input" type="text" placeholder="Search views..." style="width: 200px" />
             </div>
-            <button class="nexus-btn nexus-btn-icon" type="button" @click="showViewSearch = !showViewSearch"><i class="fa-solid fa-magnifying-glass"></i></button>
+            
+            <button class="nexus-btn-icon" type="button" @click="showViewSearch = !showViewSearch" :class="{ 'bg-surface-hover border-accent': showViewSearch }">
+              <i class="fa-solid fa-magnifying-glass"></i>
+            </button>
             
             <el-dropdown trigger="click">
-                <button class="nexus-btn nexus-btn-outlined" type="button">
+                <button class="nexus-btn-outlined" type="button">
                     <i class="fa-solid fa-arrow-down-short-wide"></i> {{ sortBy }}
                 </button>
                 <template #dropdown>
@@ -386,13 +390,16 @@ watch(projectId, async () => {
                 </template>
             </el-dropdown>
             
-            <button class="nexus-btn nexus-btn-outlined" type="button" @click="showViewSearch = !showViewSearch" :class="{ active: showViewSearch }">
-                <i class="fa-solid fa-filter"></i> Filters
+            <button class="nexus-btn-outlined" type="button">
+                <i class="fa-solid fa-bars-staggered"></i> Filters
             </button>
-            <button class="nexus-btn nexus-btn-primary" type="button" @click="showCreateModal = true"><i class="fa-solid fa-plus"></i> Add view</button>
+
+            <button class="nexus-btn-primary" type="button" @click="showCreateModal = true">
+              <i class="fa-solid fa-plus"></i> Add view
+            </button>
         </template>
         <template v-else>
-            <button class="nexus-btn nexus-btn-outlined" type="button" disabled title="Display settings are configured when creating the view"><i class="fa-solid fa-sliders"></i> Display</button>
+            <button class="nexus-btn-outlined" type="button" disabled title="Display settings are configured when creating the view"><i class="fa-solid fa-sliders"></i> Display</button>
         </template>
       </div>
     </header>

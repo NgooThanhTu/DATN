@@ -239,7 +239,7 @@ onMounted(fetchData)
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: #0D0F11;
+  background: var(--bg-primary);
 }
 
 .settings-header {
@@ -247,7 +247,7 @@ onMounted(fetchData)
   justify-content: space-between;
   align-items: center;
   padding: 16px 24px;
-  border-bottom: 1px solid #1E2025;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .breadcrumb {
@@ -256,7 +256,7 @@ onMounted(fetchData)
   gap: 8px;
   font-size: 14px;
   font-weight: 500;
-  color: #A1A1AA;
+  color: var(--text-secondary);
 }
 .separator { font-size: 10px; color: #71717A; }
 
@@ -268,7 +268,7 @@ onMounted(fetchData)
 
 .settings-sidebar {
   width: 240px;
-  border-right: 1px solid #1E2025;
+  border-right: 1px solid var(--border-color);
   padding: 20px 12px;
 }
 
@@ -295,12 +295,12 @@ onMounted(fetchData)
 }
 
 .settings-nav li:hover {
-  background: #1E2025;
+  background: var(--hover-bg);
   color: #E4E4E7;
 }
 
 .settings-nav li.active {
-  background: #1E2025;
+  background: var(--hover-bg);
   color: #0EA5E9;
 }
 
@@ -338,8 +338,8 @@ onMounted(fetchData)
 
 .glass-input {
   width: 100%;
-  background: #111315;
-  border: 1px solid #1E2025;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   color: #E4E4E7;
   padding: 10px 14px;
@@ -378,14 +378,14 @@ onMounted(fetchData)
 
 .current-icon {
   width: 44px; height: 44px;
-  background: #1E2025;
+  background: var(--bg-secondary);
   border-radius: 8px;
   display: flex; align-items: center; justify-content: center;
   font-size: 24px;
 }
 
 .neutral-btn {
-  background: #1E2025;
+  background: var(--bg-secondary);
   border: 1px solid #27272A;
   color: #E4E4E7;
   padding: 8px 16px;
@@ -399,8 +399,8 @@ onMounted(fetchData)
   align-items: center;
   gap: 12px;
   padding: 12px;
-  background: #111315;
-  border: 1px solid #1E2025;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   margin-bottom: 8px;
 }
@@ -465,11 +465,11 @@ onMounted(fetchData)
   text-align: center;
   transition: background 0.2s;
 }
-.emoji-opt:hover { background: #1E2025; }
+.emoji-opt:hover { background: var(--hover-bg); }
 
 :deep(.glass-select .el-input__wrapper) {
-  background: #111315 !important;
-  border: 1px solid #1E2025 !important;
+  background: var(--bg-tertiary) !important;
+  border: 1px solid var(--border-color) !important;
   box-shadow: none !important;
 }
 :deep(.glass-select .el-input__inner) {
