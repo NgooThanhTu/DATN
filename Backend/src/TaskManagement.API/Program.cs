@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Data.SqlClient;
 
 using TaskManagement.Infrastructure.Data;
@@ -81,13 +82,17 @@ if (!string.IsNullOrWhiteSpace(defaultConnection) && !useInMemoryFallback)
            sqlOptions => sqlOptions.EnableRetryOnFailure(
                maxRetryCount: 5,
                maxRetryDelay: TimeSpan.FromSeconds(30),
-               errorNumbersToAdd: null)));
+               errorNumbersToAdd: null))
+           .ConfigureWarnings(warnings =>
+               warnings.Ignore(CoreEventId.PossibleIncorrectRequiredNavigationWithQueryFilterInteractionWarning)));
 }
 else
 {
     // Fallback to InMemory chỉ khi không có connection string
     builder.Services.AddDbContext<ApplicationDbContext>(options =>
-        options.UseInMemoryDatabase("DevInMemoryDb"));
+        options.UseInMemoryDatabase("DevInMemoryDb")
+            .ConfigureWarnings(warnings =>
+                warnings.Ignore(CoreEventId.PossibleIncorrectRequiredNavigationWithQueryFilterInteractionWarning)));
 }
 
 

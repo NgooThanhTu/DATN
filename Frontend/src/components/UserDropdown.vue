@@ -90,6 +90,7 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { currentTheme, toggleTheme } from '@/utils/theme'
 import { getStoredUser, hasSystemAdminAccess } from '@/utils/permissions'
+import { clearAuthSession } from '@/utils/authSession'
 import { openNamedAppWindow, PROJECT_ADMIN_WINDOW_NAME } from '@/utils/windowTabs'
 
 const router = useRouter()
@@ -122,8 +123,7 @@ const handleCommand = async (cmd) => {
     } catch (error) {
       console.error('Logout error:', error)
     } finally {
-      localStorage.removeItem('accessToken')
-      localStorage.removeItem('user')
+      clearAuthSession()
       router.push('/login')
     }
   }

@@ -51,6 +51,7 @@ import NotificationsDropdown from '@/components/NotificationsDropdown.vue'
 import { useProjectStore } from '@/store/useProjectStore'
 import { toggleTheme, currentTheme } from '@/utils/theme'
 import { subscribeAdminRealtime } from '@/utils/adminRealtime'
+import { getScopedCurrentProjectId, setScopedCurrentProjectId } from '@/utils/projectContext'
 
 const router = useRouter()
 const route = useRoute()
@@ -63,7 +64,7 @@ let searchTimer = null
 let searchAbortController = null
 let searchRequestId = 0
 
-const currentProjectId = computed(() => route.params.id || localStorage.getItem('currentProjectId') || '')
+const currentProjectId = computed(() => route.params.id || getScopedCurrentProjectId() || '')
 const activeProject = computed(() => projectStore.allProjects.find(project => project.id === currentProjectId.value) || projectStore.currentProject)
 const workspaceName = computed(() => activeProject.value?.name || 'SprintA')
 const workspaceBadge = computed(() => activeProject.value?.icon || workspaceName.value.charAt(0).toUpperCase())
@@ -138,7 +139,7 @@ watch(currentProjectId, (projectId) => {
     return
   }
 
-  localStorage.setItem('currentProjectId', projectId)
+  setScopedCurrentProjectId(projectId)
   projectStore.fetchProjectDetails(projectId, { force: true }).catch(() => {})
 }, { immediate: true })
 

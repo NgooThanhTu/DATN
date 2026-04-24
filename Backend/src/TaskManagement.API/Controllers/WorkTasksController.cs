@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.SignalR;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,6 +11,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using TaskManagement.API.Filters;
+using TaskManagement.API.Hubs;
 using TaskManagement.Application.DTOs.WorkTask;
 using TaskManagement.Application.Interfaces;
 using TaskManagement.Infrastructure.Data;
@@ -22,11 +24,14 @@ namespace TaskManagement.API.Controllers
     public class WorkTasksController : ControllerBase
     {
         private readonly IWorkTaskService _workTaskService;
+        private readonly IHubContext<KanbanHub> _kanbanHub;
         private static readonly string[] ManagerRoles = { "PM", "PO", "SM", "PROJECT_MANAGER", "SCRUM_MASTER" };
+        private static readonly string[] BaselineManagerRoles = { "PM", "PO", "SM", "PA", "PROJECT_MANAGER", "SCRUM_MASTER", "PROJECT_ADMIN" };
 
-        public WorkTasksController(IWorkTaskService workTaskService)
+        public WorkTasksController(IWorkTaskService workTaskService, IHubContext<KanbanHub> kanbanHub)
         {
             _workTaskService = workTaskService;
+            _kanbanHub = kanbanHub;
         }
 
         private static string NormalizeStatusName(string? statusName)
@@ -181,6 +186,98 @@ namespace TaskManagement.API.Controllers
             }
 
             return task;
+        }
+
+        private static Dictionary<string, object?> ParseNavigationConfig(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            try
+            {
+                return JsonSerializer.Deserialize<Dictionary<string, object?>>(raw)
+                    ?? new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+            }
+        }
+
+        private static bool HasSystemAdminAccess(ClaimsPrincipal user)
+        {
+            return user.Claims
+                .Where(claim => claim.Type == ClaimTypes.Role)
+                .Select(claim => claim.Value)
+                .Any(role =>
+                    role.Equals("Admin", StringComparison.OrdinalIgnoreCase) ||
+                    role.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase) ||
+                    role.Equals("SystemAdmin", StringComparison.OrdinalIgnoreCase) ||
+                    role.Equals("System Administrator", StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static bool HasProjectManagerAccess(string? projectRole)
+        {
+            if (string.IsNullOrWhiteSpace(projectRole))
+            {
+                return false;
+            }
+
+            return BaselineManagerRoles.Contains(projectRole.Trim(), StringComparer.OrdinalIgnoreCase);
+        }
+
+        private static string BuildPlanningBaselinePayload(
+            string? rawNavigationConfig,
+            object payload)
+        {
+            var config = ParseNavigationConfig(rawNavigationConfig);
+            config["planningBaseline"] = payload;
+            return JsonSerializer.Serialize(config);
+        }
+
+        private async Task BroadcastTaskUpdatedAsync(Guid projectId, WorkTaskResponseDto? task)
+        {
+            if (task == null)
+            {
+                return;
+            }
+
+            var groupName = projectId.ToString();
+            await _kanbanHub.Clients.Group(groupName).SendAsync("TaskUpdated", task);
+            await _kanbanHub.Clients.Group(groupName).SendAsync("WorkTaskUpdated", task);
+        }
+
+        private static bool IsDoneStatusName(string? statusName)
+        {
+            if (string.IsNullOrWhiteSpace(statusName))
+            {
+                return false;
+            }
+
+            var normalized = NormalizeStatusName(statusName);
+            return normalized == "DONE" || normalized.Contains("COMPLETE", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static async Task<bool> HasIncompleteSubtasksAsync(ApplicationDbContext context, Guid taskId)
+        {
+            return await context.WorkTasks
+                .AsNoTracking()
+                .Where(child => child.ParentTaskId == taskId && !child.IsDeleted)
+                .AnyAsync(child =>
+                    child.TaskStatus == null ||
+                    !child.TaskStatus.Name.ToUpper().Contains("DONE") ||
+                    child.TaskAssignments.Any(assignment => assignment.Status && assignment.ProgressPercent < 100));
+        }
+
+        private static void CompleteActiveAssignments(TaskManagement.Domain.Entities.WorkTask task)
+        {
+            foreach (var assignment in task.TaskAssignments.Where(item => item.Status))
+            {
+                assignment.ProgressPercent = 100;
+                assignment.ProgressUpdatedAt = DateTime.UtcNow;
+            }
         }
 
         private static async Task EnsureDefaultTaskStatusesAsync(ApplicationDbContext context, Guid projectId)
@@ -571,6 +668,7 @@ namespace TaskManagement.API.Controllers
                 }
                 
                 var result = await _workTaskService.CreateAsync(reporterId, request);
+                await BroadcastTaskUpdatedAsync(projectId, result);
                 return CreatedAtAction(nameof(GetByProject), new { projectId }, new { statusCode = 201, message = "Tạo tác vụ thành công.", data = result });
             }
             catch (ArgumentException ex)
@@ -629,6 +727,8 @@ namespace TaskManagement.API.Controllers
                         updatedTask.Title,
                         updatedTask.TaskStatus?.Name);
                 }
+                var savedTask = await LoadTaskResponseAsync(context, projectId, id, userId);
+                await BroadcastTaskUpdatedAsync(projectId, savedTask);
                 return Ok(new { statusCode = 200, message = "Success", data = "Cập nhật trạng thái tác vụ thành công." });
             }
             catch (DbUpdateConcurrencyException)
@@ -725,6 +825,7 @@ namespace TaskManagement.API.Controllers
                             newAssigneeIds);
                     }
                 }
+                await BroadcastTaskUpdatedAsync(projectId, result);
                 return Ok(new { statusCode = 200, message = "Cập nhật công việc thành công.", data = result });
             }
             catch (DbUpdateConcurrencyException)
@@ -842,6 +943,9 @@ namespace TaskManagement.API.Controllers
 
                 if (updates.TryGetProperty("priority", out var prioProp) && prioProp.ValueKind != System.Text.Json.JsonValueKind.Null)
                     task.Priority = prioProp.GetInt32();
+
+                if (updates.TryGetProperty("storyPoints", out var storyPointsProp) && storyPointsProp.ValueKind != System.Text.Json.JsonValueKind.Null)
+                    task.StoryPoints = Math.Clamp(storyPointsProp.GetDouble(), 0, 21);
 
                 if (updates.TryGetProperty("totalEstimatedHours", out var estimateProp) && estimateProp.ValueKind != System.Text.Json.JsonValueKind.Null)
                     task.TotalEstimatedHours = Math.Max(0, estimateProp.GetDouble());
@@ -1074,11 +1178,18 @@ namespace TaskManagement.API.Controllers
                         string.Equals(NormalizeStatusName(ts.Name), normalizedStatusName, StringComparison.OrdinalIgnoreCase));
                     if (newStatus != null)
                     {
-                        var isDoneStatus = newStatus.Name.Contains("DONE", StringComparison.OrdinalIgnoreCase) ||
-                                           newStatus.Name.Contains("Complete", StringComparison.OrdinalIgnoreCase);
-                        if (isDoneStatus && task.TaskAssignments.Any(ta => ta.Status && ta.ProgressPercent < 100))
+                        var isDoneStatus = IsDoneStatusName(newStatus.Name);
+                        if (isDoneStatus && await HasIncompleteSubtasksAsync(context, task.Id))
                         {
-                            return BadRequest(new { statusCode = 400, message = "Chua the hoan thanh task khi van con assignee chua dat 100%." });
+                            return BadRequest(new { statusCode = 400, message = "Chua the hoan thanh task cha khi van con sub-work item chua dat 100% hoac chua Done." });
+                        }
+
+                        if (isDoneStatus)
+                        {
+                            progressRewardRequests.AddRange(task.TaskAssignments
+                                .Where(assignment => assignment.Status && assignment.ProgressPercent < 100)
+                                .Select(assignment => (assignment.UserId, assignment.ProgressPercent, 100.0)));
+                            CompleteActiveAssignments(task);
                         }
 
                         task.TaskStatusId = newStatus.Id;
@@ -1116,6 +1227,11 @@ namespace TaskManagement.API.Controllers
                     if (userId != Guid.Empty && !string.IsNullOrWhiteSpace(newStatusName))
                     {
                         await gamificationService.ApplyStatusChangeRewardsAsync(id, userId, oldStatusName, newStatusName);
+                    }
+
+                    if (updates.TryGetProperty("dueDate", out _))
+                    {
+                        await gamificationService.ApplyDueDatePenaltyAsync(id, userId);
                     }
                 }
                 catch
@@ -1178,7 +1294,102 @@ namespace TaskManagement.API.Controllers
                 }
 
                 var savedTask = await LoadTaskResponseAsync(context, projectId, id, userId);
+                await BroadcastTaskUpdatedAsync(projectId, savedTask);
                 return Ok(new { statusCode = 200, message = "Saved", data = savedTask });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { statusCode = 500, message = ex.Message });
+            }
+        }
+
+        [HttpPost("projects/{projectId}/WorkTasks/{id}/time-logs")]
+        [ProjectAuthorize("")]
+        public async Task<IActionResult> AddTimeLog(Guid projectId, Guid id, [FromBody] CreateTimeLogRequest request, [FromServices] ApplicationDbContext context)
+        {
+            try
+            {
+                var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (!Guid.TryParse(userIdString, out var userId))
+                {
+                    return Unauthorized(new { statusCode = 401, message = "Vui long dang nhap." });
+                }
+
+                var task = await context.WorkTasks
+                    .Include(wt => wt.TaskAssignments)
+                    .FirstOrDefaultAsync(wt => wt.Id == id && wt.ProjectId == projectId && !wt.IsDeleted);
+                if (task == null)
+                {
+                    return NotFound(new { statusCode = 404, message = "Task khong ton tai." });
+                }
+
+                var membership = await context.ProjectMembers
+                    .FirstOrDefaultAsync(pm => pm.ProjectId == projectId && pm.UserId == userId && pm.Status);
+                if (membership == null)
+                {
+                    return StatusCode(403, new { statusCode = 403, message = "Ban khong phai thanh vien cua du an nay." });
+                }
+
+                var hours = Math.Max(0, request.Hours);
+                if (hours <= 0)
+                {
+                    return BadRequest(new { statusCode = 400, message = "So gio log phai lon hon 0." });
+                }
+
+                var activeAssignment = task.TaskAssignments.FirstOrDefault(ta => ta.UserId == userId && ta.Status);
+                if (activeAssignment == null)
+                {
+                    return BadRequest(new { statusCode = 400, message = "Chi assignee dang active moi duoc log time cho task nay." });
+                }
+
+                var timeLog = new Domain.Entities.TimeLog
+                {
+                    Id = Guid.NewGuid(),
+                    WorkTaskId = task.Id,
+                    UserId = userId,
+                    Hours = hours,
+                    WorkType = string.IsNullOrWhiteSpace(request.WorkType) ? "GENERAL" : request.WorkType.Trim(),
+                    Note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim(),
+                    LoggedAt = DateTime.UtcNow
+                };
+
+                context.TimeLogs.Add(timeLog);
+                await context.SaveChangesAsync();
+
+                activeAssignment.TotalActualHours = await context.TimeLogs
+                    .Where(tl => tl.WorkTaskId == task.Id && tl.UserId == userId)
+                    .SumAsync(tl => tl.Hours);
+
+                task.TotalActualHours = await context.TimeLogs
+                    .Where(tl => tl.WorkTaskId == task.Id)
+                    .SumAsync(tl => tl.Hours);
+
+                var parentId = task.ParentTaskId;
+                while (parentId.HasValue)
+                {
+                    var parent = await context.WorkTasks.FirstOrDefaultAsync(wt => wt.Id == parentId.Value && !wt.IsDeleted);
+                    if (parent == null)
+                    {
+                        break;
+                    }
+
+                    parent.TotalActualHours = await context.WorkTasks
+                        .Where(wt => wt.ParentTaskId == parent.Id && !wt.IsDeleted)
+                        .SumAsync(wt => (double?)wt.TotalActualHours) ?? 0;
+
+                    parentId = parent.ParentTaskId;
+                }
+
+                await context.SaveChangesAsync();
+
+                var savedTask = await LoadTaskResponseAsync(context, projectId, id, userId);
+                await BroadcastTaskUpdatedAsync(projectId, savedTask);
+                return Ok(new
+                {
+                    statusCode = 200,
+                    message = "Log time thanh cong.",
+                    data = savedTask
+                });
             }
             catch (Exception ex)
             {
@@ -1239,6 +1450,7 @@ namespace TaskManagement.API.Controllers
 
                 var oldStatusName = task.TaskStatus?.Name;
                 string? newStatusName = null;
+                var completedAssigneeRewards = new List<(Guid AssigneeId, double OldProgress)>();
                 var membership = await context.ProjectMembers
                     .FirstOrDefaultAsync(pm => pm.ProjectId == projectId && pm.UserId == userId && pm.Status);
                 if (membership == null)
@@ -1270,11 +1482,18 @@ namespace TaskManagement.API.Controllers
                         string.Equals(NormalizeStatusName(ts.Name), normalizedStatusName, StringComparison.OrdinalIgnoreCase));
                     if (newStatus != null)
                     {
-                        var isDoneStatus = newStatus.Name.Contains("DONE", StringComparison.OrdinalIgnoreCase) ||
-                                           newStatus.Name.Contains("Complete", StringComparison.OrdinalIgnoreCase);
-                        if (isDoneStatus && task.TaskAssignments.Any(ta => ta.Status && ta.ProgressPercent < 100))
+                        var isDoneStatus = IsDoneStatusName(newStatus.Name);
+                        if (isDoneStatus && await HasIncompleteSubtasksAsync(context, task.Id))
                         {
-                            return BadRequest(new { statusCode = 400, message = "Chua the hoan thanh task khi van con assignee chua dat 100%." });
+                            return BadRequest(new { statusCode = 400, message = "Chua the hoan thanh task cha khi van con sub-work item chua dat 100% hoac chua Done." });
+                        }
+
+                        if (isDoneStatus)
+                        {
+                            completedAssigneeRewards.AddRange(task.TaskAssignments
+                                .Where(assignment => assignment.Status && assignment.ProgressPercent < 100)
+                                .Select(assignment => (assignment.UserId, assignment.ProgressPercent)));
+                            CompleteActiveAssignments(task);
                         }
 
                         task.TaskStatusId = newStatus.Id;
@@ -1287,6 +1506,12 @@ namespace TaskManagement.API.Controllers
                 {
                     await gamificationService.ApplyStatusChangeRewardsAsync(id, userId, oldStatusName, newStatusName);
                 }
+                foreach (var reward in completedAssigneeRewards)
+                {
+                    await gamificationService.ApplyAssignmentProgressRewardsAsync(id, reward.AssigneeId, userId, reward.OldProgress, 100);
+                }
+                var savedTask = await LoadTaskResponseAsync(context, projectId, id, userId);
+                await BroadcastTaskUpdatedAsync(projectId, savedTask);
                 return Ok(new { statusCode = 200, message = "Cập nhật thứ tự thành công." });
             }
             catch (Exception ex)
@@ -1349,6 +1574,10 @@ namespace TaskManagement.API.Controllers
                     wt.PlannedStartDate,
                     wt.PlannedEndDate,
                     wt.DueDate,
+                    wt.StoryPoints,
+                    wt.TotalEstimatedHours,
+                    wt.TotalActualHours,
+                    wt.RowVersion,
                     wt.CreatedAt,
                     wt.UpdatedAt
                 }).ToListAsync();
@@ -1494,6 +1723,448 @@ namespace TaskManagement.API.Controllers
                 }
             });
         }
+
+        [HttpGet("/api/analytics/planning-summary")]
+        public async Task<IActionResult> GetPlanningSummary(
+            [FromQuery] Guid? projectId,
+            [FromServices] ApplicationDbContext context)
+        {
+            var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!Guid.TryParse(userIdStr, out var userId))
+            {
+                return Unauthorized();
+            }
+
+            var accessibleMemberships = await context.ProjectMembers
+                .Where(pm => pm.UserId == userId && pm.Status)
+                .Select(pm => new
+                {
+                    pm.ProjectId,
+                    pm.ProjectRole
+                })
+                .ToListAsync();
+
+            var accessibleProjectIds = accessibleMemberships
+                .Select(item => item.ProjectId)
+                .Distinct()
+                .ToList();
+
+            if (projectId.HasValue && !accessibleProjectIds.Contains(projectId.Value))
+            {
+                return StatusCode(403, new { statusCode = 403, message = "You do not have access to this project." });
+            }
+
+            var selectedProjectIds = projectId.HasValue
+                ? accessibleProjectIds.Where(id => id == projectId.Value).ToList()
+                : accessibleProjectIds;
+
+            var taskSnapshots = await context.WorkTasks
+                .AsNoTracking()
+                .Where(task => !task.IsDeleted && selectedProjectIds.Contains(task.ProjectId))
+                .Select(task => new
+                {
+                    task.Id,
+                    task.ProjectId,
+                    task.SprintId,
+                    task.Title,
+                    task.SequenceId,
+                    task.Priority,
+                    task.StoryPoints,
+                    task.TotalEstimatedHours,
+                    task.TotalActualHours,
+                    task.DueDate,
+                    task.CreatedAt,
+                    StatusName = task.TaskStatus.Name,
+                    AssigneeCount = task.TaskAssignments.Count(assignment => assignment.Status),
+                    IsAssignedToCurrentUser = task.AssignedUserId == userId || task.TaskAssignments.Any(assignment => assignment.UserId == userId && assignment.Status)
+                })
+                .ToListAsync();
+
+            var selectedTaskIds = taskSnapshots.Select(task => task.Id).ToList();
+            var timeLogs = await context.TimeLogs
+                .AsNoTracking()
+                .Where(log => selectedTaskIds.Contains(log.WorkTaskId))
+                .GroupBy(log => log.WorkTaskId)
+                .Select(group => new
+                {
+                    WorkTaskId = group.Key,
+                    LoggedHours = group.Sum(item => item.Hours)
+                })
+                .ToDictionaryAsync(item => item.WorkTaskId, item => item.LoggedHours);
+
+            var sprintLookup = await context.Sprints
+                .AsNoTracking()
+                .Where(sprint => selectedProjectIds.Contains(sprint.ProjectId))
+                .Select(sprint => new
+                {
+                    sprint.Id,
+                    sprint.Name,
+                    sprint.ProjectId
+                })
+                .ToDictionaryAsync(item => item.Id, item => new { item.Name, item.ProjectId });
+
+            var projects = await context.Projects
+                .AsNoTracking()
+                .Where(project => selectedProjectIds.Contains(project.Id))
+                .Select(project => new
+                {
+                    project.Id,
+                    project.Name,
+                    project.Identifier,
+                    project.NavigationConfig
+                })
+                .ToListAsync();
+
+            var assignmentSnapshots = await context.TaskAssignments
+                .AsNoTracking()
+                .Where(assignment =>
+                    assignment.Status &&
+                    selectedProjectIds.Contains(assignment.WorkTask.ProjectId) &&
+                    !assignment.WorkTask.IsDeleted)
+                .Select(assignment => new
+                {
+                    assignment.UserId,
+                    UserName = assignment.User.FullName ?? assignment.User.Email,
+                    assignment.WorkTaskId,
+                    assignment.WorkTask.ProjectId,
+                    assignment.EstimatedHours,
+                    assignment.TotalActualHours,
+                    assignment.ProgressPercent
+                })
+                .ToListAsync();
+
+            var userLoggedHours = await context.TimeLogs
+                .AsNoTracking()
+                .Where(log => selectedTaskIds.Contains(log.WorkTaskId))
+                .GroupBy(log => log.UserId)
+                .Select(group => new
+                {
+                    UserId = group.Key,
+                    LoggedHours = group.Sum(item => item.Hours)
+                })
+                .ToDictionaryAsync(item => item.UserId, item => item.LoggedHours);
+
+            var totalCommittedStoryPoints = Math.Round(taskSnapshots.Sum(task => task.StoryPoints), 1);
+            var completedTasks = taskSnapshots
+                .Where(task => IsDoneStatusName(task.StatusName))
+                .ToList();
+            var completedStoryPoints = Math.Round(completedTasks.Sum(task => task.StoryPoints), 1);
+            var carryOverStoryPoints = Math.Round(taskSnapshots
+                .Where(task => !IsDoneStatusName(task.StatusName))
+                .Sum(task => task.StoryPoints), 1);
+
+            var totalEstimatedHours = Math.Round(taskSnapshots.Sum(task => task.TotalEstimatedHours), 1);
+            var totalActualHours = Math.Round(taskSnapshots.Sum(task => task.TotalActualHours), 1);
+            var totalLoggedHours = Math.Round(selectedTaskIds.Sum(taskIdValue => timeLogs.GetValueOrDefault(taskIdValue)), 1);
+
+            var accuracyRows = taskSnapshots
+                .Where(task => task.TotalEstimatedHours > 0 || task.TotalActualHours > 0)
+                .Select(task =>
+                {
+                    var estimate = Math.Max(0, task.TotalEstimatedHours);
+                    var actual = Math.Max(0, task.TotalActualHours);
+                    var variance = Math.Round(actual - estimate, 1);
+                    var accuracyPercent = estimate <= 0
+                        ? (actual <= 0 ? 100 : 0)
+                        : Math.Max(0, Math.Round(100 - (Math.Abs(actual - estimate) / estimate * 100), 1));
+
+                    string bucket;
+                    if (estimate <= 0 && actual > 0)
+                    {
+                        bucket = "Unplanned";
+                    }
+                    else if (variance > 0.5)
+                    {
+                        bucket = "Under-estimated";
+                    }
+                    else if (variance < -0.5)
+                    {
+                        bucket = "Over-estimated";
+                    }
+                    else
+                    {
+                        bucket = "Accurate";
+                    }
+
+                    return new
+                    {
+                        task.Id,
+                        task.ProjectId,
+                        task.Title,
+                        task.SequenceId,
+                        EstimatedHours = Math.Round(estimate, 1),
+                        ActualHours = Math.Round(actual, 1),
+                        LoggedHours = Math.Round(timeLogs.GetValueOrDefault(task.Id), 1),
+                        VarianceHours = variance,
+                        AccuracyPercent = accuracyPercent,
+                        Bucket = bucket,
+                        task.Priority,
+                        task.AssigneeCount
+                    };
+                })
+                .OrderBy(row => row.AccuracyPercent)
+                .ThenByDescending(row => Math.Abs(row.VarianceHours))
+                .ToList();
+
+            var workloadRows = await context.ProjectMembers
+                .AsNoTracking()
+                .Where(member => selectedProjectIds.Contains(member.ProjectId) && member.Status)
+                .Select(member => new
+                {
+                    member.ProjectId,
+                    member.ProjectRole,
+                    member.UserId,
+                    UserName = member.User.FullName ?? member.User.Email,
+                    AssignedTasks = context.TaskAssignments.Count(assignment => assignment.UserId == member.UserId && assignment.Status && selectedProjectIds.Contains(assignment.WorkTask.ProjectId) && !assignment.WorkTask.IsDeleted),
+                    EstimatedHours = context.TaskAssignments
+                        .Where(assignment => assignment.UserId == member.UserId && assignment.Status && selectedProjectIds.Contains(assignment.WorkTask.ProjectId) && !assignment.WorkTask.IsDeleted)
+                        .Sum(assignment => (double?)assignment.EstimatedHours) ?? 0,
+                    ActualHours = context.TaskAssignments
+                        .Where(assignment => assignment.UserId == member.UserId && assignment.Status && selectedProjectIds.Contains(assignment.WorkTask.ProjectId) && !assignment.WorkTask.IsDeleted)
+                        .Sum(assignment => (double?)assignment.TotalActualHours) ?? 0
+                })
+                .ToListAsync();
+
+            var overCapacityRows = workloadRows
+                .Select(row => new
+                {
+                    row.ProjectId,
+                    row.ProjectRole,
+                    row.UserId,
+                    row.UserName,
+                    row.AssignedTasks,
+                    EstimatedHours = Math.Round(row.EstimatedHours, 1),
+                    ActualHours = Math.Round(row.ActualHours, 1),
+                    CapacityPercent = Math.Round(row.EstimatedHours <= 0 ? 0 : (row.ActualHours / row.EstimatedHours) * 100, 1),
+                    CapacityState = row.EstimatedHours switch
+                    {
+                        <= 0 => "Idle",
+                        _ when row.ActualHours > row.EstimatedHours * 1.1 => "Over capacity",
+                        _ when row.ActualHours > row.EstimatedHours * 0.8 => "Near limit",
+                        _ => "Healthy"
+                    }
+                })
+                .OrderByDescending(row => row.CapacityPercent)
+                .ThenByDescending(row => row.AssignedTasks)
+                .ToList();
+
+            var canConfirmBaseline = HasSystemAdminAccess(User) || accessibleMemberships.Any(member =>
+                (!projectId.HasValue || member.ProjectId == projectId.Value) &&
+                HasProjectManagerAccess(member.ProjectRole));
+
+            var projectSummaries = projects
+                .Select(project =>
+                {
+                    var projectTasks = taskSnapshots.Where(task => task.ProjectId == project.Id).ToList();
+                    var doneTasks = projectTasks.Where(task => IsDoneStatusName(task.StatusName)).ToList();
+                    var navigationConfig = ParseNavigationConfig(project.NavigationConfig);
+                    navigationConfig.TryGetValue("planningBaseline", out var baselineValue);
+
+                    return new
+                    {
+                        project.Id,
+                        project.Name,
+                        project.Identifier,
+                        VelocityCommitted = Math.Round(projectTasks.Sum(task => task.StoryPoints), 1),
+                        VelocityCompleted = Math.Round(doneTasks.Sum(task => task.StoryPoints), 1),
+                        CarryOver = Math.Round(projectTasks.Where(task => !IsDoneStatusName(task.StatusName)).Sum(task => task.StoryPoints), 1),
+                        AverageAccuracy = accuracyRows.Where(row => row.ProjectId == project.Id).Select(row => row.AccuracyPercent).DefaultIfEmpty(100).Average(),
+                        Baseline = baselineValue
+                    };
+                })
+                .ToList();
+
+            var sprintSummaries = taskSnapshots
+                .GroupBy(task => task.SprintId)
+                .Select(group =>
+                {
+                    var sprintIdValue = group.Key;
+                    var sprintMeta = sprintIdValue.HasValue && sprintLookup.TryGetValue(sprintIdValue.Value, out var lookupValue)
+                        ? lookupValue
+                        : null;
+                    var sprintTasks = group.ToList();
+                    var sprintCompleted = sprintTasks.Where(task => IsDoneStatusName(task.StatusName)).ToList();
+                    var committed = Math.Round(sprintTasks.Sum(task => task.StoryPoints), 1);
+                    var completed = Math.Round(sprintCompleted.Sum(task => task.StoryPoints), 1);
+
+                    return new
+                    {
+                        sprintId = sprintIdValue,
+                        sprintName = sprintMeta?.Name ?? "No cycle",
+                        projectId = sprintMeta?.ProjectId ?? sprintTasks.Select(task => task.ProjectId).FirstOrDefault(),
+                        committedStoryPoints = committed,
+                        completedStoryPoints = completed,
+                        carryOverStoryPoints = Math.Round(sprintTasks.Where(task => !IsDoneStatusName(task.StatusName)).Sum(task => task.StoryPoints), 1),
+                        completionRate = committed <= 0 ? 0 : Math.Round((completed / committed) * 100, 1),
+                        taskCount = sprintTasks.Count
+                    };
+                })
+                .OrderByDescending(item => item.committedStoryPoints)
+                .ThenBy(item => item.sprintName)
+                .ToList();
+
+            var userPerformanceRows = assignmentSnapshots
+                .GroupBy(item => new { item.UserId, item.UserName })
+                .Select(group =>
+                {
+                    var rows = group.ToList();
+                    var estimated = Math.Round(rows.Sum(item => item.EstimatedHours), 1);
+                    var actual = Math.Round(rows.Sum(item => item.TotalActualHours), 1);
+                    var logged = Math.Round(userLoggedHours.GetValueOrDefault(group.Key.UserId), 1);
+                    var accuracyValues = rows.Select(item =>
+                    {
+                        var estimate = Math.Max(0, item.EstimatedHours);
+                        var actualHours = Math.Max(0, item.TotalActualHours);
+                        if (estimate <= 0)
+                        {
+                            return actualHours <= 0 ? 100d : 0d;
+                        }
+
+                        return Math.Max(0, Math.Round(100 - (Math.Abs(actualHours - estimate) / estimate * 100), 1));
+                    }).ToList();
+
+                    var accurateCount = rows.Count(item => Math.Abs(item.TotalActualHours - item.EstimatedHours) <= 0.5);
+                    var underEstimatedCount = rows.Count(item => item.TotalActualHours - item.EstimatedHours > 0.5);
+                    var overEstimatedCount = rows.Count(item => item.EstimatedHours - item.TotalActualHours > 0.5);
+
+                    return new
+                    {
+                        userId = group.Key.UserId,
+                        userName = group.Key.UserName,
+                        taskCount = rows.Count,
+                        estimatedHours = estimated,
+                        actualHours = actual,
+                        loggedHours = logged,
+                        averageAccuracyPercent = Math.Round(accuracyValues.DefaultIfEmpty(100).Average(), 1),
+                        averageProgressPercent = Math.Round(rows.Select(item => item.ProgressPercent).DefaultIfEmpty(0).Average(), 1),
+                        accurateCount,
+                        underEstimatedCount,
+                        overEstimatedCount
+                    };
+                })
+                .OrderBy(item => item.averageAccuracyPercent)
+                .ThenByDescending(item => item.loggedHours)
+                .ToList();
+
+            return Ok(new
+            {
+                statusCode = 200,
+                data = new
+                {
+                    overview = new
+                    {
+                        totalProjects = projects.Count,
+                        totalTasks = taskSnapshots.Count,
+                        totalCommittedStoryPoints,
+                        completedStoryPoints,
+                        carryOverStoryPoints,
+                        totalEstimatedHours,
+                        totalActualHours,
+                        totalLoggedHours
+                    },
+                    velocity = new
+                    {
+                        committedStoryPoints = totalCommittedStoryPoints,
+                        completedStoryPoints,
+                        carryOverStoryPoints,
+                        completionRate = totalCommittedStoryPoints <= 0 ? 0 : Math.Round((completedStoryPoints / totalCommittedStoryPoints) * 100, 1),
+                        byProject = projectSummaries,
+                        bySprint = sprintSummaries.Take(12).ToList()
+                    },
+                    estimateAccuracy = new
+                    {
+                        averageAccuracyPercent = Math.Round(accuracyRows.Select(row => row.AccuracyPercent).DefaultIfEmpty(100).Average(), 1),
+                        accurateCount = accuracyRows.Count(row => row.Bucket == "Accurate"),
+                        underEstimatedCount = accuracyRows.Count(row => row.Bucket == "Under-estimated"),
+                        overEstimatedCount = accuracyRows.Count(row => row.Bucket == "Over-estimated"),
+                        unplannedCount = accuracyRows.Count(row => row.Bucket == "Unplanned"),
+                        rows = accuracyRows.Take(12).ToList(),
+                        byUser = userPerformanceRows.Take(12).ToList()
+                    },
+                    workload = new
+                    {
+                        rows = overCapacityRows.Take(12).ToList(),
+                        overCapacityCount = overCapacityRows.Count(row => row.CapacityState == "Over capacity"),
+                        nearLimitCount = overCapacityRows.Count(row => row.CapacityState == "Near limit")
+                    },
+                    managerReview = new
+                    {
+                        canConfirmBaseline,
+                        selectedProjectId = projectId,
+                        projects = projectSummaries,
+                        riskSummary = new
+                        {
+                            overCapacityMembers = overCapacityRows.Count(row => row.CapacityState == "Over capacity"),
+                            nearLimitMembers = overCapacityRows.Count(row => row.CapacityState == "Near limit"),
+                            carryOverProjects = projectSummaries.Count(project => project.CarryOver > 0),
+                            unplannedTasks = accuracyRows.Count(row => row.Bucket == "Unplanned")
+                        }
+                    }
+                }
+            });
+        }
+
+        [HttpPost("/api/analytics/projects/{projectId}/confirm-baseline")]
+        public async Task<IActionResult> ConfirmPlanningBaseline(
+            Guid projectId,
+            [FromServices] ApplicationDbContext context)
+        {
+            var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!Guid.TryParse(userIdStr, out var userId))
+            {
+                return Unauthorized();
+            }
+
+            var project = await context.Projects.FirstOrDefaultAsync(item => item.Id == projectId && !item.IsDeleted);
+            if (project == null)
+            {
+                return NotFound(new { statusCode = 404, message = "Project not found." });
+            }
+
+            var isSystemAdmin = HasSystemAdminAccess(User);
+            var membership = await context.ProjectMembers
+                .AsNoTracking()
+                .FirstOrDefaultAsync(item => item.ProjectId == projectId && item.UserId == userId && item.Status);
+
+            if (!isSystemAdmin && !HasProjectManagerAccess(membership?.ProjectRole))
+            {
+                return StatusCode(403, new { statusCode = 403, message = "You do not have permission to confirm this planning baseline." });
+            }
+
+            var taskSnapshot = await context.WorkTasks
+                .AsNoTracking()
+                .Where(task => task.ProjectId == projectId && !task.IsDeleted)
+                .Select(task => new
+                {
+                    task.Id,
+                    task.StoryPoints,
+                    task.TotalEstimatedHours,
+                    task.TotalActualHours,
+                    StatusName = task.TaskStatus.Name
+                })
+                .ToListAsync();
+
+            var payload = new
+            {
+                confirmedAt = DateTime.UtcNow,
+                confirmedByUserId = userId,
+                committedStoryPoints = Math.Round(taskSnapshot.Sum(task => task.StoryPoints), 1),
+                completedStoryPoints = Math.Round(taskSnapshot.Where(task => IsDoneStatusName(task.StatusName)).Sum(task => task.StoryPoints), 1),
+                estimatedHours = Math.Round(taskSnapshot.Sum(task => task.TotalEstimatedHours), 1),
+                actualHours = Math.Round(taskSnapshot.Sum(task => task.TotalActualHours), 1)
+            };
+
+            project.NavigationConfig = BuildPlanningBaselinePayload(project.NavigationConfig, payload);
+            project.UpdatedAt = DateTime.UtcNow;
+            await context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                statusCode = 200,
+                message = "Planning baseline confirmed.",
+                data = payload
+            });
+        }
     }
 
     public class ReorderTaskDto
@@ -1507,6 +2178,13 @@ namespace TaskManagement.API.Controllers
         public string? Name { get; set; }
         public string? ColorCode { get; set; }
         public int? Position { get; set; }
+    }
+
+    public class CreateTimeLogRequest
+    {
+        public double Hours { get; set; }
+        public string? WorkType { get; set; }
+        public string? Note { get; set; }
     }
 
     public class NotificationActorContext

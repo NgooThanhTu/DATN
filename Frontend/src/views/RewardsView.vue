@@ -40,19 +40,19 @@
           </div>
           <div class="formula-grid">
             <div class="formula-cell">
-              <span>Value</span>
-              <strong>{{ formula.sample.value }}</strong>
+              <span>Difficulty</span>
+              <strong>{{ formula.sample.difficulty }}</strong>
             </div>
             <div class="formula-cell">
-              <span>Impact</span>
-              <strong>{{ formula.sample.impact }}</strong>
+              <span>Duration</span>
+              <strong>{{ formula.sample.duration }}</strong>
             </div>
             <div class="formula-cell">
-              <span>Days</span>
-              <strong>{{ formula.sample.days }}</strong>
+              <span>Share</span>
+              <strong>{{ formula.sample.share }}%</strong>
             </div>
             <div class="formula-cell total">
-              <span>Total points</span>
+              <span>Final points</span>
               <strong>{{ formula.sample.total }}</strong>
             </div>
           </div>
@@ -72,6 +72,9 @@
           <div class="summary-list">
             <div class="summary-row"><span>Completed tasks</span><strong>{{ summary.completedTasks }}</strong></div>
             <div class="summary-row"><span>Early bonuses</span><strong>{{ summary.earlyBonuses }}</strong></div>
+            <div class="summary-row"><span>Base points</span><strong>{{ summary.basePoints }}</strong></div>
+            <div class="summary-row"><span>Bonus points</span><strong>{{ summary.bonusPoints }}</strong></div>
+            <div class="summary-row"><span>Penalty points</span><strong>{{ summary.penaltyPoints }}</strong></div>
             <div class="summary-row"><span>Contribution share</span><strong>{{ summary.contributionPercent }}%</strong></div>
             <div class="summary-row"><span>Estimated hours</span><strong>{{ summary.estimatedHours }}h</strong></div>
             <div class="summary-row"><span>Actual hours</span><strong>{{ summary.actualHours }}h</strong></div>
@@ -162,9 +165,9 @@ const formula = ref({
   expression: 'Base effort x Efficiency x Quality x Contribution share',
   actualHoursRule: '',
   policy: {},
-  sample: { value: 0, impact: 0, days: 0, total: 0, note: '' }
+  sample: { difficulty: 0, duration: 0, share: 0, total: 0, bonus: 0, penalty: 0, note: '' }
 })
-const summary = ref({ completedTasks: 0, earlyBonuses: 0, contributionPercent: 0, rollbackPoints: 0, estimatedHours: 0, actualHours: 0, loggedHours: 0 })
+const summary = ref({ completedTasks: 0, earlyBonuses: 0, basePoints: 0, bonusPoints: 0, penaltyPoints: 0, contributionPercent: 0, rollbackPoints: 0, estimatedHours: 0, actualHours: 0, loggedHours: 0 })
 const spotlightTasks = ref([])
 const recentAchievements = ref([])
 const transactions = ref([])

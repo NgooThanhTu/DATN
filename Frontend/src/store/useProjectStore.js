@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import axiosClient from '@/api/axiosClient'
+import { reportExpectedError } from '@/utils/errorTelemetry'
 
 const PROJECT_BUNDLE_CACHE_TTL_MS = 30000
 const resolveProjectId = (project) => project?.id || project?.Id || project?.projectId || project?.ProjectId || null
@@ -125,7 +126,7 @@ export const useProjectStore = defineStore('project', {
         return this.allProjects;
       } catch (err) {
         this.error = err.message || 'Failed to fetch projects';
-        console.error('Failed to fetch all projects:', err);
+        reportExpectedError('Failed to fetch all projects', err);
         return [];
       } finally {
         this.loading = false;
@@ -224,7 +225,7 @@ export const useProjectStore = defineStore('project', {
 
         return { project, members, labels, taskStatuses, tasks }
       } catch (err) {
-        console.error('Failed to prefetch project bundle:', err)
+        reportExpectedError('Failed to prefetch project bundle', err)
         return null
       }
     },
@@ -288,7 +289,7 @@ export const useProjectStore = defineStore('project', {
         }
 
         this.error = err.message || 'Failed to fetch project details';
-        console.error('Failed to fetch project details:', err);
+        reportExpectedError('Failed to fetch project details', err);
         return null;
       } finally {
         if (requestId === this.detailsRequestId) {

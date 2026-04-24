@@ -89,10 +89,11 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
-import axiosClient from '../api/axiosClient'
-import logoImg from '../assets/logo_QLCV.png'
+  import { reactive, ref } from 'vue'
+  import { useRouter } from 'vue-router'
+  import axiosClient from '../api/axiosClient'
+  import { saveAuthSession } from '@/utils/authSession'
+  import logoImg from '../assets/logo_QLCV.png'
 import googleIcon from '../assets/Icongoogle.png'
 import githubIcon from '../assets/Icongithub.png'
 
@@ -113,12 +114,6 @@ const getSafeRedirect = () => {
   return typeof redirect === 'string' && redirect.startsWith('/') && !redirect.startsWith('//')
     ? redirect
     : '/dashboard'
-}
-
-const saveAuthSession = (payload) => {
-  const { accessToken, fullName, email, systemRoles, id } = payload
-  localStorage.setItem('accessToken', accessToken)
-  localStorage.setItem('user', JSON.stringify({ id, fullName, email, systemRoles }))
 }
 
 const handleLogin = async () => {

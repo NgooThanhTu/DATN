@@ -515,6 +515,10 @@
                   </div>
                 </div>
                 <div class="row-actions">
+                  <button class="secondary-btn" type="button" :disabled="analyzingIntegration === integration.provider" @click="analyzeIntegration(integration)">
+                    {{ analyzingIntegration === integration.provider ? 'Analyzing...' : 'Analyze with AI' }}
+                  </button>
+                  <button class="secondary-btn" type="button" @click="openIntegrationInAi(integration)">Open AI planner</button>
                   <button class="secondary-btn" type="button" @click="resetIntegration(integration.provider)">Reset</button>
                 </div>
               </div>
@@ -531,6 +535,40 @@
 
             <div class="empty-state helper-panel">
               Only GitHub is available here so AI can analyze the connected repository and break work into tasks later.
+              For public repos you can try without a token first, but if GitHub returns 403 you should add a Fine-grained Personal Access Token with read-only access to Metadata and Contents.
+            </div>
+
+            <div v-if="integrationAnalysis" class="helper-panel">
+              <div class="section-split">
+                <h3>AI repo analysis</h3>
+                <p>{{ integrationAnalysis.repository }}</p>
+              </div>
+              <div class="meta-strip compact">
+                <span>{{ integrationAnalysis.summary }}</span>
+              </div>
+              <div class="integration-analysis-grid">
+                <div class="analysis-card">
+                  <strong>Quick wins</strong>
+                  <ul>
+                    <li v-for="item in integrationAnalysis.quickWins" :key="`quick-${item.title}`">{{ item.title }} · {{ item.suggestedHours }}h</li>
+                  </ul>
+                </div>
+                <div class="analysis-card">
+                  <strong>Medium tasks</strong>
+                  <ul>
+                    <li v-for="item in integrationAnalysis.mediumTasks" :key="`medium-${item.title}`">{{ item.title }} · {{ item.suggestedHours }}h</li>
+                  </ul>
+                </div>
+                <div class="analysis-card">
+                  <strong>Risky tasks</strong>
+                  <ul>
+                    <li v-for="item in integrationAnalysis.riskyTasks" :key="`risk-${item.title}`">{{ item.title }} · {{ item.suggestedHours }}h</li>
+                  </ul>
+                </div>
+              </div>
+              <div class="danger-actions integration-actions">
+                <button class="secondary-btn" type="button" @click="useIntegrationPrompt">Use prompt in AI page</button>
+              </div>
             </div>
           </div>
 
@@ -589,6 +627,7 @@ const savingLabel = ref(false)
 const savingModule = ref(false)
 const savingCycle = ref(false)
 const savingIntegrations = ref(false)
+const analyzingIntegration = ref('')
 
 const project = ref({})
 const members = ref([])
@@ -597,6 +636,7 @@ const labels = ref([])
 const modules = ref([])
 const sprints = ref([])
 const integrations = ref([])
+const integrationAnalysis = ref(null)
 const activeModules = computed(() => modules.value.filter(module => module.status !== 'Disabled'))
 const disabledModules = computed(() => modules.value.filter(module => module.status === 'Disabled'))
 
@@ -676,6 +716,33 @@ const normalizeIntegration = (integration) => ({
   notes: integration.notes || '',
   updatedAt: integration.updatedAt || ''
 })
+
+const buildIntegrationRepoUrl = (integration) => {
+  const projectKey = integration.projectKey?.trim() || ''
+  if (projectKey) {
+    if (/^https?:\/\//i.test(projectKey)) {
+      return projectKey
+    }
+    return `https://github.com/${projectKey}`
+  }
+
+  const endpoint = integration.endpoint?.trim() || ''
+  if (/^https?:\/\/github\.com\//i.test(endpoint)) {
+    return endpoint
+  }
+  const match = endpoint.match(/repos\/([^/]+\/[^/?#]+)/i)
+  if (match) {
+    return `https://github.com/${match[1]}`
+  }
+
+  return ''
+}
+
+const stashAiPlannerPayload = ({ repoUrl, prompt, analysis }) => {
+  sessionStorage.setItem('sprinta-ai-repo-url', repoUrl || '')
+  sessionStorage.setItem('sprinta-ai-prefill-message', prompt || '')
+  sessionStorage.setItem('sprinta-ai-repo-analysis', JSON.stringify(analysis || null))
+}
 
 const isPastDate = (value) => {
   if (!value) return false
@@ -1184,6 +1251,66 @@ const saveIntegrations = async () => {
   }
 }
 
+const analyzeIntegration = async (integration) => {
+  const repoUrl = buildIntegrationRepoUrl(integration)
+  if (!repoUrl) {
+    ElMessage.warning('Please enter owner/repository or a valid GitHub endpoint first')
+    return
+  }
+
+  analyzingIntegration.value = integration.provider
+  try {
+    const response = await axiosClient.post('/ai/repo-analysis', {
+      repoUrl,
+      gitHubToken: integration.secret?.trim() || null,
+      focus: `Project ${project.value.name || projectId} planning, backlog, risks, and task breakdown`
+    })
+
+    integrationAnalysis.value = response.data?.data || null
+    stashAiPlannerPayload({
+      repoUrl,
+      prompt: integrationAnalysis.value?.suggestedPrompt,
+      analysis: integrationAnalysis.value
+    })
+    ElMessage.success('AI repo analysis is ready')
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || 'Could not analyze the connected repository')
+  } finally {
+    analyzingIntegration.value = ''
+  }
+}
+
+const openIntegrationInAi = (integration) => {
+  const repoUrl = buildIntegrationRepoUrl(integration)
+  if (!repoUrl) {
+    ElMessage.warning('Please enter owner/repository or a valid GitHub endpoint first')
+    return
+  }
+
+  stashAiPlannerPayload({
+    repoUrl,
+    prompt: integrationAnalysis.value?.suggestedPrompt || `Phan tich repo ${repoUrl} va de xuat backlog, breakdown task, risk, va test plan.`,
+    analysis: integrationAnalysis.value
+  })
+
+  router.push('/ai')
+}
+
+const useIntegrationPrompt = () => {
+  if (!integrationAnalysis.value?.suggestedPrompt) {
+    ElMessage.warning('Analyze the repository first')
+    return
+  }
+
+  stashAiPlannerPayload({
+    repoUrl: `https://github.com/${integrationAnalysis.value.repository}`,
+    prompt: integrationAnalysis.value.suggestedPrompt,
+    analysis: integrationAnalysis.value
+  })
+
+  router.push('/ai')
+}
+
 const resetIntegration = async (provider) => {
   try {
     const current = integrations.value.find(item => item.provider === provider)
@@ -1554,6 +1681,35 @@ input:disabled {
 
 .integration-actions {
   gap: 12px;
+}
+
+.integration-analysis-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.analysis-card {
+  padding: 12px;
+  border: 1px solid #27272a;
+  border-radius: 10px;
+  background: #0f1115;
+}
+
+.analysis-card strong {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.analysis-card ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.analysis-card li {
+  margin-bottom: 6px;
+  color: #e4e4e7;
 }
 
 .empty-state {

@@ -110,6 +110,47 @@ namespace TaskManagement.Infrastructure.Services
             await SendResendEmailAsync(toEmail, subject, html);
         }
 
+        public async Task SendPasswordChangeRequestEmailAsync(
+            string toEmail,
+            string requesterName,
+            string requesterEmail,
+            DateTime? lastChangedAt,
+            DateTime eligibleAt)
+        {
+            var safeRequesterName = WebUtility.HtmlEncode(string.IsNullOrWhiteSpace(requesterName) ? requesterEmail : requesterName);
+            var safeRequesterEmail = WebUtility.HtmlEncode(requesterEmail);
+            var safeLastChangedAt = WebUtility.HtmlEncode(lastChangedAt?.ToString("yyyy-MM-dd HH:mm 'UTC'") ?? "No previous password change recorded");
+            var safeEligibleAt = WebUtility.HtmlEncode(eligibleAt.ToString("yyyy-MM-dd HH:mm 'UTC'"));
+
+            var subject = $"Password change exception requested by {requesterEmail}";
+            var html = $@"
+                <div style='font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px; color: #172b4d;'>
+                    <h2 style='margin:0 0 16px;'>Password change exception request</h2>
+                    <p style='line-height:1.55;'>A user requested admin help to change their password before the 7-day cooldown is over.</p>
+                    <table role='presentation' cellpadding='0' cellspacing='0' style='width:100%; margin:20px 0; border-collapse:collapse;'>
+                        <tr>
+                            <td style='padding:10px 12px; border:1px solid #dfe1e6; font-weight:700;'>User</td>
+                            <td style='padding:10px 12px; border:1px solid #dfe1e6;'>{safeRequesterName}</td>
+                        </tr>
+                        <tr>
+                            <td style='padding:10px 12px; border:1px solid #dfe1e6; font-weight:700;'>Email</td>
+                            <td style='padding:10px 12px; border:1px solid #dfe1e6;'>{safeRequesterEmail}</td>
+                        </tr>
+                        <tr>
+                            <td style='padding:10px 12px; border:1px solid #dfe1e6; font-weight:700;'>Last changed</td>
+                            <td style='padding:10px 12px; border:1px solid #dfe1e6;'>{safeLastChangedAt}</td>
+                        </tr>
+                        <tr>
+                            <td style='padding:10px 12px; border:1px solid #dfe1e6; font-weight:700;'>Eligible again</td>
+                            <td style='padding:10px 12px; border:1px solid #dfe1e6;'>{safeEligibleAt}</td>
+                        </tr>
+                    </table>
+                    <p style='color:#626f86; font-size:13px;'>Please review this request in SprintA and decide whether manual admin support is needed.</p>
+                </div>";
+
+            await SendResendEmailAsync(toEmail, subject, html);
+        }
+
         private async Task SendResendEmailAsync(string toEmail, string subject, string html)
         {
             var apiKey = _configuration["Resend:ApiKey"]

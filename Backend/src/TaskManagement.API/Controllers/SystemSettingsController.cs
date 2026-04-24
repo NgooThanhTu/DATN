@@ -35,6 +35,19 @@ namespace TaskManagement.API.Controllers
             _context = context;
         }
 
+        [AllowAnonymous]
+        [HttpGet("ThemeSettings")]
+        public async Task<IActionResult> GetThemeSettings()
+        {
+            var settings = await _context.SystemSettings
+                .AsNoTracking()
+                .Where(s => s.SettingGroup == "ThemeSettings")
+                .ToListAsync();
+
+            var data = settings.ToDictionary(s => s.Key, s => s.Value);
+            return Ok(new { statusCode = 200, data });
+        }
+
         [HttpGet("{group}")]
         public async Task<IActionResult> GetSettingsByGroup(string group)
         {

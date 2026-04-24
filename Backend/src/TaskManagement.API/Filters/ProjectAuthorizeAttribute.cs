@@ -63,13 +63,21 @@ namespace TaskManagement.API.Filters
                 return;
             }
 
-            var hasSystemOverride = await _dbContext.Users
+            var claimRoles = context.HttpContext.User
+                .FindAll(ClaimTypes.Role)
+                .Select(claim => claim.Value?.Trim().ToLower())
+                .Where(role => !string.IsNullOrWhiteSpace(role))
+                .ToHashSet();
+
+            var hasSystemOverrideFromClaims = claimRoles.Any(role => SystemOverrideRoles.Contains(role!));
+
+            var hasSystemOverrideFromDatabase = await _dbContext.Users
                 .AsNoTracking()
                 .Where(user => user.Id == userId && user.IsActive && !user.IsDeleted)
                 .SelectMany(user => user.UserRoles.Select(ur => ur.Role.Name))
                 .AnyAsync(role => SystemOverrideRoles.Contains(role.Trim().ToLower()));
 
-            if (hasSystemOverride)
+            if (hasSystemOverrideFromClaims || hasSystemOverrideFromDatabase)
             {
                 context.HttpContext.Items["ProjectRole"] = "SystemOverride";
                 await next();

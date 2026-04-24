@@ -636,6 +636,12 @@ namespace TaskManagement.Infrastructure.Data
             var timeLogEntries = ChangeTracker.Entries<TimeLog>()
                 .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified || e.State == EntityState.Deleted)
                 .ToList();
+            var changedTaskEntries = ChangeTracker.Entries<WorkTask>()
+                .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified || e.State == EntityState.Deleted)
+                .ToList();
+            var assignmentEntries = ChangeTracker.Entries<TaskAssignment>()
+                .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified || e.State == EntityState.Deleted)
+                .ToList();
 
             // Save the logs first
             
@@ -749,27 +755,97 @@ namespace TaskManagement.Infrastructure.Data
                 }
             }
 
-            // 3. Automatic Data Roll-up execution (Update Tasks and Parent Tasks)
-            if (timeLogEntries.Any())
+            // 3. Automatic Data Roll-up execution (Update Tasks, Assignments, and Parent Tasks)
+            var affectedTaskIds = new HashSet<Guid>(
+                timeLogEntries.Select(e => e.Entity.WorkTaskId)
+                    .Concat(assignmentEntries.Select(e => e.Entity.WorkTaskId))
+                    .Concat(changedTaskEntries.Where(e => e.State != EntityState.Deleted).Select(e => e.Entity.Id))
+            );
+
+            var affectedParentIds = changedTaskEntries
+                .Select(e => e.Entity.ParentTaskId)
+                .Where(id => id.HasValue)
+                .Select(id => id!.Value)
+                .ToList();
+
+            foreach (var parentId in affectedParentIds)
             {
-                var taskIds = timeLogEntries.Select(e => e.Entity.WorkTaskId).Distinct().ToList();
-                var tasks = await WorkTasks.Where(t => taskIds.Contains(t.Id)).ToListAsync(cancellationToken);
+                affectedTaskIds.Add(parentId);
+            }
+
+            if (affectedTaskIds.Any())
+            {
+                var tasks = await WorkTasks
+                    .Where(t => affectedTaskIds.Contains(t.Id))
+                    .ToListAsync(cancellationToken);
+
+                var assignmentTaskIds = tasks.Select(t => t.Id).ToList();
+                if (assignmentTaskIds.Any())
+                {
+                    var assignments = await TaskAssignments
+                        .Where(ta => assignmentTaskIds.Contains(ta.WorkTaskId))
+                        .ToListAsync(cancellationToken);
+
+                    foreach (var assignment in assignments)
+                    {
+                        assignment.TotalActualHours = await TimeLogs
+                            .Where(tl => tl.WorkTaskId == assignment.WorkTaskId && tl.UserId == assignment.UserId)
+                            .SumAsync(tl => tl.Hours, cancellationToken);
+                    }
+                }
+
+                await base.SaveChangesAsync(cancellationToken);
 
                 foreach (var task in tasks)
                 {
-                    task.TotalActualHours = await TimeLogs.Where(tl => tl.WorkTaskId == task.Id).SumAsync(tl => tl.Hours, cancellationToken);
+                    var hasChildren = await WorkTasks.AnyAsync(t => t.ParentTaskId == task.Id && !t.IsDeleted, cancellationToken);
+                    if (!hasChildren)
+                    {
+                        var assignmentEstimateTotal = await TaskAssignments
+                            .Where(ta => ta.WorkTaskId == task.Id && ta.Status)
+                            .SumAsync(ta => (double?)ta.EstimatedHours, cancellationToken) ?? 0;
+
+                        if (assignmentEstimateTotal > 0)
+                        {
+                            task.TotalEstimatedHours = Math.Round(assignmentEstimateTotal, 1);
+                        }
+                    }
+
+                    task.TotalActualHours = await TimeLogs
+                        .Where(tl => tl.WorkTaskId == task.Id)
+                        .SumAsync(tl => tl.Hours, cancellationToken);
                 }
                 await base.SaveChangesAsync(cancellationToken);
 
-                var parentIds = tasks.Where(t => t.ParentTaskId != null).Select(t => t.ParentTaskId!.Value).Distinct().ToList();
-                if (parentIds.Any())
+                var parentIds = tasks
+                    .Where(t => t.ParentTaskId != null)
+                    .Select(t => t.ParentTaskId!.Value)
+                    .Concat(affectedParentIds)
+                    .Distinct()
+                    .ToList();
+
+                while (parentIds.Any())
                 {
-                    var parents = await WorkTasks.Where(t => parentIds.Contains(t.Id)).ToListAsync(cancellationToken);
+                    var parents = await WorkTasks
+                        .Where(t => parentIds.Contains(t.Id))
+                        .ToListAsync(cancellationToken);
+
                     foreach (var parent in parents)
                     {
-                        parent.TotalActualHours = await WorkTasks.Where(t => t.ParentTaskId == parent.Id).SumAsync(t => t.TotalActualHours, cancellationToken);
+                        parent.TotalActualHours = await WorkTasks
+                            .Where(t => t.ParentTaskId == parent.Id && !t.IsDeleted)
+                            .SumAsync(t => (double?)t.TotalActualHours, cancellationToken) ?? 0;
+                        parent.TotalEstimatedHours = await WorkTasks
+                            .Where(t => t.ParentTaskId == parent.Id && !t.IsDeleted)
+                            .SumAsync(t => (double?)t.TotalEstimatedHours, cancellationToken) ?? 0;
                     }
                     await base.SaveChangesAsync(cancellationToken);
+
+                    parentIds = parents
+                        .Where(t => t.ParentTaskId != null)
+                        .Select(t => t.ParentTaskId!.Value)
+                        .Distinct()
+                        .ToList();
                 }
             }
 

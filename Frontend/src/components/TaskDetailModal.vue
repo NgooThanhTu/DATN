@@ -19,7 +19,7 @@
         
         <div class="cm-toolbar-row">
            <!-- STATUS -->
-           <el-dropdown trigger="click" @command="(cmd) => selectedTask.statusName = cmd">
+           <el-dropdown trigger="click" @command="(cmd) => selectStatus(cmd)">
              <div class="t-btn"><i :class="getStatusIcon(selectedTask?.statusName)"></i> <span>State</span> {{ selectedTask?.statusName || 'Todo' }}</div>
              <template #dropdown>
                <el-dropdown-menu class="theme-dropdown">
@@ -43,9 +43,9 @@
            </el-dropdown>
 
            <!-- ASSIGNEES -->
-           <el-popover  placement="bottom-start" trigger="click" popper-class="plane-popover" :width="220" @show="assigneeSearch = ''">
+           <el-popover  placement="bottom-start" trigger="click" popper-class="plane-popover" :width="220" :disabled="!canManageTaskAssignees" @show="assigneeSearch = ''">
              <template #reference>
-               <div class="t-btn"><i class="fa-regular fa-user"></i> <span>Assignees</span> {{ getAssigneeSummary() }}</div>
+               <div class="t-btn" :class="{ disabled: !canManageTaskAssignees }"><i class="fa-regular fa-user"></i> <span>Assignees</span> {{ getAssigneeSummary() }}</div>
              </template>
              <div class="popover-content">
                <input type="text" v-model="assigneeSearch" class="popover-search" placeholder="Type to search..." />
@@ -67,6 +67,7 @@
                       min="0"
                       max="100"
                       step="1"
+                      :disabled="!canManageTaskAssignees"
                       :value="assignee.progressPercent || 0"
                       @change="event => updateAssigneeProgress(assignee.userId, event.target.value)"
                     />
@@ -76,6 +77,7 @@
                       type="number"
                       min="0"
                       step="0.5"
+                      :disabled="!canManageTaskAssignees"
                       :value="assignee.estimatedHours || 0"
                       @change="event => updateAssigneeEstimatedHours(assignee.userId, event.target.value)"
                     />
@@ -85,6 +87,7 @@
                       type="number"
                       min="0"
                       step="0.1"
+                      :disabled="!canManageTaskAssignees"
                       :value="assignee.contributionWeight || 1"
                       @change="event => updateAssigneeContributionWeight(assignee.userId, event.target.value)"
                     />
@@ -325,10 +328,33 @@
                <button class="s-btn" @click="startCreateSubtask"><i class="fa-solid fa-layer-group"></i> Add sub-work item</button>
                <button class="s-btn" :disabled="isAiBreakingDown" @click="createSubtasksWithAI">
                  <i class="fa-solid fa-wand-magic-sparkles"></i>
-                 {{ isAiBreakingDown ? 'AI is creating...' : 'AI split into subtasks' }}
+                 {{ isAiBreakingDown ? 'AI is preparing...' : 'AI split into subtasks' }}
                </button>
                
                <button class="s-btn" @click="triggerDescriptionFileUpload"><i class="fa-solid fa-paperclip"></i> Attach</button>
+            </div>
+            <div v-if="aiSubtaskPreview.length" class="ai-preview-panel">
+              <div class="ai-preview-head">
+                <div>
+                  <strong>AI subtask preview</strong>
+                  <p>Review these suggested sub-work items before creating them.</p>
+                </div>
+                <div class="ai-preview-actions">
+                  <button class="quick-subtask-cancel" @click="discardAiSubtaskPreview">Discard</button>
+                  <button class="quick-subtask-save" :disabled="isCreatingPreviewSubtasks" @click="confirmAiSubtaskPreview">
+                    {{ isCreatingPreviewSubtasks ? 'Creating...' : `Create ${aiSubtaskPreview.length} sub-work items` }}
+                  </button>
+                </div>
+              </div>
+              <div class="ai-preview-list">
+                <div v-for="(subtask, index) in aiSubtaskPreview" :key="`ai-preview-${index}`" class="ai-preview-item">
+                  <div class="ai-preview-top">
+                    <strong>{{ subtask.title }}</strong>
+                    <span>{{ Number(subtask.estHours || 0).toFixed(1) }}h · P{{ subtask.priority || 3 }}</span>
+                  </div>
+                  <p>{{ subtask.description || 'No description' }}</p>
+                </div>
+              </div>
             </div>
             <div v-if="isCreatingSubtask" class="quick-subtask-box">
               <input
@@ -472,7 +498,7 @@
                       />
                       <span class="task-progress-suffix">%</span>
                       <span class="task-progress-hint">
-                        {{ canEditTaskProgress(selectedTask) ? 'Synced to assigned members' : 'Assign at least one member to track progress' }}
+                        Progress is calculated from assignee completion and Done state.
                       </span>
                     </div>
                   </div>
@@ -480,9 +506,9 @@
                 <div class="p-row">
                   <div class="p-label"><i class="fa-regular fa-user"></i> Assignees</div>
                   <div class="p-val">
-                    <el-popover placement="bottom-start" trigger="click" popper-class="plane-popover" :width="260" @show="assigneeSearch = ''">
+                    <el-popover placement="bottom-start" trigger="click" popper-class="plane-popover" :width="260" :disabled="!canManageTaskAssignees" @show="assigneeSearch = ''">
                       <template #reference>
-                        <button class="property-trigger" :class="{ 'muted-val': !getAssigneeIds().length }">
+                        <button class="property-trigger" :class="{ 'muted-val': !getAssigneeIds().length }" :disabled="!canManageTaskAssignees">
                           <i class="fa-regular fa-user"></i>
                           <span>Assignees</span>
                           <span class="property-value">{{ getAssigneeSummary() }}</span>
@@ -499,6 +525,38 @@
                         </div>
                       </div>
                     </el-popover>
+                    <button v-if="canUseAiAssigneeSuggestion" class="property-trigger estimate-suggestion-btn ai-estimate-btn mt-2" :disabled="isAiSuggestingAssignees" @click="suggestAssigneesWithAI()">
+                      <i class="fa-solid fa-user-group"></i>
+                      <span>{{ isAiSuggestingAssignees ? 'AI is matching...' : 'AI suggest assignees' }}</span>
+                    </button>
+                    <div v-if="canUseAiAssigneeSuggestion && aiAssigneeSuggestion" class="estimate-breakdown ai-suggestion-panel ai-assignee-panel">
+                      <div class="estimate-breakdown-row">
+                        <span>Recommended team size</span>
+                        <strong>{{ aiAssigneeSuggestion.recommendedAssigneeCount }}</strong>
+                      </div>
+                      <small class="estimate-helper-text">{{ aiAssigneeSuggestion.summary }}</small>
+                      <div class="ai-assignee-list">
+                        <div v-for="candidate in aiAssigneeSuggestion.suggestions" :key="candidate.userId" class="ai-assignee-item">
+                          <div class="ai-assignee-top">
+                            <strong>{{ candidate.fullName }}</strong>
+                            <span>{{ Math.round((candidate.fitScore || 0) * 100) }}% fit</span>
+                          </div>
+                          <div class="ai-assignee-metrics">
+                            <span>{{ candidate.projectRole || 'Member' }}</span>
+                            <span>{{ candidate.completedStoryPoints }} pts done</span>
+                            <span>{{ candidate.averageAccuracyPercent }}% accuracy</span>
+                            <span>{{ candidate.activeEstimatedHours }}h active</span>
+                            <span v-if="candidate.suggestedEstimatedHours">{{ candidate.suggestedEstimatedHours }}h suggested</span>
+                          </div>
+                          <small class="estimate-helper-text">{{ candidate.reasoning }}</small>
+                        </div>
+                      </div>
+                      <div class="ai-preview-actions">
+                        <button class="quick-subtask-cancel" type="button" @click="aiAssigneeSuggestion = null">Discard</button>
+                        <button class="quick-subtask-save" type="button" @click="applyAiAssigneeSuggestion('top')">Apply top suggestion</button>
+                        <button class="quick-subtask-save" type="button" @click="applyAiAssigneeSuggestion('team')">Apply suggested team</button>
+                      </div>
+                    </div>
                   </div>
                 </div>
                <div class="p-row">
@@ -596,15 +654,106 @@
                        min="0"
                        step="0.5"
                        class="estimate-hours-input"
+                       :disabled="isEstimateDerivedFromSubtasks"
                        @input="event => updateEstimatedHours(event.target.value)"
                      />
+                    </div>
+                   <small v-if="isEstimateDerivedFromSubtasks" class="estimate-helper-text">This parent estimate is derived from sub-work items.</small>
+                   <div class="estimate-breakdown">
+                     <div class="estimate-breakdown-row">
+                       <span>Actual tracked</span>
+                       <strong>{{ formatEstimateHours(getActualHours(selectedTask)) }}h</strong>
+                       <small>time logs</small>
+                     </div>
+                     <div class="estimate-breakdown-row">
+                       <span>Log time</span>
+                       <div class="estimate-inline-actions">
+                         <input
+                           v-model="timeLogHours"
+                           type="number"
+                           min="0.5"
+                           step="0.5"
+                           class="estimate-inline-input compact"
+                           :placeholder="elapsedTimeLogLabel"
+                           @keydown.enter.prevent="submitTimeLog()"
+                         />
+                         <input
+                           v-model="timeLogNote"
+                           type="text"
+                           class="estimate-inline-input compact wide"
+                           placeholder="Note"
+                           @keydown.enter.prevent="submitTimeLog()"
+                         />
+                         <button
+                           class="secondary-mini-btn"
+                           type="button"
+                           :disabled="isLoggingTime || isEstimateDerivedFromSubtasks"
+                           @mousedown.stop.prevent="submitTimeLog()"
+                         >
+                           {{ isLoggingTime ? 'Logging...' : 'Log' }}
+                         </button>
+                       </div>
+                     </div>
+                     <div class="estimate-breakdown-row">
+                       <span>Work session</span>
+                       <div class="estimate-inline-actions">
+                         <small class="session-status-copy">{{ workSessionStatusLabel }}</small>
+                         <button
+                           v-if="!isWorkSessionRunning && !isWorkSessionPaused"
+                           class="secondary-mini-btn"
+                           type="button"
+                           :disabled="isEstimateDerivedFromSubtasks || !isAssignedToCurrentUser"
+                           @mousedown.stop.prevent="startWorkSession()"
+                         >
+                           Start
+                         </button>
+                         <button
+                           v-if="isWorkSessionRunning"
+                           class="secondary-mini-btn"
+                           type="button"
+                           @mousedown.stop.prevent="pauseWorkSession()"
+                         >
+                           Pause
+                         </button>
+                         <button
+                           v-if="isWorkSessionPaused"
+                           class="secondary-mini-btn"
+                           type="button"
+                           :disabled="!isAssignedToCurrentUser"
+                           @mousedown.stop.prevent="resumeWorkSession()"
+                         >
+                           Resume
+                         </button>
+                         <button
+                           v-if="isWorkSessionRunning || isWorkSessionPaused"
+                           class="secondary-mini-btn"
+                           type="button"
+                           :disabled="isLoggingTime"
+                           @mousedown.stop.prevent="stopWorkSession()"
+                         >
+                           Stop
+                         </button>
+                       </div>
+                     </div>
+                     <small v-if="!isAssignedToCurrentUser" class="estimate-helper-text">Only the assigned member can run tracked sessions on this work item.</small>
                    </div>
-                   <div v-if="selectedAssigneeRows.length" class="estimate-breakdown">
+                   <div v-if="visibleEstimateAssigneeRows.length" class="estimate-breakdown">
                      <div class="estimate-breakdown-head">Estimate split by assignee</div>
-                     <div class="estimate-breakdown-row" v-for="assignee in selectedAssigneeRows" :key="`estimate-${assignee.userId}`">
+                     <div class="estimate-breakdown-row" v-for="assignee in visibleEstimateAssigneeRows" :key="`estimate-${assignee.userId}`">
                        <span>{{ assignee.fullName || assignee.email || 'Member' }}</span>
-                       <strong>{{ formatEstimateHours(assignee.estimatedHours || 0) }}h</strong>
-                       <small>{{ formatEstimateHours(assignee.contributionWeight || 1) }}w</small>
+                       <div class="estimate-inline-actions">
+                         <input
+                           :value="assignee.estimatedHours || 0"
+                           type="number"
+                           min="0"
+                           step="0.5"
+                           class="estimate-inline-input compact"
+                           :disabled="isEstimateDerivedFromSubtasks"
+                           @change="event => updateAssigneeEstimatedHours(assignee.userId, event.target.value)"
+                         />
+                         <strong>{{ formatEstimateHours(assignee.estimatedHours || 0) }}h</strong>
+                       </div>
+                       <small>{{ formatEstimateHours(getAssigneeActualHours(assignee)) }}h actual · {{ getAssigneeSharePercent(assignee) }}%</small>
                      </div>
                    </div>
                    <div v-if="subtasksList.length" class="estimate-breakdown">
@@ -620,7 +769,31 @@
                      <span>Use suggestion</span>
                      <span class="property-value">{{ suggestedEstimateHours }}h</span>
                    </button>
-                   <small class="estimate-helper-text">Based on priority, story points, and task title keywords.</small>
+                   <small class="estimate-helper-text">Suggested from priority, story points, and task title keywords.</small>
+                   <button class="property-trigger estimate-suggestion-btn ai-estimate-btn" :disabled="isAiSuggestingEstimate" @click="suggestEstimateWithAI()">
+                     <i class="fa-solid fa-robot"></i>
+                     <span>{{ isAiSuggestingEstimate ? 'AI is thinking...' : 'AI suggest' }}</span>
+                     <span class="property-value">{{ aiEstimateSuggestion?.suggestedHours ? `${aiEstimateSuggestion.suggestedHours}h` : 'Gemini' }}</span>
+                   </button>
+                   <div v-if="aiEstimateSuggestion" class="estimate-breakdown ai-suggestion-panel">
+                     <div class="estimate-breakdown-head">AI estimate suggestion</div>
+                     <div class="estimate-breakdown-row">
+                       <span>Suggested hours</span>
+                       <strong>{{ formatEstimateHours(aiEstimateSuggestion.suggestedHours) }}h</strong>
+                     </div>
+                     <div class="estimate-breakdown-row">
+                       <span>Suggested story points</span>
+                       <strong>{{ aiEstimateSuggestion.suggestedStoryPoints }}</strong>
+                     </div>
+                     <div class="estimate-breakdown-row">
+                       <span>Complexity / days</span>
+                       <strong>{{ aiEstimateSuggestion.complexity }} · {{ aiEstimateSuggestion.suggestedDays }}d</strong>
+                     </div>
+                     <small class="estimate-helper-text">{{ aiEstimateSuggestion.reasoning }}</small>
+                     <div class="estimate-inline-actions">
+                       <button class="secondary-mini-btn" type="button" @click="applyAiEstimateSuggestion()">Apply AI suggestion</button>
+                     </div>
+                   </div>
                  </div>
                </div>
                <div class="p-row">
@@ -918,10 +1091,21 @@
 
 
 <script setup>
-import { ref, watch, computed, nextTick } from 'vue';
+import { ref, watch, computed, nextTick, onMounted, onUnmounted } from 'vue';
 import { ElMessage, ElNotification } from 'element-plus';
 import axiosClient from '@/api/axiosClient';
 import DOMPurify from 'dompurify';
+import { hasSystemAdminAccess, normalizeProjectRole } from '@/utils/permissions';
+import { useProjectStore } from '@/store/useProjectStore';
+import {
+  buildFreshWorkSession,
+  calculateWorkSessionHours,
+  clearWorkSession,
+  loadWorkSession,
+  saveWorkSession
+} from '@/utils/workSession';
+
+const aiManagerProjectRoles = ['pm', 'po', 'sm', 'admin', 'project_manager', 'project_lead', 'scrum_master'];
 
 const props = defineProps({
   selectedTask: { type: Object, default: null },
@@ -932,11 +1116,17 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['updateTask', 'close', 'back', 'open-task', 'create-subtask', 'refresh-tasks']);
+const projectStore = useProjectStore();
 
 const showTaskModal = ref(true);
 const isSubscribed = ref(false);
 const activitySortNewestFirst = ref(true);
 const showSubtasks = ref(true);
+const WORK_SESSION_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+const workSession = ref(null);
+const workSessionNow = ref(Date.now());
+const workSessionTick = ref(null);
+const idleNotificationShownForTaskId = ref(null);
 
 const toBooleanFlag = (value) => {
     if (typeof value === 'boolean') return value;
@@ -1004,13 +1194,10 @@ const currentProjectBadge = computed(() => {
 });
 
 const disablePastDates = (date) => {
-  const candidate = formatDateOnly(date);
-  const today = getTodayDateString();
-  return Boolean(candidate && today && candidate < today);
+  return false;
 };
 
 const disableDueDates = (date) => {
-  if (disablePastDates(date)) return true;
   const candidate = formatDateOnly(date);
   const start = formatDateOnly(props.selectedTask?.plannedStartDate);
   return Boolean(candidate && start && candidate < start);
@@ -1021,6 +1208,38 @@ const filteredMembers = computed(() => {
     if (!assigneeSearch.value) return members;
     return members.filter(m => (m.fullName || m.name || m.email || '').toLowerCase().includes(assigneeSearch.value.toLowerCase()));
 });
+
+const currentProjectRole = computed(() => {
+  const currentProjectMatch = `${projectStore.currentProject?.id || ''}` === `${props.projectId || ''}`
+    ? projectStore.currentProject
+    : null;
+
+  const cachedProject = projectStore.allProjects.find(project => `${project.id || ''}` === `${props.projectId || ''}`);
+  const role = currentProjectMatch?.myRole
+    || currentProjectMatch?.MyRole
+    || cachedProject?.myRole
+    || cachedProject?.MyRole
+    || cachedProject?.projectRole
+    || cachedProject?.ProjectRole;
+
+  return normalizeProjectRole(role);
+});
+
+const canUseAiAssigneeSuggestion = computed(() => {
+  const currentUser = props.currentUser && Object.keys(props.currentUser).length
+    ? props.currentUser
+    : (() => {
+        try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; }
+      })();
+
+  if (hasSystemAdminAccess(currentUser)) {
+    return true;
+  }
+
+  return Boolean(currentProjectRole.value && aiManagerProjectRoles.includes(currentProjectRole.value));
+});
+
+const canManageTaskAssignees = computed(() => canUseAiAssigneeSuggestion.value);
 
 const filteredLabels = computed(() => {
     if (!labelSearch.value) return projectLabels.value;
@@ -1114,12 +1333,50 @@ const buildTaskAssigneeRows = (task = props.selectedTask) => {
          fullName: existing.fullName || member.fullName || member.name,
          email: existing.email || member.email,
          progressPercent: existing.progressPercent ?? 0,
-         contributionWeight: existing.contributionWeight ?? 1
+         contributionWeight: existing.contributionWeight ?? 1,
+         estimatedHours: Number(existing.estimatedHours ?? existing.EstimatedHours ?? 0),
+         totalActualHours: Number(existing.totalActualHours ?? existing.TotalActualHours ?? 0)
       };
    });
 };
 
 const selectedAssigneeRows = computed(() => buildTaskAssigneeRows());
+
+const subtaskAssigneeRows = computed(() => {
+   const rows = new Map();
+   (subtasksList.value || []).forEach(subtask => {
+      (Array.isArray(subtask.assignees) ? subtask.assignees : []).forEach(assignee => {
+         const userId = assignee.userId || assignee.UserId || assignee.id;
+         if (!userId) return;
+         const current = rows.get(userId) || {
+            userId,
+            fullName: assignee.fullName || assignee.FullName || assignee.name,
+            email: assignee.email || assignee.Email,
+            progressPercent: 0,
+            contributionWeight: 0,
+            estimatedHours: 0,
+            totalActualHours: 0
+         };
+         current.progressPercent = Math.max(current.progressPercent, Number(assignee.progressPercent ?? assignee.ProgressPercent ?? 0) || 0);
+         current.contributionWeight += Number(assignee.contributionWeight ?? assignee.ContributionWeight ?? 1) || 0;
+         current.estimatedHours += Number(assignee.estimatedHours ?? assignee.EstimatedHours ?? 0) || 0;
+         current.totalActualHours += Number(assignee.totalActualHours ?? assignee.TotalActualHours ?? 0) || 0;
+         rows.set(userId, current);
+      });
+   });
+   return Array.from(rows.values()).map(row => ({
+      ...row,
+      estimatedHours: Math.round(row.estimatedHours * 10) / 10,
+      totalActualHours: Math.round(row.totalActualHours * 10) / 10
+   }));
+});
+
+const visibleEstimateAssigneeRows = computed(() => {
+   if (isEstimateDerivedFromSubtasks.value && subtaskAssigneeRows.value.length) {
+      return subtaskAssigneeRows.value;
+   }
+   return selectedAssigneeRows.value;
+});
 
 const getAssigneeSummary = (task = props.selectedTask) => {
    const members = buildTaskAssigneeRows(task);
@@ -1138,7 +1395,7 @@ const getTaskProgressPercent = (task = props.selectedTask) => {
    return Math.round(total / rows.length);
 };
 
-const canEditTaskProgress = (task = props.selectedTask) => getAssigneeIds(task).length > 0;
+const canEditTaskProgress = () => false;
 
 const setTaskParent = (task, parentId) => {
    if (!task) return;
@@ -1736,6 +1993,28 @@ watch(showTaskModal, (val) => {
   if (!val) emit('close');
 });
 
+watch(workSession, () => {
+  persistCurrentWorkSession();
+}, { deep: true });
+
+onMounted(() => {
+  startWorkSessionTicker();
+  window.addEventListener('mousemove', touchWorkSessionActivity, { passive: true });
+  window.addEventListener('keydown', touchWorkSessionActivity, { passive: true });
+  window.addEventListener('scroll', touchWorkSessionActivity, { passive: true });
+  window.addEventListener('click', touchWorkSessionActivity, { passive: true });
+  document.addEventListener('visibilitychange', syncWorkSessionOnVisibility);
+});
+
+onUnmounted(() => {
+  stopWorkSessionTicker();
+  window.removeEventListener('mousemove', touchWorkSessionActivity);
+  window.removeEventListener('keydown', touchWorkSessionActivity);
+  window.removeEventListener('scroll', touchWorkSessionActivity);
+  window.removeEventListener('click', touchWorkSessionActivity);
+  document.removeEventListener('visibilitychange', syncWorkSessionOnVisibility);
+});
+
 const formatDate = (dateStr) => {
   if (!dateStr) return '';
   const d = parseDateValue(dateStr);
@@ -1856,9 +2135,236 @@ const updateTaskFields = (task, payload) => {
   emit('updateTask', task, payload);
 };
 
+const persistTaskPatch = async (task, payload) => {
+  if (!task?.id || task?.isNew) return null;
+  const response = await axiosClient.patch(`/projects/${props.projectId}/WorkTasks/${task.id}`, payload);
+  const normalized = normalizeTaskSnapshot({ ...(response.data?.data || {}) });
+  Object.assign(task, normalized);
+  mergeCachedTask(normalized);
+  emit('refresh-tasks');
+  return normalized;
+};
+
 const formatEstimateHours = (value) => {
   const normalized = Math.max(0, Number(value) || 0);
   return normalized % 1 === 0 ? normalized.toFixed(0) : normalized.toFixed(1);
+};
+
+const getCurrentUserId = () => {
+  const propUserId = props.currentUser?.id || props.currentUser?.userId;
+  if (propUserId) return propUserId;
+
+  try {
+    const rawUser = localStorage.getItem('user');
+    const parsedUser = rawUser ? JSON.parse(rawUser) : null;
+    return parsedUser?.id || parsedUser?.userId || null;
+  } catch {
+    return null;
+  }
+};
+
+const getWorkSessionContext = (task = props.selectedTask) => ({
+  userId: getCurrentUserId(),
+  projectId: props.projectId,
+  taskId: task?.id || null
+});
+
+const isAssignedToCurrentUser = computed(() => {
+  const currentUserId = getCurrentUserId();
+  if (!currentUserId || !props.selectedTask) return false;
+  return getAssigneeIds(props.selectedTask).includes(currentUserId);
+});
+
+const isWorkSessionRunning = computed(() => workSession.value?.status === 'running');
+const isWorkSessionPaused = computed(() => workSession.value?.status === 'paused');
+const trackedSessionHours = computed(() => calculateWorkSessionHours(workSession.value, workSessionNow.value));
+const workSessionStatusLabel = computed(() => {
+  if (isWorkSessionRunning.value) {
+    return `Tracking ${formatEstimateHours(trackedSessionHours.value)}h`;
+  }
+
+  if (isWorkSessionPaused.value) {
+    return workSession.value?.idlePausedAt
+      ? `Idle paused at ${formatEstimateHours(trackedSessionHours.value)}h`
+      : `Paused at ${formatEstimateHours(trackedSessionHours.value)}h`;
+  }
+
+  return 'No active session';
+});
+
+const persistCurrentWorkSession = () => {
+  const context = getWorkSessionContext();
+  if (!context.userId || !context.taskId) return;
+
+  if (!workSession.value) {
+    clearWorkSession(context);
+    return;
+  }
+
+  saveWorkSession(context, workSession.value);
+};
+
+const stopWorkSessionTicker = () => {
+  if (workSessionTick.value) {
+    window.clearInterval(workSessionTick.value);
+    workSessionTick.value = null;
+  }
+};
+
+const startWorkSessionTicker = () => {
+  stopWorkSessionTicker();
+  workSessionTick.value = window.setInterval(() => {
+    workSessionNow.value = Date.now();
+    maybeAutoPauseWorkSession();
+  }, 1000);
+};
+
+const touchWorkSessionActivity = () => {
+  if (!isWorkSessionRunning.value || !workSession.value) return;
+  workSession.value = {
+    ...workSession.value,
+    lastActivityAt: Date.now(),
+    idlePausedAt: null
+  };
+  persistCurrentWorkSession();
+};
+
+const maybeAutoPauseWorkSession = () => {
+  if (!isWorkSessionRunning.value || !workSession.value) return;
+  const now = Date.now();
+  const lastActivityAt = Number(workSession.value.lastActivityAt || workSession.value.startedAt || now);
+  if (now - lastActivityAt < WORK_SESSION_IDLE_TIMEOUT_MS) {
+    return;
+  }
+
+  const runningMs = Math.max(0, lastActivityAt - Number(workSession.value.startedAt || lastActivityAt));
+  workSession.value = {
+    ...workSession.value,
+    status: 'paused',
+    accumulatedMs: Math.max(0, Number(workSession.value.accumulatedMs) || 0) + runningMs,
+    startedAt: null,
+    pausedAt: now,
+    idlePausedAt: lastActivityAt
+  };
+  persistCurrentWorkSession();
+
+  if (idleNotificationShownForTaskId.value !== props.selectedTask?.id) {
+    idleNotificationShownForTaskId.value = props.selectedTask?.id || null;
+    ElNotification({
+      title: 'Work session paused',
+      message: 'No activity was detected for 5 minutes, so tracking was paused automatically.',
+      type: 'warning',
+      duration: 3500
+    });
+  }
+};
+
+const loadCurrentWorkSession = (task = props.selectedTask) => {
+  const context = getWorkSessionContext(task);
+  const savedSession = loadWorkSession(context);
+  workSession.value = savedSession ? {
+    ...savedSession,
+    taskTitle: task?.title || savedSession.taskTitle || 'Work item'
+  } : null;
+  workSessionNow.value = Date.now();
+  idleNotificationShownForTaskId.value = null;
+};
+
+const startWorkSession = (task = props.selectedTask) => {
+  if (!task?.id || task?.isNew) return;
+  if (!isAssignedToCurrentUser.value) {
+    ElMessage.warning('Only assigned members can start time tracking on this work item.');
+    return;
+  }
+  const now = Date.now();
+  workSession.value = buildFreshWorkSession({
+    ...getWorkSessionContext(task),
+    taskTitle: task.title,
+    startedAt: now
+  });
+  workSessionNow.value = now;
+  persistCurrentWorkSession();
+  ElMessage.success('Work session started.');
+};
+
+const pauseWorkSession = ({ notify = true } = {}) => {
+  if (!isWorkSessionRunning.value || !workSession.value) return;
+  const now = Date.now();
+  const runningMs = Math.max(0, now - Number(workSession.value.startedAt || now));
+  workSession.value = {
+    ...workSession.value,
+    status: 'paused',
+    accumulatedMs: Math.max(0, Number(workSession.value.accumulatedMs) || 0) + runningMs,
+    startedAt: null,
+    pausedAt: now,
+    idlePausedAt: null,
+    lastActivityAt: now
+  };
+  workSessionNow.value = now;
+  persistCurrentWorkSession();
+  if (notify) {
+    ElMessage.info('Work session paused.');
+  }
+};
+
+const resumeWorkSession = () => {
+  if (!workSession.value || !isWorkSessionPaused.value) return;
+  if (!isAssignedToCurrentUser.value) {
+    ElMessage.warning('Only assigned members can resume time tracking on this work item.');
+    return;
+  }
+  const now = Date.now();
+  workSession.value = {
+    ...workSession.value,
+    status: 'running',
+    startedAt: now,
+    lastActivityAt: now,
+    pausedAt: null,
+    idlePausedAt: null
+  };
+  workSessionNow.value = now;
+  persistCurrentWorkSession();
+  ElMessage.success('Work session resumed.');
+};
+
+const isEstimateDerivedFromSubtasks = computed(() => (subtasksList.value || []).length > 0);
+const timeLogHours = ref('');
+const timeLogNote = ref('');
+const taskViewStartedAt = ref(Date.now());
+const isLoggingTime = ref(false);
+
+const elapsedTimeLogHours = computed(() => {
+  const elapsedMs = Math.max(0, Date.now() - taskViewStartedAt.value);
+  return Math.max(0.1, Math.round((elapsedMs / 3600000) * 10) / 10);
+});
+
+const elapsedTimeLogLabel = computed(() => `Auto ${formatEstimateHours(elapsedTimeLogHours.value)}h`);
+
+const getActualHours = (task = props.selectedTask) => {
+  const value = Number(task?.totalActualHours ?? 0);
+  return Number.isFinite(value) ? value : 0;
+};
+
+const getAssigneeActualHours = (assignee) => {
+  const value = Number(assignee?.totalActualHours ?? 0);
+  return Number.isFinite(value) ? value : 0;
+};
+
+const getAssigneeSharePercent = (assignee, task = props.selectedTask) => {
+  const totalEstimate = Math.max(0, Number(task?.totalEstimatedHours) || 0);
+  const assigneeEstimate = Math.max(0, Number(assignee?.estimatedHours) || 0);
+  if (totalEstimate > 0 && assigneeEstimate > 0) {
+    return Math.max(0, Math.min(100, Math.round((assigneeEstimate / totalEstimate) * 100)));
+  }
+
+  const assignees = normalizeAssigneeEstimateState(task);
+  const totalWeight = assignees.reduce((sum, item) => sum + Math.max(Number(item?.contributionWeight) || 0, 0.1), 0);
+  const weight = Math.max(Number(assignee?.contributionWeight) || 0, 0.1);
+  if (totalWeight > 0) {
+    return Math.max(0, Math.min(100, Math.round((weight / totalWeight) * 100)));
+  }
+
+  return assignees.length ? Math.round(100 / assignees.length) : 100;
 };
 
 const normalizeAssigneeEstimateState = (task = props.selectedTask) => {
@@ -1872,7 +2378,8 @@ const normalizeAssigneeEstimateState = (task = props.selectedTask) => {
     userId: assignee.userId || assignee.id,
     progressPercent: Math.min(100, Math.max(0, Number(assignee.progressPercent) || 0)),
     contributionWeight: Math.max(0.1, Number(assignee.contributionWeight) || 1),
-    estimatedHours: Math.max(0, Number(assignee.estimatedHours) || 0)
+    estimatedHours: Math.max(0, Number(assignee.estimatedHours) || 0),
+    totalActualHours: Math.max(0, Number(assignee.totalActualHours) || 0)
   }));
 };
 
@@ -1958,6 +2465,11 @@ const applySelectedAssignees = async (assigneeIds, task = props.selectedTask) =>
 };
 
 const toggleAssignee = async (memberId, task = props.selectedTask) => {
+  if (!canManageTaskAssignees.value) {
+    ElMessage.warning('You do not have permission to manage assignees for this work item.');
+    return;
+  }
+
   const currentIds = getAssigneeIds(task);
   const nextIds = currentIds.includes(memberId)
     ? currentIds.filter(id => id !== memberId)
@@ -2079,6 +2591,10 @@ const subtaskEstimateTotal = computed(() => {
 
 const updateEstimatedHours = (rawValue, task = props.selectedTask) => {
   if (!task) return;
+  if ((subtasksList.value || []).length > 0 && task?.id === props.selectedTask?.id) {
+    ElMessage.warning('Parent estimate is derived from sub-work items.');
+    return;
+  }
   const nextValue = Math.max(0, Number(rawValue) || 0);
   task.totalEstimatedHours = nextValue;
   distributeEstimateAcrossAssignees(task, { persist: false });
@@ -2105,14 +2621,97 @@ const rollupEstimateFromSubtasks = (task = props.selectedTask) => {
   ElMessage.success('Parent estimate rolled up from sub-work items');
 };
 
+const submitTimeLog = async (task = props.selectedTask, options = {}) => {
+  if (!task?.id || task?.isNew) return;
+  if (isLoggingTime.value) return;
+  if (isEstimateDerivedFromSubtasks.value && task?.id === props.selectedTask?.id) {
+    ElMessage.warning('Log time on sub-work items so parent actual hours can roll up.');
+    return;
+  }
+  const manualHours = Number(timeLogHours.value);
+  const overrideHours = Number(options.hours);
+  const hours = Math.max(
+    0,
+    Number.isFinite(overrideHours) && overrideHours > 0
+      ? overrideHours
+      : Number.isFinite(manualHours) && manualHours > 0
+        ? manualHours
+        : elapsedTimeLogHours.value
+  );
+  if (hours <= 0) {
+    ElMessage.warning('Hours must be greater than 0.');
+    return;
+  }
+
+  isLoggingTime.value = true;
+  try {
+    ElMessage.info(`Logging ${formatEstimateHours(hours)}h...`);
+    const note = options.note ?? timeLogNote.value ?? null;
+    const response = await axiosClient.post(`/projects/${props.projectId}/WorkTasks/${task.id}/time-logs`, {
+      hours,
+      workType: 'GENERAL',
+      note
+    });
+
+    const updatedTask = response.data?.data;
+    if (updatedTask?.id === task.id) {
+      const normalized = normalizeTaskSnapshot({ ...task, ...updatedTask });
+      Object.assign(task, normalized);
+      mergeCachedTask(normalized);
+    }
+
+    timeLogHours.value = '';
+    timeLogNote.value = '';
+    taskViewStartedAt.value = Date.now();
+    emit('refresh-tasks');
+    ElMessage.success('Time log created.');
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || 'Unable to log time.');
+  } finally {
+    isLoggingTime.value = false;
+  }
+};
+
+const stopWorkSession = async () => {
+  if (!workSession.value) return;
+  if (isWorkSessionRunning.value) {
+    pauseWorkSession({ notify: false });
+  }
+
+  const hours = trackedSessionHours.value;
+  if (hours <= 0) {
+    workSession.value = null;
+    persistCurrentWorkSession();
+    ElMessage.info('Tracked session was empty, so nothing was logged.');
+    return;
+  }
+
+  const sessionNote = timeLogNote.value?.trim()
+    ? `[Tracked session] ${timeLogNote.value.trim()}`
+    : '[Tracked session] Auto-generated from Start/Pause/Stop tracking.';
+
+  await submitTimeLog(props.selectedTask, {
+    hours,
+    note: sessionNote
+  });
+
+  workSession.value = null;
+  persistCurrentWorkSession();
+};
+
+const syncWorkSessionOnVisibility = () => {
+  if (document.hidden) {
+    maybeAutoPauseWorkSession();
+    return;
+  }
+
+  workSessionNow.value = Date.now();
+};
+
 const handleTaskDateChange = (field, rawValue, task = props.selectedTask) => {
   if (!task) return;
 
   const normalizedValue = rawValue ? formatDateOnly(rawValue) : null;
-  if (normalizedValue && normalizedValue < getTodayDateString()) {
-    ElMessage.warning('Cannot select a past date.');
-    return;
-  }
 
   if (field === 'dueDate') {
     const startDate = formatDateOnly(task.plannedStartDate);
@@ -2147,9 +2746,10 @@ const handleTaskDateChange = (field, rawValue, task = props.selectedTask) => {
 const selectStatus = (status, task = props.selectedTask) => {
   if (!task) return;
   const nextStatus = typeof status === 'string' ? status : status.name;
-  task.statusName = nextStatus;
   if (!task.isNew) {
     updateTaskField(task, 'statusName', nextStatus);
+  } else {
+    task.statusName = nextStatus;
   }
 };
 
@@ -2255,7 +2855,13 @@ const normalizeTaskSnapshot = (task) => {
   if (Array.isArray(task.assignees)) {
     task.assignees = task.assignees.map(item => ({
       ...item,
-      userId: item.userId || item.id
+      userId: item.userId || item.UserId || item.id,
+      fullName: item.fullName || item.FullName || item.name,
+      email: item.email || item.Email,
+      progressPercent: item.progressPercent ?? item.ProgressPercent ?? 0,
+      contributionWeight: item.contributionWeight ?? item.ContributionWeight ?? 1,
+      estimatedHours: item.estimatedHours ?? item.EstimatedHours ?? 0,
+      totalActualHours: item.totalActualHours ?? item.TotalActualHours ?? 0
     }));
   }
 
@@ -2397,6 +3003,12 @@ const submitSubtask = async () => {
 const aiPrompt = ref('');
 const isBrainTyping = ref(false);
 const isAiBreakingDown = ref(false);
+const isCreatingPreviewSubtasks = ref(false);
+const isAiSuggestingEstimate = ref(false);
+const isAiSuggestingAssignees = ref(false);
+const aiEstimateSuggestion = ref(null);
+const aiSubtaskPreview = ref([]);
+const aiAssigneeSuggestion = ref(null);
 
 const askBrain = async () => {
     if (!aiPrompt.value.trim() || !props.selectedTask) return;
@@ -2424,7 +3036,34 @@ const createSubtasksWithAI = async () => {
             parentTaskId: props.selectedTask.id,
             title: props.selectedTask.title,
             description: props.selectedTask.description || '',
-            createSubtasks: true
+            createSubtasks: false
+        });
+
+        aiSubtaskPreview.value = res.data?.data || [];
+        if (aiSubtaskPreview.value.length) {
+            ElMessage.success(`AI da preview ${aiSubtaskPreview.value.length} sub-work items.`);
+        } else {
+            ElMessage.warning('AI khong de xuat duoc sub-work item nao.');
+        }
+    } catch (e) {
+        ElMessage.error(e.response?.data?.message || 'AI khong tao duoc sub-work items. Kiem tra Gemini API key/quota.');
+    } finally {
+        isAiBreakingDown.value = false;
+    }
+};
+
+const discardAiSubtaskPreview = () => {
+    aiSubtaskPreview.value = [];
+};
+
+const confirmAiSubtaskPreview = async () => {
+    if (!props.selectedTask?.id || !props.projectId || !aiSubtaskPreview.value.length || isCreatingPreviewSubtasks.value) return;
+    isCreatingPreviewSubtasks.value = true;
+    try {
+        const res = await axiosClient.post('/ai/create-subtasks-from-preview', {
+            projectId: props.projectId,
+            parentTaskId: props.selectedTask.id,
+            subtasks: aiSubtaskPreview.value
         });
 
         const created = res.data?.data || [];
@@ -2439,12 +3078,163 @@ const createSubtasksWithAI = async () => {
             await fetchSubtasks();
         }
 
+        aiSubtaskPreview.value = [];
         emit('refresh-tasks');
-        ElMessage.success(`AI da tao ${created.length || 'cac'} sub-work items.`);
+        ElMessage.success(`AI da tao ${created.length || 'cac'} sub-work items tu preview.`);
     } catch (e) {
-        ElMessage.error(e.response?.data?.message || 'AI khong tao duoc sub-work items. Kiem tra Gemini API key/quota.');
+        ElMessage.error(e.response?.data?.message || 'Khong tao duoc sub-work items tu preview.');
     } finally {
-        isAiBreakingDown.value = false;
+        isCreatingPreviewSubtasks.value = false;
+    }
+};
+
+const suggestEstimateWithAI = async () => {
+    if (!props.selectedTask?.title || isAiSuggestingEstimate.value) return;
+    isAiSuggestingEstimate.value = true;
+    try {
+        const res = await axiosClient.post('/ai/suggest-estimate', {
+            projectId: props.projectId,
+            workItemId: props.selectedTask.id || null,
+            title: props.selectedTask.title,
+            description: props.selectedTask.description || '',
+            priority: Number(props.selectedTask.priority || 0),
+            storyPoints: Number(props.selectedTask.storyPoints || 0),
+            assigneeCount: (props.selectedTask.assignees || []).length,
+            subtaskCount: (subtasksList.value || []).length
+        });
+
+        aiEstimateSuggestion.value = res.data?.data || null;
+        if (aiEstimateSuggestion.value) {
+            ElMessage.success('AI estimate suggestion ready.');
+        }
+    } catch (e) {
+        ElMessage.error(e.response?.data?.message || 'AI could not suggest an estimate.');
+    } finally {
+        isAiSuggestingEstimate.value = false;
+    }
+};
+
+const suggestAssigneesWithAI = async () => {
+    if (!canUseAiAssigneeSuggestion.value) {
+        ElMessage.warning('You do not have permission to use AI assignee suggestions.');
+        return;
+    }
+    if (!props.selectedTask?.title || !props.projectId || isAiSuggestingAssignees.value) return;
+    isAiSuggestingAssignees.value = true;
+    try {
+        const res = await axiosClient.post('/ai/suggest-assignees', {
+            projectId: props.projectId,
+            workItemId: props.selectedTask.id || null,
+            title: props.selectedTask.title,
+            description: props.selectedTask.description || '',
+            priority: Number(props.selectedTask.priority || 0),
+            storyPoints: Number(props.selectedTask.storyPoints || 0),
+            estimatedHours: Number(props.selectedTask.totalEstimatedHours || 0),
+            candidateCount: 3
+        });
+
+        aiAssigneeSuggestion.value = res.data?.data || null;
+        if (aiAssigneeSuggestion.value?.suggestions?.length) {
+            ElMessage.success('AI assignee suggestion is ready.');
+        } else {
+            ElMessage.warning('AI did not find a suitable assignee suggestion.');
+        }
+    } catch (e) {
+        ElMessage.error(e.response?.data?.message || 'AI could not suggest assignees.');
+    } finally {
+        isAiSuggestingAssignees.value = false;
+    }
+};
+
+const applyAiAssigneeSuggestion = async (mode = 'top') => {
+    if (!canUseAiAssigneeSuggestion.value) {
+        ElMessage.warning('Only PM, PO, SM, project admins, or system admins can apply AI assignee suggestions.');
+        return;
+    }
+
+    if (!props.selectedTask || !aiAssigneeSuggestion.value?.suggestions?.length) return;
+
+    const recommendedCount = Math.max(1, Number(aiAssigneeSuggestion.value.recommendedAssigneeCount) || 1);
+    const candidates = mode === 'team'
+        ? aiAssigneeSuggestion.value.suggestions.slice(0, recommendedCount)
+        : aiAssigneeSuggestion.value.suggestions.slice(0, 1);
+
+    const assigneeIds = candidates.map(item => item.userId).filter(Boolean);
+    if (!assigneeIds.length) {
+        ElMessage.warning('No suggested assignee could be applied.');
+        return;
+    }
+
+    syncTaskAssignees(props.selectedTask, assigneeIds);
+
+    props.selectedTask.assignees = (props.selectedTask.assignees || []).map(assignee => {
+        const match = candidates.find(item => item.userId === assignee.userId);
+        if (!match) return assignee;
+        return {
+            ...assignee,
+            contributionWeight: Number(match.suggestedContributionWeight || assignee.contributionWeight || 1),
+            estimatedHours: Number(match.suggestedEstimatedHours || assignee.estimatedHours || 0)
+        };
+    });
+
+    const totalSuggestedEstimate = props.selectedTask.assignees.reduce((sum, assignee) => sum + (Number(assignee.estimatedHours) || 0), 0);
+    if (totalSuggestedEstimate > 0 && !isEstimateDerivedFromSubtasks.value) {
+        props.selectedTask.totalEstimatedHours = Math.round(totalSuggestedEstimate * 10) / 10;
+    }
+
+    if (!props.selectedTask.isNew) {
+        await updateTaskFields(props.selectedTask, {
+            assigneeIds,
+            totalEstimatedHours: props.selectedTask.totalEstimatedHours,
+            assigneeProgress: (props.selectedTask.assignees || []).map(assignee => ({
+                userId: assignee.userId || assignee.id,
+                progressPercent: assignee.progressPercent || 0,
+                contributionWeight: assignee.contributionWeight || 1,
+                estimatedHours: assignee.estimatedHours || 0
+            }))
+        });
+    }
+
+    ElMessage.success(mode === 'team' ? 'Applied AI suggested team.' : 'Applied top AI assignee.');
+};
+
+const applyAiEstimateSuggestion = async () => {
+    if (!aiEstimateSuggestion.value || !props.selectedTask) return;
+
+    const task = props.selectedTask;
+    const suggestedHours = Math.max(0, Number(aiEstimateSuggestion.value.suggestedHours) || 0);
+    const suggestedStoryPoints = Math.max(0, Number(aiEstimateSuggestion.value.suggestedStoryPoints) || 0);
+    task.storyPoints = suggestedStoryPoints;
+
+    const isParentDerived = isEstimateDerivedFromSubtasks.value;
+    if (!isParentDerived) {
+        task.totalEstimatedHours = suggestedHours;
+        distributeEstimateAcrossAssignees(task, { persist: false });
+    }
+
+    try {
+        const payload = {
+            storyPoints: suggestedStoryPoints,
+            assigneeProgress: (task.assignees || []).map(assignee => ({
+                userId: assignee.userId || assignee.id,
+                progressPercent: assignee.progressPercent || 0,
+                contributionWeight: assignee.contributionWeight || 1,
+                estimatedHours: assignee.estimatedHours || 0
+            }))
+        };
+
+        if (!isParentDerived) {
+            payload.totalEstimatedHours = suggestedHours;
+        }
+
+        await persistTaskPatch(task, payload);
+        ElMessage.success(
+            isParentDerived
+                ? 'Applied AI story points. Parent estimate stays derived from sub-work items.'
+                : 'Applied AI estimate suggestion.'
+        );
+    } catch (e) {
+        ElMessage.error(e.response?.data?.message || 'Could not save AI estimate suggestion.');
     }
 };
 
@@ -2655,6 +3445,10 @@ const submitComment = async () => {
 watch(() => props.selectedTask, (newTask) => {
   if (newTask) {
     normalizeTaskSnapshot(newTask);
+    taskViewStartedAt.value = Date.now();
+    timeLogHours.value = '';
+    timeLogNote.value = '';
+    loadCurrentWorkSession(newTask);
     isSubscribed.value = toBooleanFlag(newTask.isSubscribed);
     // Only fetch data for EXISTING tasks (have an id)
     // New tasks (isNew: true) have no id, so API calls would crash
@@ -2677,6 +3471,8 @@ watch(() => props.selectedTask, (newTask) => {
     replyingToCommentId.value = null;
     newComment.value = '';
     pendingAttachments.value = [];
+    aiSubtaskPreview.value = [];
+    aiAssigneeSuggestion.value = null;
     showTaskModal.value = true;
     nextTick(() => {
       if (descriptionEditor.value) {
@@ -2954,6 +3750,46 @@ watch(() => props.selectedTask, (newTask) => {
   align-items: center;
   gap: 8px;
 }
+.estimate-inline-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.secondary-mini-btn {
+  border: 1px solid #27272A;
+  background: #18181B;
+  color: #E4E4E7;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.secondary-mini-btn:hover:not(:disabled) {
+  border-color: #3B82F6;
+  background: #1F2937;
+}
+.secondary-mini-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.session-status-copy {
+  color: #A1A1AA;
+  font-size: 12px;
+  min-width: 120px;
+}
+.estimate-inline-input.compact {
+  width: 68px;
+}
+.estimate-inline-input.wide {
+  width: 140px;
+}
+.estimate-hours-input:disabled,
+.estimate-inline-input:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
 .estimate-unit,
 .estimate-helper-text,
 .t-btn-number small {
@@ -2985,6 +3821,94 @@ watch(() => props.selectedTask, (newTask) => {
   padding: 6px 10px;
   border-radius: 4px;
   cursor: pointer;
+}
+
+.ai-preview-panel {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-surface) 88%, #0ea5e9 12%);
+}
+
+.ai-preview-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.ai-preview-head p {
+  margin: 4px 0 0;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.ai-preview-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ai-preview-list {
+  display: grid;
+  gap: 10px;
+}
+
+.ai-assignee-panel {
+  margin-top: 10px;
+}
+
+.ai-assignee-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.ai-assignee-item {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--color-surface);
+}
+
+.ai-assignee-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 4px;
+  color: var(--color-text-primary);
+}
+
+.ai-assignee-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 6px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.ai-preview-item {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--color-surface);
+}
+
+.ai-preview-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+  color: var(--color-text-primary);
+}
+
+.ai-preview-item p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .activity-feed {

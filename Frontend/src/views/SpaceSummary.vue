@@ -310,7 +310,7 @@
     />
 
     <!-- Analytics Sidebar Overlay -->
-    <div class="analytics-overlay" v-show="showAnalyticsSidebar" @click.self="closeAnalyticsSidebar">
+    <div v-if="showAnalyticsSidebar" class="analytics-overlay" @click.self="closeAnalyticsSidebar">
       <div class="analytics-panel" :class="{ 'slide-in': showAnalyticsSidebar, 'is-expanded': isAnalyticsExpanded }">
          <div class="ap-header">
             <h3>Analytics for {{ project?.name || 'Project' }}</h3>
@@ -432,10 +432,12 @@
 <script setup>
 // AI 3: CHUYÊN VIÊN GHÉP NỐI LOGIC FRONT-TO-BACK
 import { ref, onMounted, computed, defineAsyncComponent, watch, nextTick, onUnmounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import axiosClient from '@/api/axiosClient'
-import { subscribeAdminRealtime } from '@/utils/adminRealtime'
+  import { useRoute, useRouter } from 'vue-router'
+  import { ElMessage } from 'element-plus'
+  import axiosClient from '@/api/axiosClient'
+  import { subscribeAdminRealtime } from '@/utils/adminRealtime'
+  import { getScopedCurrentProjectId, setScopedCurrentProjectId } from '@/utils/projectContext'
+  import { signalRService } from '@/api/signalrService'
 import NexusLayout from '@/components/layout/NexusLayout.vue'
 import draggable from 'vuedraggable'
 import TaskDetailModal from '@/components/TaskDetailModal.vue'
@@ -444,11 +446,13 @@ import TimelineTab from '@/components/TimelineTab.vue'
 import SpreadsheetTab from '@/components/SpreadsheetTab.vue'
 import FilterBar from '@/components/FilterBar.vue'
 import { useWorkTaskStore } from '@/store/useWorkTaskStore';
+import { useProjectStore } from '@/store/useProjectStore';
 
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { LineChart, BarChart } from 'echarts/charts';
 import { TitleComponent, TooltipComponent, LegendComponent, GridComponent } from 'echarts/components';
+import { LegacyGridContainLabel } from 'echarts/features';
 import VChart from 'vue-echarts';
 
 use([
@@ -458,7 +462,8 @@ use([
   TitleComponent,
   TooltipComponent,
   LegendComponent,
-  GridComponent
+  GridComponent,
+  LegacyGridContainLabel
 ]);
 
 const showDisplayDropdown = ref(false)
@@ -471,8 +476,9 @@ const assigneeSearch = ref('')
 
 const route = useRoute()
 const router = useRouter()
-const currentProjectId = computed(() => route.params.id || localStorage.getItem('currentProjectId') || localStorage.getItem('lastProjectId') || null)
+const currentProjectId = computed(() => route.params.id || getScopedCurrentProjectId() || null)
 const store = useWorkTaskStore();
+const projectStore = useProjectStore()
 
 const project = ref({})
 const rawTasks = ref([])
@@ -510,6 +516,46 @@ const persistShowSubtasksPreference = (value, projectId = currentProjectId.value
   } catch {
     // ignore storage failures
   }
+}
+
+const isForbiddenError = (error) => Number(error?.response?.status) === 403
+
+const resolveAccessibleProjectId = async (preferredProjectId = null) => {
+  const projects = await projectStore.fetchAllProjects(true)
+  const accessibleProjects = (projects || []).filter(item => item?.id)
+  if (!accessibleProjects.length) return null
+
+  if (preferredProjectId && accessibleProjects.some(item => `${item.id}` === `${preferredProjectId}`)) {
+    return preferredProjectId
+  }
+
+  return accessibleProjects[0].id
+}
+
+const recoverFromForbiddenProject = async (forbiddenProjectId) => {
+  const fallbackProjectId = await resolveAccessibleProjectId()
+  if (!fallbackProjectId) {
+    rawTasks.value = []
+    allTasks.value = []
+    projectMembers.value = []
+    project.value = {}
+    ElMessage.error('You no longer have access to any project.')
+    return false
+  }
+
+  if (`${fallbackProjectId}` === `${forbiddenProjectId}`) {
+    rawTasks.value = []
+    allTasks.value = []
+    projectMembers.value = []
+    project.value = {}
+    ElMessage.error('You do not have permission to load work items for this project.')
+    return false
+  }
+
+  dynamicProjectId = fallbackProjectId
+  setScopedCurrentProjectId(fallbackProjectId)
+  await router.replace(`/space/${fallbackProjectId}`)
+  return true
 }
 
 const getParentTaskLinkId = (task) => (
@@ -811,7 +857,7 @@ const taskMatchesFilter = (task, filter) => {
 
 let dynamicProjectId = null;
 const getProjectId = () => {
-    let p = dynamicProjectId || currentProjectId.value || localStorage.getItem('lastProjectId');
+    let p = dynamicProjectId || currentProjectId.value || getScopedCurrentProjectId();
     return p === 'default' ? null : p;
 }
 
@@ -1047,7 +1093,8 @@ const toggleTaskAssignee = (task, memberId) => {
   updateTask(task, 'assigneeIds', nextIds, currentIds)
 }
 
-const loadInitialData = async () => {
+const loadInitialData = async (options = {}) => {
+  const { preserveExisting = false } = options
   let pid = getProjectId()
   if(!pid) {
       try {
@@ -1055,7 +1102,7 @@ const loadInitialData = async () => {
           if (res.data?.data?.length > 0) {
               pid = res.data.data[0].id;
               dynamicProjectId = pid;
-              localStorage.setItem('lastProjectId', pid);
+              setScopedCurrentProjectId(pid);
           }
       } catch (err) {
           console.error('Cannot resolve valid projectId', err);
@@ -1064,15 +1111,16 @@ const loadInitialData = async () => {
   }
 
   try {
-    localStorage.setItem('currentProjectId', pid)
-    localStorage.setItem('lastProjectId', pid)
+    setScopedCurrentProjectId(pid)
     showSubtasks.value = loadShowSubtasksPreference(pid)
-    rawTasks.value = []
-    allTasks.value = []
-    selectedTask.value = null
-    projectMembers.value = []
-    project.value = {}
-    carryOverTaskIds.value = []
+    if (!preserveExisting) {
+      rawTasks.value = []
+      allTasks.value = []
+      selectedTask.value = null
+      projectMembers.value = []
+      project.value = {}
+      carryOverTaskIds.value = []
+    }
     const [pRes, mRes, statusesRes] = await Promise.all([
       axiosClient.get(`/projects/${pid}`),
       axiosClient.get(`/projects/${pid}/members`),
@@ -1143,11 +1191,7 @@ const putBackedTaskFields = new Set([
   'title',
   'description',
   'priority',
-  'storyPoints',
   'assignedUserId',
-  'plannedStartDate',
-  'plannedEndDate',
-  'dueDate',
   'sprintId',
   'taskTypeId'
 ])
@@ -1420,8 +1464,38 @@ onMounted(() => {
 })
 
 let unsubscribeAdminRealtime = null
+let signalRTaskUpdatedHandler = null
+
+const handleRealtimeTaskUpdated = (task) => {
+  if (!task?.id) return
+  const normalizedTask = store.normalizeTaskRecord(task, getProjectId())
+  const index = allTasks.value.findIndex(item => item.id === normalizedTask.id)
+  if (index >= 0) {
+    allTasks.value[index] = { ...allTasks.value[index], ...normalizedTask }
+  } else {
+    allTasks.value = [...allTasks.value, normalizedTask]
+  }
+
+  if (selectedTask.value?.id === normalizedTask.id) {
+    selectedTask.value = { ...selectedTask.value, ...normalizedTask }
+  }
+}
+
+const startTaskRealtime = async (projectId) => {
+  if (!projectId) return
+  if (signalRTaskUpdatedHandler) {
+    signalRService.off('TaskUpdated', signalRTaskUpdatedHandler)
+    signalRService.off('WorkTaskUpdated', signalRTaskUpdatedHandler)
+  }
+
+  await signalRService.startConnection(projectId)
+  signalRTaskUpdatedHandler = handleRealtimeTaskUpdated
+  signalRService.on('TaskUpdated', signalRTaskUpdatedHandler)
+  signalRService.on('WorkTaskUpdated', signalRTaskUpdatedHandler)
+}
 
 onMounted(() => {
+  startTaskRealtime(getProjectId())
   unsubscribeAdminRealtime = subscribeAdminRealtime(async ({ type, payload }) => {
     const pid = getProjectId()
     if (!pid) return
@@ -1435,7 +1509,7 @@ onMounted(() => {
         'project-administration-updated'
       ].includes(type)
     ) {
-      await loadInitialData()
+      await loadInitialData({ preserveExisting: true })
     }
   })
 })
@@ -1448,6 +1522,7 @@ watch(currentProjectId, (projectId, previousProjectId) => {
   dynamicProjectId = projectId
   showAnalyticsSidebar.value = false
   isAnalyticsExpanded.value = false
+  startTaskRealtime(projectId)
   loadInitialData()
 }, { immediate: false })
 
@@ -1476,6 +1551,10 @@ watch(
 
 onUnmounted(() => {
   window.removeEventListener('global-create-task', handleGlobalCreate)
+  if (signalRTaskUpdatedHandler) {
+    signalRService.off('TaskUpdated', signalRTaskUpdatedHandler)
+    signalRService.off('WorkTaskUpdated', signalRTaskUpdatedHandler)
+  }
   unsubscribeAdminRealtime?.()
 })
 </script>

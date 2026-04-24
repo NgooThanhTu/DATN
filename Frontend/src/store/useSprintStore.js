@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import axiosClient from '@/api/axiosClient'
+import { reportExpectedError } from '@/utils/errorTelemetry'
 
 const SPRINT_CACHE_TTL_MS = 30000
 
@@ -35,7 +36,7 @@ export const useSprintStore = defineStore('sprint', {
         }
       } catch (error) {
         this.error = error.message
-        console.error('Failed to fetch sprints:', error)
+        reportExpectedError('Failed to fetch sprints', error)
       } finally {
         this.loading = false
       }
@@ -60,7 +61,7 @@ export const useSprintStore = defineStore('sprint', {
         if (index !== -1) {
           this.sprints[index].isFavorite = previous
         }
-        console.error('Failed to toggle sprint favorite:', error)
+        reportExpectedError('Failed to toggle sprint favorite', error)
       }
     }
   }

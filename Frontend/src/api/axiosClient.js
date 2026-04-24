@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { clearAuthSession, getStoredAccessToken } from '@/utils/authSession'
 
 const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5136/api';
 
@@ -27,7 +28,7 @@ const processQueue = (error, token = null) => {
 
 axiosClient.interceptors.request.use(
     (config) => {
-        const token = localStorage.getItem('accessToken');
+        const token = getStoredAccessToken();
         if (token) {
             config.headers['Authorization'] = `Bearer ${token}`;
         }
@@ -74,7 +75,7 @@ axiosClient.interceptors.response.use(
             try {
                 // Call refresh-token API. Cookie is automatically sent due to withCredentials
                 // Backend requires the expired access token in the header to identify the user
-                const accessToken = localStorage.getItem('accessToken');
+                const accessToken = getStoredAccessToken();
                 const authHeaders = accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {};
                 const { data } = await axios.post(`${baseURL}/auth/refresh-token`, {}, {
                     headers: authHeaders,
@@ -82,7 +83,8 @@ axiosClient.interceptors.response.use(
                 });
 
                 const newAccessToken = data.data.accessToken;
-                localStorage.setItem('accessToken', newAccessToken);
+                sessionStorage.setItem('accessToken', newAccessToken);
+                localStorage.removeItem('accessToken');
 
                 axiosClient.defaults.headers.common['Authorization'] = `Bearer ${newAccessToken}`;
                 originalRequest.headers['Authorization'] = `Bearer ${newAccessToken}`;
@@ -92,8 +94,7 @@ axiosClient.interceptors.response.use(
             } catch (err) {
                 processQueue(err, null);
                 // Refresh token failed (expired or invalid), force logout
-                localStorage.removeItem('accessToken');
-                localStorage.removeItem('user');
+                clearAuthSession();
                 const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
                 const redirect = currentPath && !currentPath.startsWith('/login')
                     ? `?redirect=${encodeURIComponent(currentPath)}`

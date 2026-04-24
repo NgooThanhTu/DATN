@@ -66,6 +66,8 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import axiosClient from '@/api/axiosClient'
 import * as signalR from '@microsoft/signalr'
+import { isExpectedNetworkError } from '@/utils/errorTelemetry'
+import { getStoredAccessToken } from '@/utils/authSession'
 
 const router = useRouter()
 const notifications = ref([])
@@ -149,7 +151,7 @@ const handleDropdownOpen = (visible) => {
 }
 
 const initSignalR = () => {
-  const token = localStorage.getItem('accessToken') || localStorage.getItem('token')
+    const token = getStoredAccessToken() || localStorage.getItem('token')
   if (!token) return
 
   const hubUrl = new URL(apiBaseUrl, window.location.origin)
@@ -159,9 +161,10 @@ const initSignalR = () => {
 
   connection.value = new signalR.HubConnectionBuilder()
     .withUrl(hubUrl.toString(), {
-      accessTokenFactory: () => token
+        accessTokenFactory: () => getStoredAccessToken() || token
     })
     .withAutomaticReconnect()
+    .configureLogging(signalR.LogLevel.None)
     .build()
 
   connection.value.on('ReceiveNotification', (notification) => {
@@ -172,7 +175,11 @@ const initSignalR = () => {
     })
   })
 
-  connection.value.start().catch(() => {})
+  connection.value.start().catch((error) => {
+    if (!isExpectedNetworkError(error)) {
+      console.error('Notification hub connection failed:', error)
+    }
+  })
 }
 
 watch(onlyUnread, () => {
@@ -352,6 +359,3 @@ onUnmounted(() => {
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22) !important;
 }
 </style>
-
-
-

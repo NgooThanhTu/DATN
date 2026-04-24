@@ -14,11 +14,12 @@
   </div>
 </template>
 
-<script setup>
-import { ref, onMounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-import axiosClient from '../api/axiosClient'
-import { Loading, CircleCloseFilled } from '@element-plus/icons-vue'
+  <script setup>
+  import { ref, onMounted } from 'vue'
+  import { useRouter, useRoute } from 'vue-router'
+  import axiosClient from '../api/axiosClient'
+  import { saveAuthSession } from '@/utils/authSession'
+  import { Loading, CircleCloseFilled } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -37,10 +38,7 @@ onMounted(async () => {
   try {
     const res = await axiosClient.post('/auth/github-login', { code })
 
-    const { accessToken, fullName, email, systemRoles, id } = res.data.data
-
-    localStorage.setItem('accessToken', accessToken)
-    localStorage.setItem('user', JSON.stringify({ id, fullName, email, systemRoles }))
+    saveAuthSession(res.data.data)
 
     ElMessage.success('Đăng nhập bằng GitHub thành công!')
     router.push('/dashboard')

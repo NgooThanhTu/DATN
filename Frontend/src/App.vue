@@ -17,6 +17,7 @@ import { onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import axiosClient from '@/api/axiosClient'
 import ErrorBoundary from '@/components/ErrorBoundary.vue'
+import { getStoredAccessToken } from '@/utils/authSession'
 import { updateThemeAttributes } from '@/utils/theme'
 
 const route = useRoute()
@@ -32,7 +33,7 @@ onMounted(async () => {
   document.documentElement.setAttribute('data-theme', savedTheme)
 
   // Sync with backend if logged in
-  const token = localStorage.getItem('accessToken')
+  const token = getStoredAccessToken()
   if (token) {
     try {
       const res = await axiosClient.get('/settings/ThemeSettings')
