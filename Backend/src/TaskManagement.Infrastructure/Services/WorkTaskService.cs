@@ -766,7 +766,14 @@ namespace TaskManagement.Infrastructure.Services
             return dto;
         }
 
-        public async Task<List<WorkTaskResponseDto>> SearchTasksAsync(Guid userId, string? query, string? status, Guid? assigneeId, int? priority)
+        public async Task<List<WorkTaskResponseDto>> SearchTasksAsync(
+            Guid userId,
+            string? query,
+            string? status,
+            Guid? assigneeId,
+            int? priority,
+            Guid? projectId = null,
+            string? scope = "all")
         {
             // TÌM CÁC PROJECT MÀ USER CÓ QUYỀN
             var userProjectIds = await _context.ProjectMembers
@@ -784,6 +791,11 @@ namespace TaskManagement.Infrastructure.Services
                 .Include(wt => wt.IssueModules)
                 .Include(wt => wt.IssueLabels)
                 .Where(wt => (userProjectIds.Contains(wt.ProjectId) || wt.Subscribers.Any(s => s.UserId == userId)) && !wt.IsDeleted && !wt.IsArchived);
+
+            if (projectId.HasValue && projectId.Value != Guid.Empty)
+            {
+                dbQuery = dbQuery.Where(wt => wt.ProjectId == projectId.Value);
+            }
 
             // Filtering
             if (!string.IsNullOrEmpty(query))
