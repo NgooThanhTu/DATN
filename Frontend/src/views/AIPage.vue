@@ -468,15 +468,20 @@ const sendMessage = async (overrideMessage = null) => {
       .slice(-10)
       .map(item => ({ role: item.role === 'bot' ? 'assistant' : 'user', content: item.content }))
 
-    const response = await axiosClient.post('/ai/chat', { message: outgoing, history })
-    clearProgressTimer()
-    chatHistory.value.pop()
-    chatHistory.value.push({ role: 'bot', content: response.data?.data || response.data?.message || 'AI khong tra ve noi dung.' })
+    chatHistory.value.push({ role: 'bot', content: response.data?.data || response.data?.message || 'Rất tiếc, AI không phản hồi nội dung. Bạn có thể thử lại với câu hỏi khác.' })
   } catch (error) {
     clearProgressTimer()
     chatHistory.value.pop()
-    const message = error.response?.data?.message || error.response?.data?.error || error.message || 'Khong ket noi duoc AI.'
-    chatHistory.value.push({ role: 'bot', content: `AI chua gui duoc: ${message}` })
+    const message = error.response?.data?.message || error.response?.data?.error || error.message || 'Lỗi kết nối'
+    let friendlyMessage = `AI không thể xử lý yêu cầu lúc này: ${message}`
+    
+    if (message.toLowerCase().includes('quota') || message.toLowerCase().includes('limit') || error.response?.status === 429) {
+      friendlyMessage = 'Bạn đã đạt giới hạn sử dụng AI (Quota). Vui lòng thử lại sau hoặc nâng cấp gói thành viên.'
+    } else if (message.toLowerCase().includes('key') || message.toLowerCase().includes('auth')) {
+      friendlyMessage = 'Lỗi cấu hình API key. Vui lòng liên hệ quản trị viên để kiểm tra lại hệ thống.'
+    }
+    
+    chatHistory.value.push({ role: 'bot', content: friendlyMessage })
   } finally {
     isLoading.value = false
   }

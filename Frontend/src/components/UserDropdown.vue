@@ -1,12 +1,12 @@
 <template>
   <el-dropdown trigger="click" popper-class="user-dropdown-popper" @command="handleCommand" :teleported="true">
-    <div class="user-avatar-trigger" :style="{ backgroundColor: avatarColor }">
-      {{ userInitial }}
+    <div class="user-avatar-trigger" :style="avatarStyle">
+      {{ avatarUrl ? '' : userInitial }}
     </div>
     <template #dropdown>
       <el-dropdown-menu class="jira-user-menu">
         <div class="user-menu-header">
-          <div class="header-avatar" :style="{ backgroundColor: avatarColor }">{{ userInitial }}</div>
+          <div class="header-avatar" :style="avatarStyle">{{ avatarUrl ? '' : userInitial }}</div>
           <div class="header-info">
             <div class="user-display-name">{{ userDisplayName }}</div>
             <div class="user-email">{{ userEmail }}</div>
@@ -67,12 +67,15 @@
 
         <div class="menu-divider"></div>
 
+        <!-- BUG-HOST-015: Hidden as it's not supported yet -->
+        <!-- 
         <el-dropdown-item command="switch">
           <div class="menu-item-inner">
             <i class="fa-solid fa-users-viewfinder"></i>
             <span>Switch account</span>
           </div>
         </el-dropdown-item>
+        -->
 
         <el-dropdown-item command="logout" class="logout-item-wrapper">
           <div class="menu-item-inner logout-item">
@@ -86,25 +89,82 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { currentTheme, toggleTheme } from '@/utils/theme'
 import { getStoredUser, hasSystemAdminAccess } from '@/utils/permissions'
 import { clearAuthSession } from '@/utils/authSession'
 import { openNamedAppWindow, PROJECT_ADMIN_WINDOW_NAME } from '@/utils/windowTabs'
+import axiosClient from '@/api/axiosClient'
 
 const router = useRouter()
 const themeSubVisible = ref(false)
-const currentUser = computed(() => getStoredUser())
+const profileData = ref(null)
+
+const currentUser = computed(() => profileData.value || getStoredUser())
 const canAccessAdmin = computed(() => hasSystemAdminAccess(currentUser.value))
-const userDisplayName = computed(() => currentUser.value?.fullName || currentUser.value?.name || currentUser.value?.email?.split('@')?.[0] || 'User')
+const userDisplayName = computed(() => currentUser.value?.fullName || currentUser.value?.name || currentUser.value?.publicName || currentUser.value?.email?.split('@')?.[0] || 'User')
 const userEmail = computed(() => currentUser.value?.email || 'user@example.com')
-const userInitial = computed(() => userDisplayName.value.charAt(0).toUpperCase() || 'U')
+
+const getInitials = (name) => {
+  if (!name) return '?'
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .map((word) => word[0])
+    .join('')
+    .substring(0, 2)
+    .toUpperCase()
+}
+
+const userInitial = computed(() => getInitials(userDisplayName.value))
+
+const getBaseUrl = () => import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:5136'
+
+const avatarUrl = computed(() => currentUser.value?.avatarUrl || '')
+
+const avatarStyle = computed(() => {
+  if (!avatarUrl.value) {
+    return { backgroundColor: avatarColor.value }
+  }
+  return {
+    backgroundImage: `url(${getBaseUrl()}${avatarUrl.value})`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    color: 'transparent',
+    border: '1px solid var(--color-border)'
+  }
+})
 
 const avatarColor = computed(() => {
   const colors = ['#579dff', '#c97cf4', '#00b8d9', '#22a06b', '#f5cd47', '#e2483d']
-  const index = userDisplayName.value.length % colors.length
+  const name = userDisplayName.value || 'User'
+  const index = name.length % colors.length
   return colors[index]
+})
+
+const fetchProfile = async () => {
+  try {
+    const response = await axiosClient.get('/users/me')
+    profileData.value = response.data?.data
+  } catch (error) {
+    console.error('Failed to fetch user profile in dropdown', error)
+  }
+}
+
+const handleAvatarUpdate = (event) => {
+  if (profileData.value) {
+    profileData.value.avatarUrl = event.detail.avatarUrl
+  }
+}
+
+onMounted(() => {
+  fetchProfile()
+  window.addEventListener('user-avatar-updated', handleAvatarUpdate)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('user-avatar-updated', handleAvatarUpdate)
 })
 
 const toggleThemeSub = () => {
@@ -119,7 +179,6 @@ const handleCommand = async (cmd) => {
     openNamedAppWindow(routeData.href, PROJECT_ADMIN_WINDOW_NAME)
   } else if (cmd === 'logout') {
     try {
-      const { default: axiosClient } = await import('@/api/axiosClient')
       await axiosClient.post('/auth/logout')
     } catch (error) {
       console.error('Logout error:', error)

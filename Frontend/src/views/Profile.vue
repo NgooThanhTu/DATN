@@ -11,6 +11,17 @@
               <i class="fa-regular fa-image"></i>
               <span>Add cover</span>
             </div>
+            <div class="banner-adjust-controls" v-if="profileData.coverUrl" @click.stop>
+              <el-button v-if="!isAdjustingCover" type="info" size="small" circle @click="isAdjustingCover = true">
+                <i class="fa-solid fa-arrows-up-down"></i>
+              </el-button>
+              <div v-else class="adjust-slider-box">
+                <el-slider v-model="profileData.coverPositionY" :min="0" :max="100" vertical height="100px" @change="isAdjustingCover = false" />
+                <el-button type="success" size="small" circle @click="isAdjustingCover = false">
+                  <i class="fa-solid fa-check"></i>
+                </el-button>
+              </div>
+            </div>
           </div>
 
           <div class="profile-header-info-row">
@@ -292,8 +303,10 @@ const profileData = ref({
   avatarUrl: '',
   coverUrl: '',
   lastPasswordChangedAt: '',
-  canChangePasswordAt: ''
+  canChangePasswordAt: '',
+  coverPositionY: 50
 })
+const isAdjustingCover = ref(false)
 
 const passwordStep = ref(1)
 const passwordOtpSent = ref(false)
@@ -362,7 +375,7 @@ const coverBannerStyle = computed(() => {
   return {
     backgroundImage: `url(${getBaseUrl()}${profileData.value.coverUrl})`,
     backgroundSize: 'cover',
-    backgroundPosition: 'center'
+    backgroundPosition: `center ${profileData.value.coverPositionY}%`
   }
 })
 
@@ -395,6 +408,13 @@ const uploadAvatar = async (event) => {
   const avatarFile = event.target.files?.[0]
   if (!avatarFile) return
 
+  // BUG-HOST-002: Validate file size (5MB limit)
+  if (avatarFile.size > 5 * 1024 * 1024) {
+    ElMessage.error('Profile photo size must be less than 5MB')
+    event.target.value = ''
+    return
+  }
+
   const formData = new FormData()
   formData.append('file', avatarFile)
 
@@ -402,10 +422,16 @@ const uploadAvatar = async (event) => {
     const res = await axiosClient.put('/users/avatar', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
-    profileData.value.avatarUrl = res.data?.data?.avatarUrl || ''
+    const newAvatarUrl = res.data?.data?.avatarUrl || ''
+    profileData.value.avatarUrl = newAvatarUrl
+    
+    // Notify other components about avatar update
+    window.dispatchEvent(new CustomEvent('user-avatar-updated', { detail: { avatarUrl: newAvatarUrl } }))
+    
     ElMessage.success('Profile photo updated')
   } catch (error) {
-    ElMessage.error(error.response?.data?.message || 'Could not upload profile photo')
+    console.error('Avatar upload failed:', error)
+    ElMessage.error(error.response?.data?.message || 'Could not upload profile photo. Please try a different image.')
   } finally {
     event.target.value = ''
   }
@@ -414,6 +440,13 @@ const uploadAvatar = async (event) => {
 const uploadCover = async (event) => {
   const coverFile = event.target.files?.[0]
   if (!coverFile) return
+
+  // BUG-HOST-002: Validate file size (5MB limit)
+  if (coverFile.size > 5 * 1024 * 1024) {
+    ElMessage.error('Cover photo size must be less than 5MB')
+    event.target.value = ''
+    return
+  }
 
   const formData = new FormData()
   formData.append('file', coverFile)
@@ -425,7 +458,8 @@ const uploadCover = async (event) => {
     profileData.value.coverUrl = res.data?.data?.coverUrl || ''
     ElMessage.success('Cover updated')
   } catch (error) {
-    ElMessage.error(error.response?.data?.message || 'Could not upload cover')
+    console.error('Cover upload failed:', error)
+    ElMessage.error(error.response?.data?.message || 'Could not upload cover image.')
   } finally {
     event.target.value = ''
   }
@@ -447,7 +481,8 @@ const fetchProfile = async () => {
       avatarUrl: data.avatarUrl || '',
       coverUrl: data.coverUrl || '',
       lastPasswordChangedAt: data.lastPasswordChangedAt || '',
-      canChangePasswordAt: data.canChangePasswordAt || ''
+      canChangePasswordAt: data.canChangePasswordAt || '',
+      coverPositionY: data.coverPositionY ?? 50
     }
   } catch (error) {
     console.error('Profile load failed', error)
@@ -466,7 +501,8 @@ const saveProfile = async () => {
       jobTitle: profileData.value.jobTitle,
       departmentName: profileData.value.department,
       organizationName: profileData.value.organization,
-      collaborationRules: profileData.value.collaboration
+      collaborationRules: profileData.value.collaboration,
+      coverPositionY: profileData.value.coverPositionY
     })
     ElMessage.success('Profile saved.')
     await fetchProfile()
@@ -645,6 +681,25 @@ onUnmounted(() => {
 
 .header-image-box:hover {
   filter: brightness(0.88);
+}
+
+.banner-adjust-controls {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  z-index: 10;
+}
+
+.adjust-slider-box {
+  background: var(--bg-surface);
+  padding: 12px 8px;
+  border-radius: 20px;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
 }
 
 .banner-upload-prompt {

@@ -95,6 +95,7 @@ namespace TaskManagement.API.Controllers
                     departmentName = activeDepartment?.Name ?? extra.DepartmentName,
                     organizationName = extra.OrganizationName,
                     collaborationRules = extra.CollaborationRules,
+                    coverPositionY = extra.CoverPositionY,
                     hasPassword = !string.IsNullOrEmpty(user.PasswordHash),
                     is2FaEnabled = user.Is2FAEnabled,
                     lastPasswordChangedAt,
@@ -111,6 +112,7 @@ namespace TaskManagement.API.Controllers
             public string DepartmentName { get; set; } = string.Empty;
             public string OrganizationName { get; set; } = string.Empty;
             public string CollaborationRules { get; set; } = string.Empty;
+            public int CoverPositionY { get; set; } = 50;
         }
 
         [HttpPut("profile")]
@@ -147,7 +149,8 @@ namespace TaskManagement.API.Controllers
                 JobTitle = request.JobTitle?.Trim() ?? string.Empty,
                 DepartmentName = request.DepartmentName?.Trim() ?? string.Empty,
                 OrganizationName = request.OrganizationName?.Trim() ?? string.Empty,
-                CollaborationRules = request.CollaborationRules?.Trim() ?? string.Empty
+                CollaborationRules = request.CollaborationRules?.Trim() ?? string.Empty,
+                CoverPositionY = request.CoverPositionY
             });
             extraProfileSetting.LastModifiedAt = DateTime.UtcNow;
 

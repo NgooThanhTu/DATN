@@ -1139,41 +1139,46 @@ onUnmounted(() => {
 
 .create-cycle-modal {
   width: 600px;
-  background: #1B1C20;
-  border: 1px solid #2D2F36;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: 12px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+  box-shadow: var(--shadow-xl);
 }
 
 .cm-header { padding: 24px 24px 16px; }
-.cm-badge { display: inline-flex; align-items: center; gap: 8px; border: 1px solid #3F3F46; padding: 4px 10px; border-radius: 6px; font-size: 12px; color: var(--color-text-primary); font-weight: 500; margin-bottom: 16px; }
+.cm-badge { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--color-border); background: var(--color-bg-secondary); padding: 4px 10px; border-radius: 6px; font-size: 12px; color: var(--color-text-primary); font-weight: 500; margin-bottom: 16px; }
 .cm-title { font-size: 20px; font-weight: 600; color: var(--color-text-primary); margin: 0; }
 .cm-body { padding: 0 24px 24px; display: flex; flex-direction: column; }
-.cm-input, .cm-textarea { width: 100%; background: #141518; border: 1px solid #2D2F36; border-radius: 6px; padding: 12px 16px; color: var(--color-text-primary); outline: none; }
+.cm-input, .cm-textarea { width: 100%; background: var(--color-bg-secondary); border: 1px solid var(--color-border); border-radius: 8px; padding: 12px 16px; color: var(--color-text-primary); outline: none; transition: border-color 0.2s; }
+.cm-input:focus, .cm-textarea:focus { border-color: var(--color-accent); }
 .cm-input { margin-bottom: 16px; font-size: 15px; }
 .cm-textarea { font-size: 14px; resize: none; }
-.cm-footer { padding: 16px 24px; border-top: 1px solid #2D2F36; display: flex; justify-content: flex-end; gap: 12px; background: #141518; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }
-.cm-btn-cancel { background: transparent; border: 1px solid #3F3F46; border-radius: 6px; padding: 8px 16px; color: var(--color-text-primary); font-size: 13px; font-weight: 500; cursor: pointer; }
-.cm-btn-create { background: #38BDF8; border: none; border-radius: 6px; padding: 8px 16px; color: white; font-size: 13px; font-weight: 500; cursor: pointer; }
+.cm-footer { padding: 16px 24px; border-top: 1px solid var(--color-border); display: flex; justify-content: flex-end; gap: 12px; background: var(--color-surface-hover); border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }
+.cm-btn-cancel { background: transparent; border: 1px solid var(--color-border); border-radius: 8px; padding: 8px 16px; color: var(--color-text-primary); font-size: 13px; font-weight: 500; cursor: pointer; transition: background 0.2s; }
+.cm-btn-cancel:hover { background: var(--color-surface-hover); }
+.cm-btn-create { background: var(--color-accent); border: none; border-radius: 8px; padding: 8px 16px; color: white; font-size: 13px; font-weight: 500; cursor: pointer; transition: opacity 0.2s; }
+.cm-btn-create:hover { opacity: 0.9; }
 
 .dp-wrapper { position: relative; }
-.dp-btn { background: transparent; border: 1px solid #2D2F36; color: var(--color-text-primary); padding: 6px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
-.dp-popover { position: absolute; top: 100%; left: 0; margin-top: 8px; background: #141518; border: 1px solid #2D2F36; border-radius: 8px; width: 280px; padding: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); z-index: 1001; }
+.dp-btn { background: var(--color-bg-secondary); border: 1px solid var(--color-border); color: var(--color-text-primary); padding: 8px 14px; border-radius: 8px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: border-color 0.2s; }
+.dp-btn:hover { border-color: var(--color-accent); }
+.dp-popover { position: absolute; top: 100%; left: 0; margin-top: 8px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px; width: 280px; padding: 16px; box-shadow: var(--shadow-lg); z-index: 1001; }
 .dp-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-.dp-month-year { display: flex; gap: 12px; font-size: 14px; font-weight: 600; }
+.dp-month-year { display: flex; gap: 12px; font-size: 14px; font-weight: 600; color: var(--color-text-primary); }
 .dp-nav { display: flex; gap: 8px; }
-.dp-nav button { background: transparent; border: none; color: var(--color-text-muted); cursor: pointer; }
+.dp-nav button { background: transparent; border: none; color: var(--color-text-muted); cursor: pointer; transition: color 0.2s; }
+.dp-nav button:hover { color: var(--color-text-primary); }
 .dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); row-gap: 6px; }
 .headday { font-size: 10px; font-weight: 600; color: var(--color-text-muted); text-align: center; }
 .dp-day-wrapper { position: relative; display: flex; align-items: center; justify-content: center; height: 32px; }
-.dp-bg-range { position: absolute; inset: 0; background: #1D435E; z-index: 1; }
+.dp-bg-range { position: absolute; inset: 0; background: color-mix(in srgb, var(--color-accent) 20%, transparent); z-index: 1; }
 .range-start { border-top-left-radius: 16px; border-bottom-left-radius: 16px; }
 .range-end { border-top-right-radius: 16px; border-bottom-right-radius: 16px; }
-.dp-day-num { position: relative; z-index: 2; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 12px; color: #52525B; cursor: pointer; }
-.dp-day-num.current-month { color: var(--color-text-muted); }
-.dp-day-num:hover:not(.headday):not(.disabled) { background: var(--color-border); color: white; }
-.dp-day-num.selected { background: #0EA5E9; color: white; }
-.dp-day-num.disabled { color: #3F3F46; cursor: not-allowed; opacity: 0.55; }
+.dp-day-num { position: relative; z-index: 2; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 12px; color: var(--color-text-muted); cursor: pointer; transition: all 0.2s; }
+.dp-day-num.current-month { color: var(--color-text-primary); }
+.dp-day-num:hover:not(.headday):not(.disabled) { background: var(--color-surface-hover); color: var(--color-text-primary); }
+.dp-day-num.selected { background: var(--color-accent) !important; color: white !important; }
+.dp-day-num.disabled { color: var(--color-text-disabled); cursor: not-allowed; opacity: 0.5; }
 </style>
 
 

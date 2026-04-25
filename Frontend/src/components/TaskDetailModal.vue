@@ -3287,7 +3287,12 @@ const createSubtasksWithAI = async () => {
             ElMessage.warning('AI khong de xuat duoc sub-work item nao.');
         }
     } catch (e) {
-        ElMessage.error(e.response?.data?.message || 'AI khong tao duoc sub-work items. Kiem tra Gemini API key/quota.');
+        const msg = e.response?.data?.message || ''
+        if (msg.toLowerCase().includes('quota') || e.response?.status === 429) {
+          ElMessage.error('Đã hết hạn mức sử dụng AI (Quota). Vui lòng thử lại sau.')
+        } else {
+          ElMessage.error('AI không thể tạo danh sách công việc con lúc này. Vui lòng kiểm tra lại API key hoặc kết nối mạng.')
+        }
     } finally {
         isAiBreakingDown.value = false;
     }

@@ -3,109 +3,114 @@
     <div class="rewards-page">
       <header class="nexus-feature-header">
         <div class="header-info">
-          <p class="eyebrow">Gamification</p>
-          <h1>Rewards</h1>
-          <p class="muted">Track points, career level, contribution share, and early completion bonuses.</p>
+          <p class="eyebrow">Hệ thống điểm</p>
+          <h1>Phần thưởng</h1>
+          <p class="muted">Theo dõi điểm thưởng, cấp độ nghề nghiệp, tỷ lệ đóng góp và thưởng hoàn thành sớm.</p>
         </div>
         <button class="refresh-btn" type="button" :disabled="loading" @click="loadRewards">
-          <i class="fa-solid fa-rotate"></i> {{ loading ? 'Refreshing...' : 'Refresh' }}
+          <i class="fa-solid fa-rotate"></i> {{ loading ? 'Đang cập nhật...' : 'Làm mới' }}
         </button>
       </header>
 
       <section class="wallet-band">
         <div class="wallet-card">
-          <span class="label">Current balance</span>
+          <span class="label">Số dư hiện tại</span>
           <strong>{{ wallet.totalPoints }}</strong>
-          <span class="unit">points</span>
+          <span class="unit">điểm</span>
         </div>
         <div class="wallet-card">
-          <span class="label">Career level</span>
+          <span class="label">Cấp độ nghề nghiệp</span>
           <strong>{{ career.level }}</strong>
           <span class="unit">{{ career.title }}</span>
         </div>
         <div class="wallet-card wide">
           <div class="wallet-card-head">
-            <span class="label">Level progress</span>
-            <span class="unit">{{ pointsToNext }} pts to next</span>
+            <span class="label">Tiến độ cấp độ</span>
+            <span class="unit">{{ pointsToNext }} điểm đến cấp tiếp theo</span>
           </div>
-          <div class="progress-track"><div class="progress-fill" :style="{ width: `${career.progressPercent}%` }"></div></div>
+          <div class="progress-container">
+            <div class="progress-track">
+              <div class="progress-fill" :style="{ width: `${career.progressPercent}%` }"></div>
+            </div>
+            <span class="progress-text">{{ career.progressPercent }}%</span>
+          </div>
         </div>
       </section>
 
       <section class="formula-band">
         <div class="panel">
           <div class="panel-head">
-            <h2>Point formula</h2>
+            <h2>Công thức tính điểm</h2>
             <span>{{ formula.expression }}</span>
           </div>
           <div class="formula-grid">
             <div class="formula-cell">
-              <span>Difficulty</span>
+              <span>Độ khó</span>
               <strong>{{ formula.sample.difficulty }}</strong>
             </div>
             <div class="formula-cell">
-              <span>Duration</span>
+              <span>Thời lượng</span>
               <strong>{{ formula.sample.duration }}</strong>
             </div>
             <div class="formula-cell">
-              <span>Share</span>
+              <span>Tỷ lệ</span>
               <strong>{{ formula.sample.share }}%</strong>
             </div>
             <div class="formula-cell total">
-              <span>Final points</span>
+              <span>Điểm cuối cùng</span>
               <strong>{{ formula.sample.total }}</strong>
             </div>
           </div>
           <p class="helper-copy">{{ formula.sample.note }}</p>
           <div class="policy-list">
-            <div class="summary-row"><span>Actual rule</span><strong>{{ formula.actualHoursRule }}</strong></div>
-            <div class="summary-row"><span>Multi-assignee</span><strong>{{ formula.policy?.multiAssignee }}</strong></div>
-            <div class="summary-row"><span>Carry-over</span><strong>{{ formula.policy?.carryOver }}</strong></div>
+            <div class="summary-row"><span>Quy tắc thực tế</span><strong>{{ formula.actualHoursRule }}</strong></div>
+            <div class="summary-row"><span>Nhiều người thực hiện</span><strong>{{ formula.policy?.multiAssignee }}</strong></div>
+            <div class="summary-row"><span>Chuyển tiếp</span><strong>{{ formula.policy?.carryOver }}</strong></div>
           </div>
         </div>
 
         <div class="panel">
           <div class="panel-head">
-            <h2>Summary</h2>
-            <span>This sprint</span>
+            <h2>Tổng kết</h2>
+            <span>Sprint này</span>
           </div>
           <div class="summary-list">
-            <div class="summary-row"><span>Completed tasks</span><strong>{{ summary.completedTasks }}</strong></div>
-            <div class="summary-row"><span>Early bonuses</span><strong>{{ summary.earlyBonuses }}</strong></div>
-            <div class="summary-row"><span>Base points</span><strong>{{ summary.basePoints }}</strong></div>
-            <div class="summary-row"><span>Bonus points</span><strong>{{ summary.bonusPoints }}</strong></div>
-            <div class="summary-row"><span>Penalty points</span><strong>{{ summary.penaltyPoints }}</strong></div>
-            <div class="summary-row"><span>Contribution share</span><strong>{{ summary.contributionPercent }}%</strong></div>
-            <div class="summary-row"><span>Estimated hours</span><strong>{{ summary.estimatedHours }}h</strong></div>
-            <div class="summary-row"><span>Actual hours</span><strong>{{ summary.actualHours }}h</strong></div>
-            <div class="summary-row"><span>Logged hours</span><strong>{{ summary.loggedHours }}h</strong></div>
-            <div class="summary-row"><span>Rollback points</span><strong>{{ summary.rollbackPoints }}</strong></div>
+            <div class="summary-row"><span>Công việc hoàn thành</span><strong>{{ summary.completedTasks }}</strong></div>
+            <div class="summary-row"><span>Thưởng hoàn thành sớm</span><strong>{{ summary.earlyBonuses }}</strong></div>
+            <div class="summary-row"><span>Điểm cơ bản</span><strong>{{ summary.basePoints }}</strong></div>
+            <div class="summary-row"><span>Điểm thưởng</span><strong>{{ summary.bonusPoints }}</strong></div>
+            <div class="summary-row"><span>Điểm phạt</span><strong>{{ summary.penaltyPoints }}</strong></div>
+            <div class="summary-row"><span>Tỷ lệ đóng góp</span><strong>{{ summary.contributionPercent }}%</strong></div>
+            <div class="summary-row"><span>Giờ dự kiến</span><strong>{{ summary.estimatedHours }}h</strong></div>
+            <div class="summary-row"><span>Giờ thực tế</span><strong>{{ summary.actualHours }}h</strong></div>
+            <div class="summary-row"><span>Giờ đã ghi nhận</span><strong>{{ summary.loggedHours }}h</strong></div>
+            <div class="summary-row"><span>Điểm thu hồi</span><strong>{{ summary.rollbackPoints }}</strong></div>
           </div>
         </div>
       </section>
 
       <main class="rewards-grid">
         <section class="panel">
-          <div class="panel-head"><h2>Spotlight tasks</h2><span>Top value</span></div>
-          <div v-if="!spotlightTasks.length" class="empty">No tasks are ready for spotlight scoring yet.</div>
+          <div class="panel-head"><h2>Công việc tiêu biểu</h2><span>Giá trị nhất</span></div>
+          <div v-if="!spotlightTasks.length" class="empty">Chưa có công việc tiêu biểu nào.</div>
           <article v-for="task in spotlightTasks" :key="task.id" class="spotlight-row">
             <div class="spotlight-main">
               <strong>{{ task.sequenceId || 'TASK' }}</strong>
               <div class="spotlight-title">{{ task.title }}</div>
-              <small>{{ task.estimatedDays }} day · {{ task.estimatedHours }}h est / {{ task.actualHours }}h actual · share {{ task.contributionShare }}%</small>
+              <small>{{ task.estimatedDays }} ngày · {{ task.estimatedHours }}h dự kiến / {{ task.actualHours }}h thực tế · tỷ lệ {{ task.contributionShare }}%</small>
             </div>
             <div class="spotlight-side">
-              <span class="chip">{{ task.fairPoints }} pts</span>
-              <span class="chip muted">eff x{{ task.efficiency }}</span>
-              <span class="chip muted">quality x{{ task.qualityModifier }}</span>
+              <span class="chip">{{ task.fairPoints }} điểm</span>
+              <span class="chip muted">hiệu suất x{{ task.efficiency }}</span>
+              <span class="chip muted">chất lượng x{{ task.qualityModifier }}</span>
               <span class="chip muted">{{ task.progressPercent }}%</span>
             </div>
           </article>
         </section>
 
         <section class="panel">
-          <div class="panel-head"><h2>Recent achievements</h2><span>{{ recentAchievements.length }}</span></div>
-          <div v-if="!recentAchievements.length" class="empty">No recent achievements yet.</div>
+          <div class="panel-head"><h2>Thành tích gần đây</h2><span>{{ recentAchievements.length }}</span></div>
+          <div v-if="!recentAchievements.length" class="empty">Chưa có thành tích nào gần đây.</div>
           <article v-for="item in recentAchievements" :key="item.id" class="achievement-row">
             <div>
               <strong>{{ item.title }}</strong>
@@ -118,9 +123,9 @@
 
       <section class="rewards-grid lower-grid">
         <section class="panel">
-          <div class="panel-head"><h2>Point history</h2><span>{{ transactions.length }}</span></div>
-          <div v-if="loading" class="empty">Loading rewards...</div>
-          <div v-else-if="!transactions.length" class="empty">No point transactions yet.</div>
+          <div class="panel-head"><h2>Lịch sử điểm</h2><span>{{ transactions.length }}</span></div>
+          <div v-if="loading" class="empty">Đang tải dữ liệu...</div>
+          <div v-else-if="!transactions.length" class="empty">Chưa có giao dịch điểm nào.</div>
           <article v-for="tx in transactions" :key="tx.id" class="tx-row">
             <div class="tx-icon" :class="{ negative: tx.amount < 0 }">
               <i :class="tx.amount >= 0 ? 'fa-solid fa-plus' : 'fa-solid fa-minus'"></i>
@@ -135,16 +140,16 @@
         </section>
 
         <section class="panel">
-          <div class="panel-head"><h2>Leaderboard</h2><span>Top 20</span></div>
-          <div v-if="!leaderboard.length" class="empty">No leaderboard data yet.</div>
+          <div class="panel-head"><h2>Bảng xếp hạng</h2><span>Top 20</span></div>
+          <div v-if="!leaderboard.length" class="empty">Chưa có dữ liệu xếp hạng.</div>
           <article v-for="(item, index) in leaderboard" :key="item.userId" class="leader-row">
             <span class="rank">#{{ index + 1 }}</span>
             <span class="avatar">{{ getInitials(item.userName) }}</span>
             <div class="leader-main">
-              <strong>{{ item.userName || 'User' }}</strong>
-              <small>{{ item.careerTitle || `Level ${item.level}` }}</small>
+              <strong>{{ item.userName || 'Thành viên' }}</strong>
+              <small>{{ item.careerTitle || `Cấp độ ${item.level}` }}</small>
             </div>
-            <span class="leader-points">{{ item.totalPoints }} pts</span>
+            <span class="leader-points">{{ item.totalPoints }} điểm</span>
           </article>
         </section>
       </section>
@@ -357,16 +362,33 @@ small,
   margin-left: 8px;
 }
 
+.progress-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+}
+
 .progress-track {
-  height: 10px;
+  flex: 1;
+  height: 12px;
   background: var(--border-color);
-  border-radius: 1px;
+  border-radius: 6px;
   overflow: hidden;
+  position: relative;
 }
 
 .progress-fill {
   height: 100%;
   background: linear-gradient(90deg, var(--color-success), var(--color-accent));
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.progress-text {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-accent);
+  min-width: 40px;
 }
 
 .formula-band,

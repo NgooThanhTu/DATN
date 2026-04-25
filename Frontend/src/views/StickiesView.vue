@@ -4,10 +4,14 @@
       <header class="st-header">
         <div class="st-left">
           <i class="fa-solid fa-note-sticky text-muted"></i>
-          <span class="st-title flex items-center gap-2">Stickies <span class="bg-[var(--color-surface)] text-[var(--color-text-muted)] text-[10px] px-1.5 py-0.5 rounded" v-if="stickies.length > 0">{{ stickies.length }}</span></span>
+          <span class="st-title flex items-center gap-2">
+            Stickies 
+            <span class="bg-[var(--color-surface)] text-[var(--color-text-muted)] text-[10px] px-1.5 py-0.5 rounded" v-if="stickies.length > 0">{{ stickies.length }}</span>
+            <span class="text-[11px] text-[var(--color-text-muted)] ml-2 font-normal">{{ lastSavedLabel }}</span>
+          </span>
         </div>
         <div class="nexus-controls-row">
-          <input type="text" class="nexus-search-input" placeholder="Search stickies..." />
+          <input type="text" class="nexus-search-input" placeholder="Search stickies..." v-model="searchQuery" />
           <button class="nexus-btn nexus-btn-primary" @click="addSticky"><i class="fa-solid fa-plus mr-1.5"></i> Add sticky</button>
         </div>
       </header>
@@ -36,7 +40,7 @@
         <div v-else class="stickies-grid">
           <div 
           class="sticky-card" 
-          v-for="sticky in stickies" 
+          v-for="sticky in filteredStickies" 
           :key="sticky.id" 
           :class="{ 'is-new': sticky.isNew }"
           :style="getDynamicColorStyle(sticky.color)"
@@ -94,15 +98,25 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, nextTick, computed } from 'vue'
 import NexusLayout from '@/components/layout/NexusLayout.vue'
 import { ElNotification } from 'element-plus'
 
 import { COLOR_PALETTE, getContrastTextColor, getRandomPaletteColor, getDynamicColorStyle } from '@/utils/colors'
-
 const stickies = ref([])
+const searchQuery = ref('')
+const lastSavedAt = ref(null)
+
 // Holds textarea DOM element refs keyed by sticky id
 const textareaRefs = {}
+
+const filteredStickies = computed(() => {
+  if (!searchQuery.value.trim()) return stickies.value
+  const q = searchQuery.value.toLowerCase()
+  return stickies.value.filter(s => 
+    s.content?.toLowerCase().includes(q)
+  )
+})
 
 const setStickyRef = (sticky, el) => {
   if (!el) {
@@ -111,6 +125,7 @@ const setStickyRef = (sticky, el) => {
   }
 
   textareaRefs[sticky.id] = el
+  // Use a data attribute to avoid unnecessary innerHTML writes which can reset cursor
   if (document.activeElement !== el && el.innerHTML !== (sticky.content || '')) {
     el.innerHTML = sticky.content || ''
   }
@@ -120,7 +135,7 @@ const setStickyRef = (sticky, el) => {
 let saveTimer = null
 const debouncedSave = () => {
   if (saveTimer) clearTimeout(saveTimer)
-  saveTimer = setTimeout(() => saveToStorage(), 600)
+  saveTimer = setTimeout(() => saveToStorage(), 1000)
 }
 
 // Load from local storage when mounted
@@ -129,7 +144,9 @@ onMounted(() => {
   if (saved) {
     try {
       stickies.value = JSON.parse(saved)
-    } catch(e) {}
+    } catch(e) {
+      console.error('Failed to parse stickies', e)
+    }
   }
 })
 
@@ -138,7 +155,13 @@ const saveToStorage = () => {
   // Strip transient `isNew` flag before persisting
   const toSave = stickies.value.map(({ isNew, ...rest }) => rest)
   localStorage.setItem('plane_stickies', JSON.stringify(toSave))
+  lastSavedAt.value = new Date()
 }
+
+const lastSavedLabel = computed(() => {
+  if (!lastSavedAt.value) return ''
+  return `Saved at ${lastSavedAt.value.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+})
 
 // Pick a random color that is different from the last sticky's color
 const getRandomColor = () => {
@@ -163,12 +186,12 @@ const addSticky = async () => {
     id: newId,
     content: '',
     color: getRandomColor(),
-    isBold: false, // Legacy, kept for compatibility
-    isItalic: false, // Legacy, kept for compatibility
+    isBold: false,
+    isItalic: false,
     align: 'left',
-    isNew: true // triggers highlight animation
+    isNew: true 
   }
-  stickies.value.push(newSticky)
+  stickies.value.unshift(newSticky) // Add to front for better UX
   saveToStorage()
 
   // Wait for DOM to render, then focus the new sticky
@@ -203,9 +226,9 @@ const commitStickyContent = (sticky) => {
 }
 
 const cycleAlignment = (sticky) => {
-  if (sticky.align === 'left') sticky.align = 'center'
-  else if (sticky.align === 'center') sticky.align = 'right'
-  else sticky.align = 'left'
+  const alignments = ['left', 'center', 'right']
+  const currentIndex = alignments.indexOf(sticky.align || 'left')
+  sticky.align = alignments[(currentIndex + 1) % alignments.length]
   debouncedSave()
 }
 
