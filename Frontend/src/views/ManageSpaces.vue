@@ -40,8 +40,11 @@
          <i class="fa-solid fa-spinner fa-spin"></i> Loading projects...
       </div>
       <div v-else-if="filteredSpaces.length === 0" class="empty-state">
-         <div class="empty-icon"><i class="fa-regular fa-folder-open"></i></div>
-         <p>No projects found.</p>
+         <div class="empty-icon-wrap" style="width: 80px; height: 80px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+           <i class="fa-solid fa-folder-open empty-icon" style="margin-bottom: 0;"></i>
+         </div>
+         <h3 class="empty-title" style="margin: 0 0 8px 0; font-size: 16px; font-weight: 600; color: var(--color-text-primary);">No projects found</h3>
+         <p style="margin: 0 0 24px 0; font-size: 14px; color: var(--color-text-muted);">It looks like there are no projects here. Let's create your first one!</p>
          <button class="plane-btn-primary" @click="isCreateModalVisible = true">Create your first project</button>
       </div>
       <div v-else class="spaces-grid">
@@ -74,12 +77,18 @@
                  <i :class="space.networkType === 'Private' ? 'fa-solid fa-lock' : 'fa-solid fa-globe'"></i>
                  {{ space.networkType || 'Public' }}
                </span>
-               <div class="avatar-group">
-                 <div class="avatar">{{ space.leadName ? space.leadName.charAt(0).toUpperCase() : 'U' }}</div>
-               </div>
-               <button v-if="showProjectSettingsButton(space)" class="card-icon-btn" type="button" @click="goToAdmin(space)" title="Project settings">
-                 <i class="fa-solid fa-gear"></i>
-               </button>
+               <span style="font-size: 11px; color: var(--color-text-muted); margin-left: auto; margin-right: 8px;">
+                 Created: {{ new Date(space.originalRow?.createdAt || space.originalRow?.createdDate || Date.now()).toLocaleDateString() }}
+               </span>
+               <el-dropdown trigger="click" v-if="showProjectSettingsButton(space)" @click.stop>
+                 <button class="card-icon-btn" type="button"><i class="fa-solid fa-ellipsis"></i></button>
+                 <template #dropdown>
+                   <el-dropdown-menu class="plane-dropdown">
+                     <el-dropdown-item @click="goToAdmin(space)"><i class="fa-solid fa-gear" style="margin-right: 8px;"></i> Settings</el-dropdown-item>
+                     <el-dropdown-item @click="archiveProject(space)"><i class="fa-solid fa-box-archive" style="margin-right: 8px;"></i> Archive project</el-dropdown-item>
+                   </el-dropdown-menu>
+                 </template>
+               </el-dropdown>
             </div>
           </div>
         </div>
@@ -97,7 +106,7 @@ import { useRouter } from 'vue-router'
 import axiosClient from '@/api/axiosClient'
 import NexusLayout from '@/components/layout/NexusLayout.vue'
 import CreateSpaceModal from '@/components/CreateSpaceModal.vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useProjectStore } from '@/store/useProjectStore'
 import { canAccessProjectSettings, getProjectSettingsDeniedMessage, getStoredUser } from '@/utils/permissions'
 import { subscribeAdminRealtime } from '@/utils/adminRealtime'
@@ -124,6 +133,17 @@ const goToAdmin = (space) => {
   }
   const routeData = router.resolve(`/space/${space.id}/settings`)
   openNamedAppWindow(routeData.href, getProjectSettingsWindowName(space.id))
+}
+
+const archiveProject = async (space) => {
+  try {
+    await ElMessageBox.confirm(`Are you sure you want to archive project "${space.name}"?`, 'Archive Project', { type: 'warning' })
+    await axiosClient.put(`/projects/${space.id}/archive`)
+    ElMessage.success('Project archived')
+    fetchSpaces()
+  } catch (err) {
+    if (err !== 'cancel') ElMessage.error('Failed to archive project')
+  }
 }
 
 const toggleSort = () => {

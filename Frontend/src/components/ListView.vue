@@ -143,7 +143,9 @@ import { computed, nextTick, ref } from 'vue'
 
 const props = defineProps({
   tasks: { type: Array, default: () => [] },
-  projectMembers: { type: Array, default: () => [] }
+  projectMembers: { type: Array, default: () => [] },
+  groupBy: { type: String, default: 'States' },
+  showSubItems: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['task-click', 'task-created', 'update-task'])
@@ -233,6 +235,33 @@ const toggleGroup = (key) => {
 }
 
 const groupedTasks = computed(() => {
+  const visibleTasks = props.tasks.filter(task => props.showSubItems || !(task.parentTaskId || task.parentId))
+
+  if (props.groupBy === 'None') {
+    return {
+      all: { name: 'All tasks', iconClass: 'fa-solid fa-layer-group', color: '#0EA5E9', tasks: visibleTasks }
+    }
+  }
+
+  if (props.groupBy === 'Priority') {
+    const groups = {
+      urgent: { name: 'Urgent', iconClass: 'fa-solid fa-angles-up', color: '#ef4444', tasks: [] },
+      high: { name: 'High', iconClass: 'fa-solid fa-chevron-up', color: '#f97316', tasks: [] },
+      normal: { name: 'Normal', iconClass: 'fa-solid fa-minus', color: '#3b82f6', tasks: [] },
+      low: { name: 'Low', iconClass: 'fa-solid fa-chevron-down', color: '#9ca3af', tasks: [] }
+    }
+
+    visibleTasks.forEach(task => {
+      const priority = Number(task.priority) || 3
+      if (priority === 1) groups.urgent.tasks.push(task)
+      else if (priority === 2) groups.high.tasks.push(task)
+      else if (priority === 3) groups.normal.tasks.push(task)
+      else groups.low.tasks.push(task)
+    })
+    return groups
+  }
+
+  // Default: States
   const groups = {
     backlog: { name: 'Backlog', iconClass: 'fa-regular fa-circle-dashed', color: '#71717a', tasks: [] },
     todo: { name: 'Todo', iconClass: 'fa-regular fa-circle', color: '#a1a1aa', tasks: [] },
@@ -240,7 +269,7 @@ const groupedTasks = computed(() => {
     done: { name: 'Done', iconClass: 'fa-solid fa-circle-check', color: '#10b981', tasks: [] }
   }
 
-  props.tasks.filter(task => !(task.parentTaskId || task.parentId)).forEach(task => {
+  visibleTasks.forEach(task => {
     const status = `${task.statusName || ''}`.toUpperCase().trim()
     if (status === 'IN PROGRESS' || status === 'INPROGRESS') groups.inprogress.tasks.push(task)
     else if (status === 'DONE') groups.done.tasks.push(task)

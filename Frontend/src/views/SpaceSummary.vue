@@ -1,7 +1,14 @@
 <template>
   <NexusLayout>
-    <div class="plane-board-container">
-      
+    <div v-if="isForbidden" class="forbidden-overlay">
+      <div class="forbidden-content">
+        <div class="lock-icon"><i class="fa-solid fa-lock"></i></div>
+        <h2>Access Denied</h2>
+        <p>Bạn không đủ quyền để truy cập dự án này.</p>
+        <button class="plane-primary-btn mt-4" @click="router.push('/spaces')">Quay lại trang Home</button>
+      </div>
+    </div>
+    <div v-else class="plane-board-container">
       <!-- Plane Style Header -->
       <header class="plane-space-header">
         <div class="sh-left">
@@ -473,6 +480,7 @@ const showDisplayDropdown = ref(false)
 const showAnalyticsSidebar = ref(false)
 const isAnalyticsExpanded = ref(false)
 const showFilterPanel = ref(false)
+const isForbidden = ref(false)
 const showSubtasks = ref(false)
 const collapsedListGroups = ref({})
 const assigneeSearch = ref('')
@@ -1219,7 +1227,11 @@ const loadInitialData = async (options = {}) => {
 
     await fetchTasks({ reset: false })
   } catch (error) {
-    console.error('Lỗi load dự án:', error)
+    if (isForbiddenError(error)) {
+      isForbidden.value = true
+    } else {
+      console.error('Lỗi load dự án:', error)
+    }
   }
 }
 
@@ -2362,6 +2374,13 @@ onUnmounted(() => {
 
 
 /* Analytics Sidebar */
+.forbidden-overlay { display: flex; align-items: center; justify-content: center; height: 100%; width: 100%; background: var(--color-bg); }
+.forbidden-content { text-align: center; max-width: 400px; padding: 40px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 16px; }
+.forbidden-content .lock-icon { font-size: 48px; color: #ef4444; margin-bottom: 24px; }
+.forbidden-content h2 { margin: 0 0 12px 0; font-size: 20px; color: var(--color-text-primary); }
+.forbidden-content p { margin: 0 0 24px 0; color: var(--color-text-secondary); line-height: 1.5; }
+.forbidden-content .mt-4 { margin-top: 16px; }
+
 .analytics-overlay {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;

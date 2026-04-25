@@ -626,10 +626,10 @@
                   <p>{{ member.email }}</p>
                 </div>
                 <div class="row-actions">
-                  <select :value="member.projectRole" @change="updateMemberRole(member, $event.target.value)">
+                  <select :value="member.projectRole" @change="updateMemberRole(member, $event.target.value)" :disabled="member.userId === currentUser?.id">
                     <option v-for="role in projectRoleOptions" :key="`${member.userId}-${role}`" :value="role">{{ role }}</option>
                   </select>
-                  <button class="danger-outline-btn" type="button" @click="removeMember(member)">Remove</button>
+                  <button class="danger-outline-btn" type="button" @click="removeMember(member)" :disabled="member.userId === currentUser?.id" :title="member.userId === currentUser?.id ? 'Cannot remove yourself' : ''">Remove</button>
                 </div>
               </div>
             </div>
@@ -1886,6 +1886,10 @@ const updateMemberRole = async (member, role) => {
 }
 
 const removeMember = async (member) => {
+  if (member.userId === currentUser.value?.id) {
+    ElMessage.error('Không thể tự xoá bản thân ra khỏi dự án')
+    return
+  }
   try {
     await ElMessageBox.confirm(`Remove ${member.fullName || member.email} from this project?`, 'Remove member', { type: 'warning' })
     await axiosClient.delete(`/projects/${projectId}/members/${member.userId}`)
