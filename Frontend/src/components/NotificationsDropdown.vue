@@ -29,31 +29,41 @@
           </div>
 
           <div v-else class="notif-section">
-            <button
+            <div
               v-for="notification in filteredNotifications"
               :key="notification.id"
-              type="button"
-              class="notif-item"
-              :class="{ unread: !notification.isRead }"
-              @click="openNotification(notification)"
+              class="notif-item-wrapper"
             >
-              <div class="notif-avatar">
-                {{ getInitials(notification.triggeredByName || 'HT') }}
-              </div>
-              <div class="notif-content">
-                <div class="notif-text">
-                  <span class="user-name">{{ notification.triggeredByName || 'Hệ thống' }}</span>
-                  <span>{{ notification.content }}</span>
+              <button
+                type="button"
+                class="notif-item"
+                :class="{ unread: !notification.isRead }"
+                @click="openNotification(notification)"
+              >
+                <div class="notif-type-icon" :class="getTypeClass(notification.notificationType)">
+                  <i :class="getTypeIcon(notification.notificationType)"></i>
                 </div>
-                <div class="notif-context">
-                  <i class="fa-solid fa-bell"></i>
-                  <span>{{ notification.title }}</span>
-                  <span class="time-ago">{{ formatTimeAgo(notification.createdAt) }}</span>
+                <div class="notif-content">
+                  <div class="notif-text">
+                    <span class="user-name">{{ notification.triggeredByName || 'Hệ thống' }}</span>
+                    <span>{{ notification.content }}</span>
+                  </div>
+                  <div class="notif-context">
+                    <span class="notif-title-badge">{{ notification.title }}</span>
+                    <span class="time-ago">{{ formatTimeAgo(notification.createdAt) }}</span>
+                  </div>
                 </div>
-              </div>
-              <div v-if="!notification.isRead" class="unread-dot"></div>
-            </button>
+                <div v-if="!notification.isRead" class="unread-dot-box" @click.stop="markAsRead(notification)">
+                  <div class="unread-dot"></div>
+                  <div class="mark-read-hint">Đánh dấu đã đọc</div>
+                </div>
+              </button>
+            </div>
           </div>
+        </div>
+
+        <div class="notif-footer">
+          <el-button type="primary" link size="small" @click="router.push('/notifications')">Xem tất cả thông báo</el-button>
         </div>
       </div>
     </template>
@@ -97,6 +107,28 @@ const formatTimeAgo = (dateStr) => {
   return `${Math.floor(diffHours / 24)} ngày trước`
 }
 
+const getTypeIcon = (type) => {
+  switch (type?.toUpperCase()) {
+    case 'TASK_ASSIGNED': return 'fa-solid fa-user-plus'
+    case 'TASK_STATUS_CHANGED': return 'fa-solid fa-rotate'
+    case 'COMMENT_ADDED': return 'fa-solid fa-comment'
+    case 'TASK_DUE_SOON': return 'fa-solid fa-clock'
+    case 'POINT_AWARDED': return 'fa-solid fa-trophy'
+    default: return 'fa-solid fa-bell'
+  }
+}
+
+const getTypeClass = (type) => {
+  switch (type?.toUpperCase()) {
+    case 'TASK_ASSIGNED': return 'type-assign'
+    case 'TASK_STATUS_CHANGED': return 'type-status'
+    case 'COMMENT_ADDED': return 'type-comment'
+    case 'TASK_DUE_SOON': return 'type-due'
+    case 'POINT_AWARDED': return 'type-reward'
+    default: return 'type-general'
+  }
+}
+
 const normalizeLink = (notification) => {
   if (notification.linkUrl?.startsWith('/space/')) return notification.linkUrl
   if (notification.relatedProjectId && notification.relatedTaskId) return `/space/${notification.relatedProjectId}?task=${notification.relatedTaskId}`
@@ -125,15 +157,25 @@ const fetchNotifications = async () => {
   }
 }
 
+const markAsRead = async (notification) => {
+  if (notification.isRead) return
+  try {
+    notification.isRead = true
+    await axiosClient.put(`/notifications/${notification.id}/read`)
+  } catch (error) {
+    notification.isRead = false
+    ElMessage.error('Could not update notification')
+  }
+}
+
 const openNotification = async (notification) => {
   try {
     if (!notification.isRead) {
-      notification.isRead = true
-      await axiosClient.put(`/notifications/${notification.id}/read`)
+      await markAsRead(notification)
     }
     if (notification.linkUrl) router.push(notification.linkUrl)
   } catch (error) {
-    ElMessage.error('Could not update notification')
+    // Error handled in markAsRead
   }
 }
 
@@ -237,24 +279,35 @@ onUnmounted(() => {
 }
 
 .notif-scroll-area {
-  min-height: 360px;
+  min-height: 200px;
+  max-height: 480px;
   overflow-y: auto;
 }
 
 .notif-section {
-  padding: 10px 0;
+  padding: 0;
+}
+
+.notif-item-wrapper {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.notif-item-wrapper:last-child {
+  border-bottom: none;
 }
 
 .notif-item {
   width: 100%;
   display: flex;
-  gap: 16px;
-  padding: 12px 20px;
+  gap: 14px;
+  padding: 14px 20px;
   border: none;
   background: transparent;
   color: inherit;
   text-align: left;
   cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
 }
 
 .notif-item:hover {
@@ -262,52 +315,111 @@ onUnmounted(() => {
 }
 
 .notif-item.unread {
-  background: rgba(7, 71, 166, 0.06);
+  background: rgba(var(--color-primary-rgb, 37, 99, 235), 0.04);
 }
 
-.notif-avatar {
-  width: 32px;
-  height: 32px;
+.notif-item.unread:hover {
+  background: rgba(var(--color-primary-rgb, 37, 99, 235), 0.08);
+}
+
+.notif-type-icon {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
-  background: #2563eb;
-  color: var(--color-text-primary);
-  font-size: 12px;
-  font-weight: 700;
+  border-radius: 8px;
+  font-size: 16px;
 }
+
+.type-assign { background: rgba(37, 99, 235, 0.1); color: #2563eb; }
+.type-status { background: rgba(147, 51, 234, 0.1); color: #9333ea; }
+.type-comment { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+.type-due { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+.type-reward { background: rgba(236, 72, 153, 0.1); color: #ec4899; }
+.type-general { background: var(--bg-tertiary); color: var(--color-text-secondary); }
 
 .notif-content {
   flex: 1;
+  min-width: 0;
 }
 
 .notif-text {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  color: var(--color-text-secondary);
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: var(--color-text-primary);
   margin-bottom: 4px;
+  display: block;
 }
 
 .user-name {
-  color: var(--color-text-primary);
   font-weight: 700;
+  margin-right: 4px;
 }
 
-.notif-context,
+.notif-context {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.notif-title-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: var(--bg-tertiary);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
 .time-ago {
   color: var(--color-text-muted);
-  font-size: 12px;
-  gap: 6px;
+  font-size: 11px;
+}
+
+.unread-dot-box {
+  width: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
 }
 
 .unread-dot {
-  width: 6px;
-  height: 6px;
-  margin-top: 10px;
-  border-radius: 999px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
   background: #3b82f6;
+  transition: transform 0.2s;
+}
+
+.unread-dot-box:hover .unread-dot {
+  transform: scale(1.4);
+}
+
+.mark-read-hint {
+  position: absolute;
+  right: 30px;
+  background: #1e293b;
+  color: white;
+  font-size: 10px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+
+.unread-dot-box:hover .mark-read-hint {
+  opacity: 1;
+}
+
+.notif-footer {
+  padding: 12px;
+  text-align: center;
+  border-top: 1px solid var(--color-border);
 }
 
 .notif-empty-state {

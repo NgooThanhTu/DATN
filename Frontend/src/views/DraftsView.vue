@@ -107,7 +107,7 @@
                       type="date"
                       format="YYYY-MM-DD"
                       value-format="YYYY-MM-DD"
-                      style="position: absolute; bottom: 0; left: 0; width: 0; height: 0; opacity: 0; padding: 0; border: 0; display: none;"
+                      style="position: absolute; bottom: 0; left: 0; width: 0; height: 0; opacity: 0; padding: 0; border: 0;"
                       @change="updateDraftProperty(draft, 'startDate', $event)"
                     />
                  </div>
@@ -124,7 +124,7 @@
                       type="date"
                       format="YYYY-MM-DD"
                       value-format="YYYY-MM-DD"
-                      style="position: absolute; bottom: 0; left: 0; width: 0; height: 0; opacity: 0; padding: 0; border: 0; display: none;"
+                      style="position: absolute; bottom: 0; left: 0; width: 0; height: 0; opacity: 0; padding: 0; border: 0;"
                       @change="updateDraftProperty(draft, 'dueDate', $event)"
                     />
                  </div>
@@ -301,7 +301,8 @@
                   type="date"
                   format="YYYY-MM-DD"
                   value-format="YYYY-MM-DD"
-                  style="position: absolute; bottom: 0; left: 0; width: 0; height: 0; opacity: 0; padding: 0; border: 0; display: none;"
+                  :teleported="false"
+                  style="position: absolute; bottom: 0; left: 0; width: 0; height: 0; opacity: 0; padding: 0; border: 0;"
                 />
              </div>
 
@@ -317,7 +318,8 @@
                   type="date"
                   format="YYYY-MM-DD"
                   value-format="YYYY-MM-DD"
-                  style="position: absolute; bottom: 0; left: 0; width: 0; height: 0; opacity: 0; padding: 0; border: 0; display: none;"
+                  :teleported="false"
+                  style="position: absolute; bottom: 0; left: 0; width: 0; height: 0; opacity: 0; padding: 0; border: 0;"
                 />
              </div>
 
@@ -1027,6 +1029,16 @@ h1 {
   border-radius: 12px;
   padding: 24px;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  position: relative;
+  overflow: visible !important;
+}
+
+:deep(.el-picker-panel) {
+  z-index: 3000 !important;
+}
+
+:deep(.el-popper.is-light.el-picker__popper) {
+  z-index: 3000 !important;
 }
 
 .dm-title-input, .dm-desc-input {
