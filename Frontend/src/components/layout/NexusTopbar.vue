@@ -6,6 +6,7 @@
         <span class="ws-name">{{ workspaceName }}</span>
         <i class="fa-solid fa-chevron-down"></i>
       </div>
+
       <button class="menu-toggle" @click="$emit('toggle-sidebar')">
         <i class="fa-solid fa-bars-staggered"></i>
       </button>
@@ -257,6 +258,7 @@ onUnmounted(() => {
   cursor: pointer;
   padding: 4px;
 }
+
 
 .nav-center {
   flex: 1;
