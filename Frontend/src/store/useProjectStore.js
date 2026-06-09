@@ -41,7 +41,7 @@ const defaultProjectNodes = (projectId) => ([
     id: `${projectId}-work-items`,
     key: 'work-items',
     label: 'Work items',
-    route: `/space/${projectId}`
+    route: `/space/${projectId}/work-items`
   },
   {
     id: `${projectId}-cycles`,

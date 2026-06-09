@@ -10,16 +10,50 @@
 
       <ul class="nav-menu">
         <li class="nav-item">
-          <router-link to="/dashboard" class="nav-link" active-class="active">
+          <router-link to="/dashboard" class="nav-link" :class="{ active: $route.path === '/dashboard' && !$route.query.tab }" exact>
             <i class="fa-solid fa-house"></i>
-            <span>Home</span>
+            <span>For you</span>
           </router-link>
         </li>
         <li class="nav-item">
-          <router-link to="/drafts" class="nav-link" exact-active-class="active">
-            <i class="fa-solid fa-pen-nib"></i>
-            <span>Drafts</span>
-          </router-link>
+          <el-popover
+            v-model:visible="recentVisible"
+            placement="right-start"
+            :width="320"
+            trigger="click"
+            popper-style="padding: 0; border-radius: 8px; box-shadow: var(--shadow-lg);"
+            :teleported="true"
+            @show="onRecentShow"
+          >
+            <template #reference>
+              <div class="nav-link" :class="{ active: $route.path === '/dashboard' && $route.query.tab === 'viewed' }" style="cursor: pointer;">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+                <span>Recent</span>
+                <i class="fa-solid fa-chevron-right" style="font-size:10px; margin-left:auto;"></i>
+              </div>
+            </template>
+            <RecentDropdown ref="recentDropdownRef" @close="closeRecentPopover" />
+          </el-popover>
+        </li>
+        <li class="nav-item">
+          <el-popover
+            v-model:visible="starredVisible"
+            placement="right-start"
+            :width="340"
+            trigger="click"
+            popper-style="padding: 0; border-radius: 8px; box-shadow: var(--shadow-lg);"
+            :teleported="true"
+            @show="onStarredShow"
+          >
+            <template #reference>
+              <div class="nav-link" :class="{ active: $route.path === '/dashboard' && $route.query.tab === 'starred' }" style="cursor: pointer;">
+                <i class="fa-regular fa-star"></i>
+                <span>Starred</span>
+                <i class="fa-solid fa-chevron-right" style="font-size:10px; margin-left:auto;"></i>
+              </div>
+            </template>
+            <StarredDropdown ref="starredDropdownRef" @close="closeStarredPopover" />
+          </el-popover>
         </li>
         <li class="nav-item">
           <router-link to="/your-work" class="nav-link">
@@ -39,28 +73,23 @@
             <span>Rewards</span>
           </router-link>
         </li>
-        <li class="nav-item">
-          <router-link to="/ai" class="nav-link">
-            <i class="fa-solid fa-robot"></i>
-            <span>AI Assistant</span>
-          </router-link>
-        </li>
       </ul>
 
-      <!-- Favorites Division -->
-      <div class="nav-section-title" v-if="favoriteProjects.length > 0 || favoriteSprints.length > 0">Favorites</div>
-      <ul class="nav-menu" v-if="favoriteProjects.length > 0 || favoriteSprints.length > 0">
-        <li class="nav-item" v-for="project in favoriteProjects" :key="`favorite-project-${project.id}`">
+      <!-- Recent Projects -->
+      <div class="nav-section-title" v-if="recentProjects.length > 0">Recent</div>
+      <ul class="nav-menu" v-if="recentProjects.length > 0">
+        <li class="nav-item" v-for="project in recentProjects" :key="`recent-${project.id}`">
           <router-link :to="`/space/${project.id}`" class="nav-link">
-             <i class="fa-solid fa-star text-yellow-400"></i>
-             <span class="truncate">{{ project.name }}</span>
+            <span class="proj-icon" :style="{ background: projectColor(project) }">{{ projectIcon(project) }}</span>
+            <span class="truncate">{{ project.name }}</span>
           </router-link>
         </li>
-        <li class="nav-item" v-for="fs in favoriteSprints" :key="fs.id">
-          <router-link :to="`/space/${fs.projectId}/cycles`" class="nav-link">
-             <i class="fa-solid fa-arrows-spin fav-icon"></i>
-             <span class="truncate">{{ fs.name }}</span>
-          </router-link>
+        <li class="nav-item">
+          <div class="nav-link" @click="router.push('/spaces')" style="cursor:pointer; color: var(--color-text-muted);">
+            <i class="fa-solid fa-ellipsis"></i>
+            <span>More spaces</span>
+            <i class="fa-solid fa-chevron-right" style="font-size:10px; margin-left:auto;"></i>
+          </div>
         </li>
       </ul>
 
@@ -156,14 +185,36 @@ import { useSprintStore } from '@/store/useSprintStore'
 import { useProjectStore } from '@/store/useProjectStore'
 import { subscribeAdminRealtime } from '@/utils/adminRealtime'
 import { getScopedCurrentProjectId, setScopedCurrentProjectId } from '@/utils/projectContext'
+import RecentDropdown from '@/components/RecentDropdown.vue'
+import StarredDropdown from '@/components/StarredDropdown.vue'
 
 const route = useRoute()
 const router = useRouter()
 const showMorePanel = ref(false)
 const projectStore = useProjectStore()
+
+// Popover control variables
+const recentVisible = ref(false)
+const starredVisible = ref(false)
+const recentDropdownRef = ref(null)
+const starredDropdownRef = ref(null)
+
+const onRecentShow = () => {
+  recentDropdownRef.value?.loadRecentItems()
+}
+const onStarredShow = () => {
+  starredDropdownRef.value?.loadStarredItems()
+}
+const closeRecentPopover = () => {
+  recentVisible.value = false
+}
+const closeStarredPopover = () => {
+  starredVisible.value = false
+}
 const currentProjectId = computed(() => {
   return route.params.id || getScopedCurrentProjectId() || 'default'
 })
+
 
 const props = defineProps({
   isVisible: { type: Boolean, default: true }
@@ -176,6 +227,27 @@ const favoriteProjects = computed(() => projectStore.favoriteProjects)
 const favoriteSprints = computed(() => {
    if (!sprintStore.sprints) return [];
    return sprintStore.sprints.filter(s => s.isFavorite);
+})
+
+// Recent projects - derived from recently viewed tasks stored in localStorage
+const recentProjects = computed(() => {
+  try {
+    const viewed = JSON.parse(localStorage.getItem('recently_viewed_tasks') || '[]')
+    const seenIds = new Set()
+    const result = []
+    for (const t of viewed) {
+      if (t.projectId && !seenIds.has(t.projectId)) {
+        seenIds.add(t.projectId)
+        const proj = projectStore.allProjects.find(p => p.id === t.projectId)
+        if (proj) result.push(proj)
+        else result.push({ id: t.projectId, name: t.projectName || 'Project', icon: null })
+      }
+      if (result.length >= 3) break
+    }
+    return result
+  } catch {
+    return []
+  }
 })
 
 watch(currentProjectId, async (newVal, oldVal) => {

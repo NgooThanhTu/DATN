@@ -82,6 +82,13 @@ const normalizeTaskRecord = (task = {}, fallbackProjectId = null) => {
 export const useWorkTaskStore = defineStore('workTask', {
   state: () => ({
     tasks: [],
+    starredTaskIds: (() => {
+      try {
+        return JSON.parse(localStorage.getItem('starred_tasks') || '[]')
+      } catch {
+        return []
+      }
+    })(),
     loading: false,
     error: null,
     errorStatus: null,
@@ -242,6 +249,19 @@ export const useWorkTaskStore = defineStore('workTask', {
         this.error = err.response?.data?.message || err.message;
         throw err;
       }
+    },
+    toggleTaskStar(taskId) {
+      if (!taskId) return
+      const index = this.starredTaskIds.indexOf(taskId)
+      if (index >= 0) {
+        this.starredTaskIds.splice(index, 1)
+      } else {
+        this.starredTaskIds.push(taskId)
+      }
+      localStorage.setItem('starred_tasks', JSON.stringify(this.starredTaskIds))
+    },
+    isTaskStarred(taskId) {
+      return this.starredTaskIds.includes(taskId)
     }
   }
 })
