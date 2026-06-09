@@ -41,7 +41,7 @@ namespace TaskManagement.API.Controllers
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out Guid userId))
-                return Unauthorized(new { statusCode = 401, message = "Unauthorized." });
+                return Unauthorized(new { statusCode = 401, message = "Không có quyền truy cập." });
 
             var user = await _context.Users
                 .Include(u => u.UserRoles)
@@ -50,7 +50,7 @@ namespace TaskManagement.API.Controllers
                 .ThenInclude(dm => dm.Department)
                 .FirstOrDefaultAsync(u => u.Id == userId);
                 
-            if (user == null) return NotFound(new { message = "User not found" });
+            if (user == null) return NotFound(new { message = "Không tìm thấy người dùng." });
 
             // We read extra fields if available, otherwise fallback.
             // Since User entity might not have JobTitle, Organization, Department natively,
@@ -120,10 +120,10 @@ namespace TaskManagement.API.Controllers
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out Guid userId))
-                return Unauthorized(new { statusCode = 401, message = "Unauthorized." });
+                return Unauthorized(new { statusCode = 401, message = "Không có quyền truy cập." });
 
             var user = await _context.Users.FindAsync(userId);
-            if (user == null) return NotFound(new { message = "User not found" });
+            if (user == null) return NotFound(new { message = "Không tìm thấy người dùng." });
 
             user.FullName = string.IsNullOrWhiteSpace(request.FullName) ? user.FullName : request.FullName.Trim();
             user.UpdatedAt = DateTime.UtcNow;
@@ -188,7 +188,7 @@ namespace TaskManagement.API.Controllers
 
             await _context.SaveChangesAsync();
 
-            return Ok(new { statusCode = 200, message = "Profile updated successfully" });
+            return Ok(new { statusCode = 200, message = "Cập nhật thông tin hồ sơ thành công." });
         }
 
         public class ChangePasswordRequest
@@ -203,10 +203,10 @@ namespace TaskManagement.API.Controllers
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out Guid userId))
-                return Unauthorized(new { statusCode = 401, message = "Unauthorized." });
+                return Unauthorized(new { statusCode = 401, message = "Không có quyền truy cập." });
 
             var user = await _context.Users.FindAsync(userId);
-            if (user == null) return NotFound(new { message = "User not found" });
+            if (user == null) return NotFound(new { message = "Không tìm thấy người dùng." });
 
             var cooldown = await GetPasswordCooldownAsync(userId);
             if (!cooldown.CanChange)
@@ -214,7 +214,7 @@ namespace TaskManagement.API.Controllers
                 return BadRequest(new
                 {
                     statusCode = 400,
-                    message = $"Password can only be changed once every {PasswordChangeCooldownDays} days. Please request admin support if this is urgent.",
+                    message = $"Mật khẩu chỉ có thể được thay đổi {PasswordChangeCooldownDays} ngày một lần. Vui lòng gửi yêu cầu hỗ trợ tới Quản trị viên nếu đây là trường hợp khẩn cấp.",
                     cooldown.LastChangedAt,
                     cooldown.EligibleAt
                 });
@@ -247,10 +247,10 @@ namespace TaskManagement.API.Controllers
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out Guid userId))
-                return Unauthorized(new { statusCode = 401, message = "Unauthorized." });
+                return Unauthorized(new { statusCode = 401, message = "Không có quyền truy cập." });
 
             var user = await _context.Users.FindAsync(userId);
-            if (user == null) return NotFound(new { message = "User not found" });
+            if (user == null) return NotFound(new { message = "Không tìm thấy người dùng." });
 
             // Verify the email matches the user's account email
             if (!string.Equals(user.Email, request.Email, StringComparison.OrdinalIgnoreCase))
@@ -262,7 +262,7 @@ namespace TaskManagement.API.Controllers
                 return BadRequest(new
                 {
                     statusCode = 400,
-                    message = $"Password can only be changed once every {PasswordChangeCooldownDays} days. Please request admin support if this is urgent.",
+                    message = $"Mật khẩu chỉ có thể được thay đổi {PasswordChangeCooldownDays} ngày một lần. Vui lòng gửi yêu cầu hỗ trợ tới Quản trị viên nếu đây là trường hợp khẩn cấp.",
                     cooldown.LastChangedAt,
                     cooldown.EligibleAt
                 });
@@ -280,10 +280,10 @@ namespace TaskManagement.API.Controllers
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out Guid userId))
-                return Unauthorized(new { statusCode = 401, message = "Unauthorized." });
+                return Unauthorized(new { statusCode = 401, message = "Không có quyền truy cập." });
 
             var user = await _context.Users.FindAsync(userId);
-            if (user == null) return NotFound(new { message = "User not found" });
+            if (user == null) return NotFound(new { message = "Không tìm thấy người dùng." });
 
             var cooldown = await GetPasswordCooldownAsync(userId);
             var eligibleAt = cooldown.EligibleAt ?? DateTime.UtcNow;
@@ -303,7 +303,7 @@ namespace TaskManagement.API.Controllers
 
             if (adminEmails.Count == 0)
             {
-                return BadRequest(new { statusCode = 400, message = "No system admin email is available for password-change support." });
+                return BadRequest(new { statusCode = 400, message = "Không có email của Quản trị viên hệ thống để gửi yêu cầu hỗ trợ đổi mật khẩu." });
             }
 
             foreach (var adminEmail in adminEmails)
@@ -319,7 +319,7 @@ namespace TaskManagement.API.Controllers
             return Ok(new
             {
                 statusCode = 200,
-                message = "Your request has been sent to the system admin.",
+                message = "Yêu cầu của bạn đã được gửi tới Quản trị viên hệ thống.",
                 sentTo = adminEmails.Count,
                 cooldown.LastChangedAt,
                 eligibleAt
@@ -331,10 +331,10 @@ namespace TaskManagement.API.Controllers
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out Guid userId))
-                return Unauthorized(new { statusCode = 401, message = "Unauthorized." });
+                return Unauthorized(new { statusCode = 401, message = "Không có quyền truy cập." });
 
             var user = await _context.Users.FindAsync(userId);
-            if (user == null) return NotFound(new { message = "User not found" });
+            if (user == null) return NotFound(new { message = "Không tìm thấy người dùng." });
 
             if (!string.IsNullOrEmpty(user.PasswordHash))
                 return BadRequest(new { message = "Tài khoản đã có mật khẩu." });
@@ -357,10 +357,10 @@ namespace TaskManagement.API.Controllers
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out Guid userId))
-                return Unauthorized(new { statusCode = 401, message = "Unauthorized." });
+                return Unauthorized(new { statusCode = 401, message = "Không có quyền truy cập." });
 
             var user = await _context.Users.FindAsync(userId);
-            if (user == null) return NotFound(new { message = "User not found" });
+            if (user == null) return NotFound(new { message = "Không tìm thấy người dùng." });
 
             if (!string.IsNullOrEmpty(user.PasswordHash))
                 return BadRequest(new { message = "Tài khoản đã có mật khẩu." });
@@ -385,10 +385,10 @@ namespace TaskManagement.API.Controllers
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out Guid userId))
-                return Unauthorized(new { statusCode = 401, message = "Unauthorized." });
+                return Unauthorized(new { statusCode = 401, message = "Không có quyền truy cập." });
 
             var user = await _context.Users.FindAsync(userId);
-            if (user == null) return NotFound(new { message = "User not found" });
+            if (user == null) return NotFound(new { message = "Không tìm thấy người dùng." });
 
             user.Is2FAEnabled = request.Enable;
             user.UpdatedAt = DateTime.UtcNow;
