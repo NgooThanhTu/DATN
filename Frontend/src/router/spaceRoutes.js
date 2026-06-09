@@ -6,6 +6,11 @@ export default [
   },
   {
     path: '/space/:id',
+    name: 'ForYou',
+    component: () => import('../views/ForYou.vue')
+  },
+  {
+    path: '/space/:id/work-items',
     name: 'SpaceSummary',
     component: () => import('../views/SpaceSummary.vue')
   },

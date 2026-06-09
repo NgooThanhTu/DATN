@@ -108,7 +108,10 @@
               <template v-for="task in group.items" :key="task.id">
                <div class="task-row" @click="openTaskDetail(task)">
                  <div class="tr-left">
-                   <span class="task-id">{{ task.sequenceId || task.id.substring(0,8).toUpperCase() }}</span>
+                   <button class="star-task-btn" :class="{ starred: isTaskStarred(task.id) }" @click.stop="toggleTaskStar(task)">
+                     <i :class="isTaskStarred(task.id) ? 'fa-solid fa-star text-yellow-400' : 'fa-regular fa-star text-gray-400'"></i>
+                   </button>
+                   <span class="task-id" style="margin-left: 8px;">{{ task.sequenceId || task.id.substring(0,8).toUpperCase() }}</span>
                    <span class="task-title" :style="group.statusName === 'DONE' ? { textDecoration: 'line-through', color: 'var(--color-text-muted)' } : {}">
                      {{ task.title }}
                    </span>
@@ -222,7 +225,12 @@
             >
               <template #item="{ element }">
                 <div class="issue-card" :class="{ 'active-card': selectedTask?.id === element.id }" @click="openTaskDetail(element)">
-                  <p class="issue-sequence mb-1">{{ element.sequenceId || element.id.substring(0,8).toUpperCase() }}</p>
+                  <div class="flex-between mb-1">
+                    <p class="issue-sequence">{{ element.sequenceId || element.id.substring(0,8).toUpperCase() }}</p>
+                    <button class="star-task-btn small" @click.stop="toggleTaskStar(element)">
+                      <i :class="isTaskStarred(element.id) ? 'fa-solid fa-star text-yellow-400' : 'fa-regular fa-star text-gray-400'"></i>
+                    </button>
+                  </div>
                   <p class="issue-title" :style="element.statusName === 'DONE' ? { textDecoration: 'line-through', color: 'var(--color-text-muted)' } : {}">{{ element.title }}</p>
                   <div class="issue-meta mt-2" style="display:flex; align-items:center; gap:8px;" @click.stop>
                      <el-dropdown trigger="click" @command="(val) => updateTask(element, 'statusName', val, element.statusName)">
@@ -728,6 +736,14 @@ const currentUserId = () => {
   return user?.id || user?.userId || null
 }
 
+const toggleTaskStar = (task) => {
+  store.toggleTaskStar(task.id)
+}
+
+const isTaskStarred = (taskId) => {
+  return store.isTaskStarred(taskId)
+}
+
 const currentProjectRole = computed(() => {
   const currentUser = getStoredUserSession()
   const currentUserIdValue = currentUser?.id || currentUser?.userId
@@ -827,19 +843,27 @@ const toTimestamp = (value) => {
 const sortTasksByDisplayOrder = (tasks) => {
   const items = [...tasks]
 
-  if (displayOrder.value === 'created') {
-    return items.sort((a, b) => toTimestamp(b.createdAt) - toTimestamp(a.createdAt) || (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0))
-  }
+  return items.sort((a, b) => {
+    const aStarred = store.isTaskStarred(a.id)
+    const bStarred = store.isTaskStarred(b.id)
+    if (aStarred !== bStarred) {
+      return aStarred ? -1 : 1
+    }
 
-  if (displayOrder.value === 'updated') {
-    return items.sort((a, b) => toTimestamp(b.updatedAt || b.createdAt) - toTimestamp(a.updatedAt || a.createdAt) || (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0))
-  }
+    if (displayOrder.value === 'created') {
+      return toTimestamp(b.createdAt) - toTimestamp(a.createdAt) || (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0)
+    }
 
-  if (displayOrder.value === 'priority') {
-    return items.sort((a, b) => prioritySortWeight(a.priority) - prioritySortWeight(b.priority) || (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0))
-  }
+    if (displayOrder.value === 'updated') {
+      return toTimestamp(b.updatedAt || b.createdAt) - toTimestamp(a.updatedAt || a.createdAt) || (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0)
+    }
 
-  return items.sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0))
+    if (displayOrder.value === 'priority') {
+      return prioritySortWeight(a.priority) - prioritySortWeight(b.priority) || (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0)
+    }
+
+    return (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0)
+  })
 }
 const startOfToday = () => {
   const date = new Date()
@@ -1253,11 +1277,32 @@ const fetchTasks = async (options = {}) => {
   }
 }
 
+const logViewedTask = (task) => {
+  if (!task || !task.id) return
+  let viewed = JSON.parse(localStorage.getItem('recently_viewed_tasks') || '[]')
+  viewed = viewed.filter(item => item.id !== task.id)
+  viewed.unshift({
+    id: task.id,
+    title: task.title,
+    sequenceId: task.sequenceId,
+    projectId: task.projectId || getProjectId(),
+    projectName: project.value?.name || 'Project',
+    projectColor: project.value?.cover || '#3b82f6',
+    updatedAt: new Date().toISOString(),
+    statusName: task.statusName,
+    priority: task.priority
+  })
+  viewed = viewed.slice(0, 15)
+  localStorage.setItem('recently_viewed_tasks', JSON.stringify(viewed))
+}
+
 const openTaskDetail = (task) => {
+  logViewedTask(task)
   taskDetailHistory.value = []
   selectedTask.value = task;
 }
 const openTaskDetailFromModal = (task, options = {}) => {
+  logViewedTask(task)
   const previousTask = options?.fromTask || selectedTask.value
   if (previousTask?.id && previousTask.id !== task?.id) {
     const cachedPrevious = allTasks.value.find(item => item.id === previousTask.id) || previousTask
@@ -2370,6 +2415,26 @@ onUnmounted(() => {
   width: 14px;
   height: 14px;
   cursor: pointer;
+}
+
+.star-task-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  color: var(--color-text-muted);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+.star-task-btn:hover {
+  background: var(--color-surface-hover);
+}
+.star-task-btn.small {
+  padding: 2px;
+  font-size: 12px;
 }
 
 
