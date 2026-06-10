@@ -6,8 +6,10 @@ export default [
   },
   {
     path: '/space/:id',
-    name: 'ForYou',
-    component: () => import('../views/ForYou.vue')
+    name: 'SpaceSummaryRedirect',
+    redirect: to => {
+      return `/space/${to.params.id}/work-items`
+    }
   },
   {
     path: '/space/:id/work-items',

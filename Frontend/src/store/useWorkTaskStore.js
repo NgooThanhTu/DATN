@@ -82,9 +82,18 @@ const normalizeTaskRecord = (task = {}, fallbackProjectId = null) => {
 export const useWorkTaskStore = defineStore('workTask', {
   state: () => ({
     tasks: [],
-    starredTaskIds: (() => {
+    starredTasks: (() => {
       try {
-        return JSON.parse(localStorage.getItem('starred_tasks') || '[]')
+        const stored = JSON.parse(localStorage.getItem('starred_tasks') || '[]')
+        // Automatically migrate legacy strings to objects where possible, though titles will be missing until restared
+        return stored.map(item => typeof item === 'string' ? { id: item, title: 'Starred Task', projectId: '' } : item)
+      } catch {
+        return []
+      }
+    })(),
+    recentlyViewedTasks: (() => {
+      try {
+        return JSON.parse(localStorage.getItem('recently_viewed_tasks') || '[]')
       } catch {
         return []
       }
@@ -250,18 +259,55 @@ export const useWorkTaskStore = defineStore('workTask', {
         throw err;
       }
     },
-    toggleTaskStar(taskId) {
-      if (!taskId) return
-      const index = this.starredTaskIds.indexOf(taskId)
+    toggleTaskStar(taskOrId) {
+      if (!taskOrId) return
+      const taskId = typeof taskOrId === 'object' ? taskOrId.id : taskOrId
+      const fullTask = typeof taskOrId === 'object' ? taskOrId : this.tasks.find(t => t.id === taskId)
+      
+      const index = this.starredTasks.findIndex(t => t.id === taskId)
       if (index >= 0) {
-        this.starredTaskIds.splice(index, 1)
+        this.starredTasks.splice(index, 1)
       } else {
-        this.starredTaskIds.push(taskId)
+        this.starredTasks.push(fullTask ? {
+          id: fullTask.id,
+          title: fullTask.title,
+          sequenceId: fullTask.sequenceId,
+          projectId: fullTask.projectId,
+          projectName: fullTask.projectName || 'Project',
+          createdAt: fullTask.createdAt || new Date().toISOString(),
+          statusName: fullTask.statusName || 'TO DO',
+          priority: fullTask.priority || 3
+        } : { id: taskId, title: 'Starred Task', projectId: '' })
       }
-      localStorage.setItem('starred_tasks', JSON.stringify(this.starredTaskIds))
+      localStorage.setItem('starred_tasks', JSON.stringify(this.starredTasks))
     },
     isTaskStarred(taskId) {
-      return this.starredTaskIds.includes(taskId)
+      if (!taskId) return false
+      const id = typeof taskId === 'object' ? taskId.id : taskId
+      return this.starredTasks.some(t => t.id === id)
+    },
+    logViewedTask(task, spaces = []) {
+      if (!task || !task.id) return
+      // Remove duplicate nếu đã có
+      this.recentlyViewedTasks = this.recentlyViewedTasks.filter(item => item.id !== task.id)
+      const proj = spaces.find(s => s.id === task.projectId)
+      this.recentlyViewedTasks.unshift({
+        id: task.id,
+        title: task.title,
+        sequenceId: task.sequenceId,
+        projectId: task.projectId,
+        projectName: task.projectName || proj?.name || 'Project',
+        projectColor: task.projectColor || proj?.cover || '#3b82f6',
+        createdAt: task.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        statusName: task.statusName || 'TO DO',
+        priority: task.priority || 3
+      })
+      // Giữ tối đa 15 items
+      if (this.recentlyViewedTasks.length > 15) {
+        this.recentlyViewedTasks = this.recentlyViewedTasks.slice(0, 15)
+      }
+      localStorage.setItem('recently_viewed_tasks', JSON.stringify(this.recentlyViewedTasks))
     }
   }
 })

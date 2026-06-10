@@ -11,7 +11,15 @@
         <div class="sh-right">
           <div class="search-box">
              <i class="fa-solid fa-magnifying-glass"></i>
-             <input type="text" placeholder="Search commands..." v-model="searchQuery" />
+             <input type="text" placeholder="Search spaces..." v-model="searchQuery" />
+          </div>
+          <div style="display: flex; gap: 4px; border: 1px solid var(--color-border); padding: 4px; border-radius: 8px;">
+            <button class="plane-btn-secondary outline-btn" style="border: none; margin: 0; padding: 6px 10px;" :class="{ active: viewMode === 'table' }" type="button" @click="setViewMode('table')" title="List view">
+              <i class="fa-solid fa-list"></i>
+            </button>
+            <button class="plane-btn-secondary outline-btn" style="border: none; margin: 0; padding: 6px 10px;" :class="{ active: viewMode === 'grid' }" type="button" @click="setViewMode('grid')" title="Grid view">
+              <i class="fa-solid fa-grip"></i>
+            </button>
           </div>
           <button class="plane-btn-secondary outline-btn" type="button" @click="toggleSort">
              <i class="fa-solid fa-arrow-down-short-wide"></i> Created date {{ sortDirection === 'desc' ? '↓' : '↑' }}
@@ -47,50 +55,111 @@
          <p style="margin: 0 0 24px 0; font-size: 14px; color: var(--color-text-muted);">It looks like there are no projects here. Let's create your first one!</p>
          <button class="plane-btn-primary" @click="isCreateModalVisible = true">Create your first project</button>
       </div>
-      <div v-else class="spaces-grid">
-        <div class="project-card" v-for="(space, index) in filteredSpaces" :key="space.id" @click="goToSpace(space.id)">
-          <!-- Cover Image Mock -->
-          <div class="card-cover" :style="{ background: space.cover || coverGradients[index % coverGradients.length] }">
-             <div class="card-actions-top" @click.stop>
-               <button class="card-icon-btn" type="button" @click="copySpaceLink(space)"><i class="fa-solid fa-link"></i></button>
-               <button class="card-icon-btn" type="button" :class="{ 'starred': space.starred }" @click="toggleStar(space)"><i :class="space.starred ? 'fa-solid fa-star' : 'fa-regular fa-star'"></i></button>
-             </div>
+      <div v-else>
+        <div v-if="viewMode === 'grid'" class="spaces-grid">
+          <div class="project-card" v-for="(space, index) in filteredSpaces" :key="space.id" @click="goToSpace(space.id)">
+            <!-- Cover Image Mock -->
+            <div class="card-cover" :style="{ background: space.cover || coverGradients[index % coverGradients.length] }">
+               <div class="card-actions-top" @click.stop>
+                 <button class="card-icon-btn" type="button" @click="copySpaceLink(space)"><i class="fa-solid fa-link"></i></button>
+                 <button class="card-icon-btn" type="button" :class="{ 'starred': space.starred }" @click="toggleStar(space)"><i :class="space.starred ? 'fa-solid fa-star' : 'fa-regular fa-star'"></i></button>
+               </div>
+            </div>
+            
+            <div class="card-body">
+              <!-- Floating Project Icon -->
+              <div class="floating-icon">
+                <span class="emoji">{{ space.icon || emojiList[index % emojiList.length] || '👇' }}</span>
+              </div>
+              
+              <div class="proj-title-row">
+                 <h3>{{ space.name }}</h3>
+                 <span class="proj-key">{{ space.key }}</span>
+              </div>
+              
+              <p class="proj-desc">
+                {{ space.originalRow?.description || 'Welcome to this Project! This project throws you into the driver\'s seat of work management. Through curated work items, you\'ll uncover key features...' }}
+              </p>
+              
+              <div class="card-footer" @click.stop>
+                 <span class="visibility-pill" :class="space.networkType?.toLowerCase()">
+                   <i :class="space.networkType === 'Private' ? 'fa-solid fa-lock' : 'fa-solid fa-globe'"></i>
+                   {{ space.networkType || 'Public' }}
+                 </span>
+                 <span style="font-size: 11px; color: var(--color-text-muted); margin-left: auto; margin-right: 8px;">
+                   Created: {{ new Date(space.originalRow?.createdAt || space.originalRow?.createdDate || Date.now()).toLocaleDateString() }}
+                 </span>
+                 <el-dropdown trigger="click" v-if="showProjectSettingsButton(space)" @click.stop>
+                   <button class="card-icon-btn" type="button"><i class="fa-solid fa-ellipsis"></i></button>
+                   <template #dropdown>
+                     <el-dropdown-menu class="plane-dropdown">
+                       <el-dropdown-item @click="goToAdmin(space)"><i class="fa-solid fa-gear" style="margin-right: 8px;"></i> Settings</el-dropdown-item>
+                       <el-dropdown-item @click="archiveProject(space)"><i class="fa-solid fa-box-archive" style="margin-right: 8px;"></i> Archive project</el-dropdown-item>
+                     </el-dropdown-menu>
+                   </template>
+                 </el-dropdown>
+              </div>
+            </div>
           </div>
-          
-          <div class="card-body">
-            <!-- Floating Project Icon -->
-            <div class="floating-icon">
-              <span class="emoji">{{ space.icon || emojiList[index % emojiList.length] || '👇' }}</span>
-            </div>
-            
-            <div class="proj-title-row">
-               <h3>{{ space.name }}</h3>
-               <span class="proj-key">{{ space.key }}</span>
-            </div>
-            
-            <p class="proj-desc">
-              {{ space.originalRow?.description || 'Welcome to this Project! This project throws you into the driver\'s seat of work management. Through curated work items, you\'ll uncover key features...' }}
-            </p>
-            
-            <div class="card-footer" @click.stop>
-               <span class="visibility-pill" :class="space.networkType?.toLowerCase()">
-                 <i :class="space.networkType === 'Private' ? 'fa-solid fa-lock' : 'fa-solid fa-globe'"></i>
-                 {{ space.networkType || 'Public' }}
-               </span>
-               <span style="font-size: 11px; color: var(--color-text-muted); margin-left: auto; margin-right: 8px;">
-                 Created: {{ new Date(space.originalRow?.createdAt || space.originalRow?.createdDate || Date.now()).toLocaleDateString() }}
-               </span>
-               <el-dropdown trigger="click" v-if="showProjectSettingsButton(space)" @click.stop>
-                 <button class="card-icon-btn" type="button"><i class="fa-solid fa-ellipsis"></i></button>
-                 <template #dropdown>
-                   <el-dropdown-menu class="plane-dropdown">
-                     <el-dropdown-item @click="goToAdmin(space)"><i class="fa-solid fa-gear" style="margin-right: 8px;"></i> Settings</el-dropdown-item>
-                     <el-dropdown-item @click="archiveProject(space)"><i class="fa-solid fa-box-archive" style="margin-right: 8px;"></i> Archive project</el-dropdown-item>
-                   </el-dropdown-menu>
-                 </template>
-               </el-dropdown>
-            </div>
-          </div>
+        </div>
+        
+        <div v-else class="spaces-table-container">
+          <table class="jira-table spaces-table" style="width: 100%; border-collapse: collapse; text-align: left;">
+            <thead>
+              <tr style="border-bottom: 2px solid var(--color-border); color: var(--color-text-muted); font-size: 12px;">
+                <th style="padding: 12px 16px; width: 40px;"></th>
+                <th style="padding: 12px 16px;">Name</th>
+                <th style="padding: 12px 16px;">Key</th>
+                <th style="padding: 12px 16px;">Type</th>
+                <th style="padding: 12px 16px;">Lead</th>
+                <th style="padding: 12px 16px;">Created</th>
+                <th style="padding: 12px 16px; width: 50px;"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(space, index) in filteredSpaces" :key="'table-' + space.id" @click="goToSpace(space.id)" style="border-bottom: 1px solid var(--color-border); cursor: pointer; transition: background 0.2s;" class="table-row-hover">
+                <td style="padding: 12px 16px;" @click.stop>
+                  <button class="card-icon-btn transparent-btn" style="background: transparent; border: none; color: var(--color-text-muted);" :class="{ 'starred': space.starred }" @click="toggleStar(space)">
+                    <i :class="space.starred ? 'fa-solid fa-star' : 'fa-regular fa-star'" :style="{ color: space.starred ? '#EAB308' : '' }"></i>
+                  </button>
+                </td>
+                <td style="padding: 12px 16px;">
+                  <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 24px; height: 24px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 12px;" :style="{ background: space.cover || coverGradients[index % coverGradients.length] }">
+                      {{ space.icon || emojiList[index % emojiList.length] || '📦' }}
+                    </div>
+                    <span style="font-weight: 500; color: #3b82f6;">{{ space.name }}</span>
+                  </div>
+                </td>
+                <td style="padding: 12px 16px; font-size: 13px;">{{ space.key }}</td>
+                <td style="padding: 12px 16px; font-size: 13px; color: var(--color-text-muted);">
+                  {{ space.networkType === 'Private' ? 'Team-managed software (Private)' : 'Team-managed software' }}
+                </td>
+                <td style="padding: 12px 16px;">
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="width: 24px; height: 24px; border-radius: 50%; background: #10B981; color: white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;">
+                      {{ space.leadName?.charAt(0).toUpperCase() || 'T' }}
+                    </div>
+                    <span style="font-size: 13px;">{{ space.leadName }}</span>
+                  </div>
+                </td>
+                <td style="padding: 12px 16px; font-size: 13px; color: var(--color-text-muted);">
+                  {{ new Date(space.originalRow?.createdAt || space.originalRow?.createdDate || Date.now()).toLocaleDateString() }}
+                </td>
+                <td style="padding: 12px 16px;" @click.stop>
+                  <el-dropdown trigger="click" v-if="showProjectSettingsButton(space)">
+                    <button class="card-icon-btn transparent-btn" style="background: transparent; border: none; font-size: 16px; color: var(--color-text-muted);"><i class="fa-solid fa-ellipsis"></i></button>
+                    <template #dropdown>
+                      <el-dropdown-menu class="plane-dropdown">
+                        <el-dropdown-item @click="goToAdmin(space)"><i class="fa-solid fa-gear" style="margin-right: 8px;"></i> Settings</el-dropdown-item>
+                        <el-dropdown-item @click="archiveProject(space)"><i class="fa-solid fa-box-archive" style="margin-right: 8px;"></i> Archive project</el-dropdown-item>
+                      </el-dropdown-menu>
+                    </template>
+                  </el-dropdown>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
       </section>
@@ -121,6 +190,12 @@ const sortDirection = ref('desc')
 const showProjectFilters = ref(false)
 const visibilityFilter = ref('all')
 const isCreateModalVisible = ref(false)
+const viewMode = ref(localStorage.getItem('spaces_view_mode') || 'table')
+
+const setViewMode = (mode) => {
+  viewMode.value = mode
+  localStorage.setItem('spaces_view_mode', mode)
+}
 
 const currentUser = computed(() => getStoredUser())
 const canManageSpace = (space) => canAccessProjectSettings(space, currentUser.value)
@@ -601,6 +676,17 @@ const filterLabel = computed(() => ({
   .search-box input:focus {
     width: 180px;
   }
+}
+
+.table-row-hover:hover {
+  background: var(--color-surface);
+}
+
+.spaces-table-container {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
 }
 </style>
 

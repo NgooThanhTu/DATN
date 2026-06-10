@@ -247,6 +247,11 @@ export const useProjectStore = defineStore('project', {
         return this.hydrateProjectBundle(projectId)
       }
 
+      if (!projectId || projectId === 'default' || projectId.length < 30) {
+        this.clearProjectContext(projectId);
+        return null;
+      }
+
       this.detailsAbortController?.abort();
       const controller = new AbortController();
       const requestId = this.detailsRequestId + 1;

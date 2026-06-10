@@ -5,82 +5,127 @@
     </div>
 
     <div class="jd-body">
-      <div v-if="starredItems.length === 0" class="jd-empty-starred">
+      <!-- Empty state: kh\u00f4ng c\u00f3 c\u1ea3 project l\u1eabn task -->
+      <div v-if="starredProjects.length === 0 && starredTasks.length === 0" class="jd-empty-starred">
         <img src="https://jira-frontend-bifrost.prod-east.frontend.public.atl-paas.net/assets/starred-empty.svg" alt="Empty Starred" onerror="this.style.display='none'" />
         <h4>You haven't starred anything yet</h4>
         <p>Mark items that are important to you with a star to quickly access them here.</p>
       </div>
 
       <div v-else class="jd-list">
-        <div 
-          v-for="item in starredItems" 
-          :key="item.id" 
-          class="jd-item"
-          @click="goToItem(item)"
-        >
-          <div class="jd-item-icon">
-            <i class="fa-solid fa-square-check text-blue-500"></i>
+        <!-- Section: Starred Spaces (Projects) -->
+        <template v-if="starredProjects.length > 0">
+          <div class="jd-section-label">Spaces</div>
+          <div
+            v-for="project in starredProjects"
+            :key="`proj-${project.id}`"
+            class="jd-item"
+            @click="goToProject(project)"
+          >
+            <div class="jd-item-icon">
+              <span
+                class="proj-icon"
+                :style="{ background: projectColor(project) }"
+              >{{ project.icon || project.name?.charAt(0)?.toUpperCase() || 'P' }}</span>
+            </div>
+            <div class="jd-item-content">
+              <div class="jd-item-title">{{ project.name || 'Space' }}</div>
+              <div class="jd-item-subtitle">Space</div>
+            </div>
+            <div class="jd-item-action" @click.stop="unstarProject(project)" title="Remove from starred">
+              <i class="fa-solid fa-star text-yellow-400"></i>
+            </div>
           </div>
-          <div class="jd-item-content">
-            <div class="jd-item-title">{{ item.title || 'Task' }}</div>
-            <div class="jd-item-subtitle">{{ item.projectName || 'Project' }}</div>
+        </template>
+
+        <!-- Section: Starred Tasks -->
+        <template v-if="starredTasks.length > 0">
+          <div class="jd-section-label">Work items</div>
+          <div
+            v-for="item in starredTasks"
+            :key="`task-${item.id}`"
+            class="jd-item"
+            @click="goToTask(item)"
+          >
+            <div class="jd-item-icon">
+              <i class="fa-solid fa-square-check text-blue-500"></i>
+            </div>
+            <div class="jd-item-content">
+              <div class="jd-item-title">{{ item.title || 'Task' }}</div>
+              <div class="jd-item-subtitle">Task • {{ item.sequenceId || item.id?.substring(0, 8).toUpperCase() }} • {{ item.projectName || 'Project' }}</div>
+            </div>
+            <div class="jd-item-action" @click.stop="unstarTask(item)" title="Remove from starred">
+              <i class="fa-solid fa-star text-yellow-400"></i>
+            </div>
           </div>
-          <div class="jd-item-action" @click.stop="unstarItem(item)">
-            <i class="fa-solid fa-star text-yellow-400"></i>
-          </div>
-        </div>
+        </template>
       </div>
     </div>
 
-    <div class="jd-footer" v-if="starredItems.length > 0">
+    <div class="jd-footer" v-if="starredProjects.length > 0 || starredTasks.length > 0">
       <button @click="viewAllStarred">View all starred items</button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useWorkTaskStore } from '@/store/useWorkTaskStore'
+import { useProjectStore } from '@/store/useProjectStore'
+import axiosClient from '@/api/axiosClient'
 
 const emit = defineEmits(['close'])
 const router = useRouter()
 const workTaskStore = useWorkTaskStore()
-const starredItems = ref([])
+const projectStore = useProjectStore()
 
-const loadStarredItems = () => {
-  const starredIds = workTaskStore.starredTaskIds
-  if (!starredIds.length) {
-    starredItems.value = []
-    return
-  }
+// --- Starred Projects (reactive t\u1ef1 \u0111\u1ed9ng theo favoriteProjects getter) ---
+const starredProjects = computed(() => projectStore.favoriteProjects)
 
+// --- Starred Tasks (reactive t\u1ef1 \u0111\u1ed9ng theo Pinia state) ---
+const starredTasks = computed(() => [...workTaskStore.starredTasks].reverse())
+
+// Gi\u1eef expose \u0111\u1ec3 t\u01b0\u01a1ng th\u00edch v\u1edbi parent (NexusSidebar @show="onStarredShow")
+const loadStarredItems = async () => {
   try {
-    const data = localStorage.getItem('recently_viewed_tasks')
-    const recent = data ? JSON.parse(data) : []
-    
-    starredItems.value = starredIds.map(id => {
-      const cached = recent.find(r => r.id === id)
-      return cached || { id, title: 'Starred Task ' + id.substring(0,6), projectId: '1' }
-    })
-  } catch (e) {
-    starredItems.value = []
+    const res = await axiosClient.get('/tasks/search')
+    const validTasks = res.data?.data || []
+    const stored = JSON.parse(localStorage.getItem('starred_tasks') || '[]')
+    const filtered = stored.filter(s => validTasks.some(v => v.id === s.id))
+    if (stored.length !== filtered.length) {
+      localStorage.setItem('starred_tasks', JSON.stringify(filtered))
+      workTaskStore.starredTasks = filtered
+    }
+  } catch (err) {
+    console.error('Failed to validate starred tasks:', err)
+  }
+}
+defineExpose({ loadStarredItems })
+
+// --- Actions ---
+const unstarProject = async (project) => {
+  try {
+    await projectStore.updateFavorite(project.id, false)
+  } catch {
+    // silent
   }
 }
 
-// Expose the load method
-defineExpose({
-  loadStarredItems
-})
-
-const unstarItem = (item) => {
-  workTaskStore.toggleTaskStar(item.id)
-  starredItems.value = starredItems.value.filter(i => i.id !== item.id)
+const unstarTask = (item) => {
+  workTaskStore.toggleTaskStar(item)
 }
 
-const goToItem = (item) => {
+const goToProject = (project) => {
   emit('close')
-  router.push(`/space/${item.projectId}?task=${item.id}`)
+  router.push(`/space/${project.id}`)
+}
+
+const goToTask = (item) => {
+  emit('close')
+  if (item.projectId) {
+    router.push(`/space/${item.projectId}/work-items`)
+  }
 }
 
 const viewAllStarred = () => {
@@ -88,9 +133,11 @@ const viewAllStarred = () => {
   router.push('/dashboard?tab=starred')
 }
 
-onMounted(() => {
-  loadStarredItems()
-})
+const projectColor = (project) => {
+  if (project.cover && project.cover.startsWith('#')) return project.cover
+  const colors = ['#579dff', '#c97cf4', '#00b8d9', '#22a06b', '#f5cd47']
+  return colors[(project.name?.length || 0) % colors.length]
+}
 </script>
 
 <style scoped>
@@ -117,7 +164,7 @@ onMounted(() => {
 .jd-body {
   flex: 1;
   overflow-y: auto;
-  max-height: 320px;
+  max-height: 360px;
 }
 
 .jd-empty-starred {
@@ -142,6 +189,15 @@ onMounted(() => {
   line-height: 1.4;
 }
 
+.jd-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--color-text-muted, #6b778c);
+  letter-spacing: 0.6px;
+  padding: 10px 16px 4px;
+}
+
 .jd-list {
   padding-bottom: 8px;
 }
@@ -162,6 +218,19 @@ onMounted(() => {
   font-size: 16px;
   display: flex;
   align-items: center;
+  flex-shrink: 0;
+}
+
+.proj-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
 }
 
 .jd-item-content {
@@ -193,6 +262,12 @@ onMounted(() => {
   border-radius: 3px;
   display: flex;
   align-items: center;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.jd-item:hover .jd-item-action {
+  opacity: 1;
 }
 .jd-item-action:hover {
   background: rgba(9, 30, 66, 0.08);
@@ -220,3 +295,4 @@ onMounted(() => {
   text-decoration: underline;
 }
 </style>
+
