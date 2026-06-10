@@ -139,21 +139,23 @@ const getStatusIcon = (statusName) => {
 }
 
 const timeAgo = (dateStr) => {
-  if (!dateStr) return ''
+  if (!dateStr || dateStr.startsWith('0001-01-01')) return 'Vừa xong'
   const date = new Date(dateStr)
+  if (isNaN(date.getTime()) || date.getFullYear() <= 1970) return 'Vừa xong'
   const seconds = Math.floor((new Date() - date) / 1000)
+  if (seconds < 0) return 'Vừa xong'
   
   let interval = seconds / 31536000
-  if (interval > 1) return Math.floor(interval) + 'y ago'
+  if (interval >= 1) return Math.floor(interval) + ' năm trước'
   interval = seconds / 2592000
-  if (interval > 1) return Math.floor(interval) + 'mo ago'
+  if (interval >= 1) return Math.floor(interval) + ' tháng trước'
   interval = seconds / 86400
-  if (interval > 1) return Math.floor(interval) + 'd ago'
+  if (interval >= 1) return Math.floor(interval) + ' ngày trước'
   interval = seconds / 3600
-  if (interval > 1) return Math.floor(interval) + 'h ago'
+  if (interval >= 1) return Math.floor(interval) + ' giờ trước'
   interval = seconds / 60
-  if (interval > 1) return Math.floor(interval) + 'm ago'
-  return 'Just now'
+  if (interval >= 1) return Math.floor(interval) + ' phút trước'
+  return 'Vừa xong'
 }
 </script>
 

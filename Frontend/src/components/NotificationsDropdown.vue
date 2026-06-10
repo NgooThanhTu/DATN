@@ -98,7 +98,10 @@ const getInitials = (name) => {
 }
 
 const formatTimeAgo = (dateStr) => {
-  const diffMs = new Date() - new Date(dateStr)
+  if (!dateStr || dateStr.startsWith('0001-01-01')) return 'Vừa xong'
+  const date = new Date(dateStr)
+  if (isNaN(date.getTime()) || date.getFullYear() <= 1970) return 'Vừa xong'
+  const diffMs = new Date() - date
   if (diffMs < 60000) return 'Vừa xong'
   const diffMins = Math.floor(diffMs / 60000)
   if (diffMins < 60) return `${diffMins} phút trước`

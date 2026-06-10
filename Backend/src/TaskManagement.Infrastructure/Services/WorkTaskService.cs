@@ -578,6 +578,7 @@ namespace TaskManagement.Infrastructure.Services
                 .Include(wt => wt.TaskType)
                 .Include(wt => wt.Reporter)
                 .Include(wt => wt.AssignedUser)
+                .Include(wt => wt.Project)
                 .Where(wt => wt.ProjectId == projectId && !wt.IsDeleted && !wt.IsArchived)
                 .OrderByDescending(wt => wt.CreatedAt)
                 .Select(wt => new WorkTaskResponseDto
@@ -603,7 +604,10 @@ namespace TaskManagement.Infrastructure.Services
                     ParentTaskId = wt.ParentTaskId,
                     RowVersion = wt.RowVersion,
                     CreatedAt = wt.CreatedAt,
-                    UpdatedAt = wt.UpdatedAt
+                    UpdatedAt = wt.UpdatedAt,
+                    ProjectName = wt.Project.Name,
+                    SortOrder = wt.SortOrder,
+                    SequenceId = wt.SequenceId
                 })
                 .ToListAsync();
 
@@ -664,6 +668,8 @@ namespace TaskManagement.Infrastructure.Services
                     CreatedAt = wt.CreatedAt,
                     UpdatedAt = wt.UpdatedAt,
                     ProjectName = wt.Project.Name,
+                    SortOrder = wt.SortOrder,
+                    SequenceId = wt.SequenceId,
                     IsSubscribed = wt.Subscribers.Any(s => s.UserId == userId)
                 })
                 .ToListAsync();
@@ -790,6 +796,7 @@ namespace TaskManagement.Infrastructure.Services
                     .ThenInclude(ta => ta.User)
                 .Include(wt => wt.IssueModules)
                 .Include(wt => wt.IssueLabels)
+                .Include(wt => wt.Project)
                 .Where(wt => (userProjectIds.Contains(wt.ProjectId) || wt.Subscribers.Any(s => s.UserId == userId)) && !wt.IsDeleted && !wt.IsArchived);
 
             if (projectId.HasValue && projectId.Value != Guid.Empty)
@@ -928,7 +935,17 @@ namespace TaskManagement.Infrastructure.Services
                     Priority = wt.Priority,
                     StoryPoints = wt.StoryPoints,
                     DueDate = wt.DueDate,
+                    PlannedStartDate = wt.PlannedStartDate,
+                    PlannedEndDate = wt.PlannedEndDate,
+                    TotalEstimatedHours = wt.TotalEstimatedHours,
+                    TotalActualHours = wt.TotalActualHours,
+                    ParentTaskId = wt.ParentTaskId,
+                    RowVersion = wt.RowVersion,
                     CreatedAt = wt.CreatedAt,
+                    UpdatedAt = wt.UpdatedAt,
+                    ProjectName = wt.Project.Name,
+                    SortOrder = wt.SortOrder,
+                    SequenceId = wt.SequenceId,
                     IsSubscribed = wt.Subscribers.Any(s => s.UserId == userId)
                 })
                 .ToListAsync();

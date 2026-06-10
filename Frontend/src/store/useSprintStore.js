@@ -14,7 +14,7 @@ export const useSprintStore = defineStore('sprint', {
   }),
   actions: {
     async fetchSprints(projectId, options = {}) {
-      if (!projectId) return
+      if (!projectId || projectId === 'default' || projectId.length < 30) return
 
       const { force = false } = options
       const lastFetched = this.lastFetchedByProject[projectId]

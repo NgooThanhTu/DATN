@@ -31,7 +31,7 @@
             </div>
             <div class="jd-item-content">
               <div class="jd-item-title">{{ item.title }}</div>
-              <div class="jd-item-subtitle">{{ item.projectName }} • {{ timeAgo(item.updatedAt) }}</div>
+              <div class="jd-item-subtitle">Task • {{ item.sequenceId || item.id?.substring(0, 8).toUpperCase() }} • {{ item.projectName }} • {{ timeAgo(item.createdAt) }}</div>
             </div>
           </div>
         </div>
@@ -45,31 +45,36 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useWorkTaskStore } from '@/store/useWorkTaskStore'
+import axiosClient from '@/api/axiosClient'
 
 const emit = defineEmits(['close'])
 const router = useRouter()
+const workTaskStore = useWorkTaskStore()
 const searchQuery = ref('')
-const recentItems = ref([])
 
-const loadRecentItems = () => {
+// Reactive: tự cập nhật ngay khi mở task mới từ bất kỳ đâu trong app
+const recentItems = computed(() => workTaskStore.recentlyViewedTasks)
+
+// Giữ expose để tương thích với parent (NexusSidebar @show="onRecentShow")
+// Không cần làm gì thêm vì recentItems đã reactive tự động
+const loadRecentItems = async () => {
   try {
-    const data = localStorage.getItem('recently_viewed_tasks')
-    recentItems.value = data ? JSON.parse(data) : []
-  } catch (e) {
-    recentItems.value = []
+    const res = await axiosClient.get('/tasks/search')
+    const validTasks = res.data?.data || []
+    const stored = JSON.parse(localStorage.getItem('recently_viewed_tasks') || '[]')
+    const filtered = stored.filter(s => validTasks.some(v => v.id === s.id))
+    if (stored.length !== filtered.length) {
+      localStorage.setItem('recently_viewed_tasks', JSON.stringify(filtered))
+      workTaskStore.recentlyViewedTasks = filtered
+    }
+  } catch (err) {
+    console.error('Failed to validate recent tasks:', err)
   }
 }
-
-// Expose the loading method so the parent can refresh data
-defineExpose({
-  loadRecentItems
-})
-
-onMounted(() => {
-  loadRecentItems()
-})
+defineExpose({ loadRecentItems })
 
 const filteredGroups = computed(() => {
   let list = recentItems.value
@@ -101,18 +106,23 @@ const filteredGroups = computed(() => {
 })
 
 const timeAgo = (dateStr) => {
-  if (!dateStr) return 'Just now'
-  const seconds = Math.floor((new Date() - new Date(dateStr)) / 1000)
+  if (!dateStr || dateStr.startsWith('0001-01-01')) return 'Vừa xong'
+  const date = new Date(dateStr)
+  if (isNaN(date.getTime()) || date.getFullYear() <= 1970) return 'Vừa xong'
+  const seconds = Math.floor((new Date() - date) / 1000)
+  if (seconds < 0) return 'Vừa xong'
   let interval = seconds / 3600
-  if (interval >= 1) return Math.floor(interval) + ' hours ago'
+  if (interval >= 1) return Math.floor(interval) + ' giờ trước'
   interval = seconds / 60
-  if (interval >= 1) return Math.floor(interval) + ' minutes ago'
-  return 'Just now'
+  if (interval >= 1) return Math.floor(interval) + ' phút trước'
+  return 'Vừa xong'
 }
 
 const goToItem = (item) => {
   emit('close')
-  router.push(`/space/${item.projectId}?task=${item.id}`)
+  if (item.projectId) {
+    router.push(`/space/${item.projectId}/work-items`)
+  }
 }
 
 const viewAllRecent = () => {
@@ -160,8 +170,9 @@ const viewAllRecent = () => {
 }
 .jd-search input {
   width: 100% !important;
+  box-sizing: border-box !important;
   border: 1px solid var(--color-border, #dfe1e6) !important;
-  border-radius: 6px !important;
+  border-radius: 16px !important;
   padding: 7px 10px 7px 30px !important;
   font-size: 13px !important;
   height: 34px !important;

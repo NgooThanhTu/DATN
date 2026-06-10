@@ -75,24 +75,6 @@
         </li>
       </ul>
 
-      <!-- Recent Projects -->
-      <div class="nav-section-title" v-if="recentProjects.length > 0">Recent</div>
-      <ul class="nav-menu" v-if="recentProjects.length > 0">
-        <li class="nav-item" v-for="project in recentProjects" :key="`recent-${project.id}`">
-          <router-link :to="`/space/${project.id}`" class="nav-link">
-            <span class="proj-icon" :style="{ background: projectColor(project) }">{{ projectIcon(project) }}</span>
-            <span class="truncate">{{ project.name }}</span>
-          </router-link>
-        </li>
-        <li class="nav-item">
-          <div class="nav-link" @click="router.push('/spaces')" style="cursor:pointer; color: var(--color-text-muted);">
-            <i class="fa-solid fa-ellipsis"></i>
-            <span>More spaces</span>
-            <i class="fa-solid fa-chevron-right" style="font-size:10px; margin-left:auto;"></i>
-          </div>
-        </li>
-      </ul>
-
       <!-- Workspace Division -->
       <div class="nav-section-title">Workspace</div>
       <ul class="nav-menu">

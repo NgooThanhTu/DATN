@@ -56,8 +56,8 @@ const fetchSpaces = async () => {
       key: p.key || p.name.substring(0, 4).toUpperCase(),
       description: p.description || 'Software space',
       cover: p.cover || '#3b82f6',
-      icon: p.icon || emojiList[index % emojiList.length],
-      taskCount: p.taskCount || Math.floor(Math.random() * 12) + 2,
+      icon: p.icon || '📦',
+      taskCount: p.activeMemberCount || p.ActiveMemberCount || 0,
       networkType: p.networkType || 'Public',
       createdAt: p.createdAt || null,
       originalRow: p
@@ -87,7 +87,7 @@ const fetchMyTasks = async () => {
 
 // 3. Task Starring (Client-side localized)
 const toggleTaskStar = (task) => {
-  workTaskStore.toggleTaskStar(task.id)
+  workTaskStore.toggleTaskStar(task)
   ElMessage.success(workTaskStore.isTaskStarred(task.id) ? 'Task starred' : 'Task unstarred')
 }
 
@@ -117,17 +117,21 @@ const filteredTasksList = computed(() => {
   let list = []
   
   if (activeTab.value === 'assigned') {
-    list = myTasks.value.filter(task => task.assignedUserId === currentUserId.value)
-  } else if (activeTab.value === 'worked' || activeTab.value === 'recommended') {
-    list = myTasks.value.filter(task => task.reporterId === currentUserId.value || task.assignedUserId === currentUserId.value)
+    list = myTasks.value.filter(task => task.assignedUserId === currentUserId.value || (task.assignees || []).some(a => a.userId === currentUserId.value || a.id === currentUserId.value))
+  } else if (activeTab.value === 'worked') {
+    list = myTasks.value.filter(task => task.reporterId === currentUserId.value || task.assignedUserId === currentUserId.value || (task.assignees || []).some(a => a.userId === currentUserId.value || a.id === currentUserId.value))
+  } else if (activeTab.value === 'recommended') {
+    list = myTasks.value.filter(task => {
+      const isMine = task.assignedUserId === currentUserId.value || task.reporterId === currentUserId.value
+      const isDone = (task.statusName || '').toUpperCase().includes('DONE')
+      return isMine && !isDone
+    })
   } else if (activeTab.value === 'starred') {
-    list = myTasks.value.filter(task => workTaskStore.isTaskStarred(task.id))
+    const starredLocal = JSON.parse(localStorage.getItem('starred_tasks') || '[]')
+    list = starredLocal.map(v => myTasks.value.find(t => t.id === v.id)).filter(Boolean)
   } else if (activeTab.value === 'viewed') {
     const viewed = JSON.parse(localStorage.getItem('recently_viewed_tasks') || '[]')
-    list = viewed.map(v => {
-      const full = myTasks.value.find(t => t.id === v.id)
-      return full || v
-    })
+    list = viewed.map(v => myTasks.value.find(t => t.id === v.id)).filter(Boolean)
   }
 
   // Status filter
@@ -153,15 +157,17 @@ const filteredTasksList = computed(() => {
   }
 
   // Sorting
-  list.sort((a, b) => {
-    if (sortOption.value === 'created') {
-      return new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
-    } else if (sortOption.value === 'priority') {
-      return (a.priority || 3) - (b.priority || 3)
-    }
-    // Default: updated
-    return new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0)
-  })
+  if (activeTab.value !== 'viewed') {
+    list.sort((a, b) => {
+      if (sortOption.value === 'created') {
+        return new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+      } else if (sortOption.value === 'priority') {
+        return (a.priority || 3) - (b.priority || 3)
+      }
+      // Default: updated
+      return new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0)
+    })
+  }
 
   return list
 })
@@ -173,8 +179,20 @@ const paginatedTasks = computed(() => {
   return filteredTasksList.value.slice(start, start + itemsPerPage.value)
 })
 
-// Group Tasks by Date (Jira style grouping: Today, Yesterday, This Week, Older)
+// Group Tasks
 const groupedTasks = computed(() => {
+  // Group by Project for Assigned and Starred
+  if (activeTab.value === 'assigned' || activeTab.value === 'starred') {
+    const projectGroups = {}
+    paginatedTasks.value.forEach(task => {
+      const pName = task.projectName || 'Other Projects'
+      if (!projectGroups[pName]) projectGroups[pName] = []
+      projectGroups[pName].push(task)
+    })
+    return Object.entries(projectGroups).map(([label, items]) => ({ label, items }))
+  }
+
+  // Group by Date for Worked, Viewed, Recommended
   const groups = {
     'Today': [],
     'Yesterday': [],
@@ -283,28 +301,9 @@ const updateTask = async (task, field, value) => {
   }
 }
 
-// Log viewed task to local storage
+// Log viewed task vào store (reactive) + localStorage
 const logViewedTask = (task) => {
-  if (!task || !task.id) return
-  let viewed = JSON.parse(localStorage.getItem('recently_viewed_tasks') || '[]')
-  viewed = viewed.filter(item => item.id !== task.id)
-  
-  const proj = spaces.value.find(s => s.id === task.projectId)
-  
-  viewed.unshift({
-    id: task.id,
-    title: task.title,
-    sequenceId: task.sequenceId,
-    projectId: task.projectId,
-    projectName: task.projectName || proj?.name || 'Project',
-    projectColor: task.projectColor || proj?.cover || '#3b82f6',
-    updatedAt: new Date().toISOString(),
-    statusName: task.statusName || 'TO DO',
-    priority: task.priority || 3
-  })
-  
-  viewed = viewed.slice(0, 15) // Keep last 15 items
-  localStorage.setItem('recently_viewed_tasks', JSON.stringify(viewed))
+  workTaskStore.logViewedTask(task, spaces.value)
 }
 
 const getTaskIcon = (task) => {
@@ -316,21 +315,23 @@ const getTaskIcon = (task) => {
 const isTaskStarred = (taskId) => workTaskStore.isTaskStarred(taskId)
 
 const timeAgo = (dateStr) => {
-  if (!dateStr) return ''
+  if (!dateStr || dateStr.startsWith('0001-01-01')) return 'Vừa xong'
   const date = new Date(dateStr)
+  if (isNaN(date.getTime()) || date.getFullYear() <= 1970) return 'Vừa xong'
   const seconds = Math.floor((new Date() - date) / 1000)
+  if (seconds < 0) return 'Vừa xong'
   
   let interval = seconds / 31536000
-  if (interval > 1) return Math.floor(interval) + ' years ago'
+  if (interval >= 1) return Math.floor(interval) + ' năm trước'
   interval = seconds / 2592000
-  if (interval > 1) return Math.floor(interval) + ' months ago'
+  if (interval >= 1) return Math.floor(interval) + ' tháng trước'
   interval = seconds / 86400
-  if (interval > 1) return Math.floor(interval) + ' days ago'
+  if (interval >= 1) return Math.floor(interval) + ' ngày trước'
   interval = seconds / 3600
-  if (interval > 1) return Math.floor(interval) + ' hours ago'
+  if (interval >= 1) return Math.floor(interval) + ' giờ trước'
   interval = seconds / 60
-  if (interval > 1) return Math.floor(interval) + ' minutes ago'
-  return 'Just now'
+  if (interval >= 1) return Math.floor(interval) + ' phút trước'
+  return 'Vừa xong'
 }
 
 onMounted(() => {
@@ -346,12 +347,6 @@ watch(activeTab, () => {
   currentPage.value = 1
 })
 
-const openConfluence = () => {
-  window.open('https://www.atlassian.com/software/confluence', '_blank')
-}
-const learnMore = () => {
-  window.open('https://www.atlassian.com/software/confluence/resources', '_blank')
-}
 </script>
 
 <template>
@@ -509,7 +504,7 @@ const learnMore = () => {
                     </button>
                   </div>
                   <div class="jtr-right">
-                    <span class="time-text">{{ timeAgo(task.updatedAt || task.createdAt) }}</span>
+                    <span class="time-text">{{ timeAgo(task.createdAt) }}</span>
                   </div>
                 </div>
               </div>
@@ -526,51 +521,7 @@ const learnMore = () => {
         </section>
       </div>
 
-      <!-- Jira Right Sidebar (Confluence Widget) -->
-      <div class="jira-right-sidebar">
-        <div class="sidebar-widget">
-          <div class="widget-banner">
-            <div class="flex items-center gap-2">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6">
-                <path d="M12.24 2.3a1.5 1.5 0 0 0-2.12 0L2.3 10.12a1.5 1.5 0 0 0 0 2.12l7.82 7.82a1.5 1.5 0 0 0 2.12 0l7.82-7.82a1.5 1.5 0 0 0 0-2.12L12.24 2.3z" fill="url(#conf-grad-widget-v2)"/>
-                <path d="M10.5 7.5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1v-9z" fill="white" opacity="0.9"/>
-                <defs>
-                  <linearGradient id="conf-grad-widget-v2" x1="2.3" y1="2.3" x2="20.12" y2="20.12" gradientUnits="userSpaceOnUse">
-                    <stop stop-color="#0052CC"/>
-                    <stop offset="1" stop-color="#2684FF"/>
-                  </linearGradient>
-                </defs>
-              </svg>
-              <span class="text-white font-bold text-base tracking-wide">Confluence</span>
-            </div>
-          </div>
-          <div class="widget-body">
-            <h3 class="widget-title">Confluence</h3>
-            <p class="widget-subtitle">Get everyone on the same page</p>
-            <p class="widget-desc">
-              Create a centralized space to organize requirements, release notes, goals, and team documentation.
-            </p>
-            <div class="widget-actions">
-              <button class="btn-primary-sm" @click="openConfluence">Try it now</button>
-              <button class="btn-link-sm" @click="learnMore">Learn more</button>
-            </div>
-          </div>
-          <div class="widget-illustration">
-            <div class="illustration-box">
-              <div class="ill-circle ill-c1"></div>
-              <div class="ill-circle ill-c2"></div>
-              <div class="ill-card ill-card1">
-                <div class="ill-line w-16"></div>
-                <div class="ill-line w-8"></div>
-              </div>
-              <div class="ill-card ill-card2">
-                <div class="ill-line w-12"></div>
-                <div class="ill-line w-10"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+
 
       <!-- Task Detail Modal integration -->
       <TaskDetailModal 
@@ -645,19 +596,20 @@ const learnMore = () => {
   display: flex;
   align-items: center;
   background: var(--color-surface, #ffffff);
-  border: 1px solid var(--color-border, #dfe1e6);
-  border-radius: 12px;
-  padding: 16px;
+  border: 1px solid rgba(9, 30, 66, 0.06);
+  border-radius: 16px;
+  padding: 16px 20px;
   cursor: pointer;
-  box-shadow: var(--shadow-sm);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
   position: relative;
+  overflow: hidden;
 }
 
 .space-card:hover {
   background-color: var(--color-surface-hover, #f4f5f7);
-  border-color: var(--color-border-hover, #cbd5e1);
-  box-shadow: var(--shadow-md);
+  border-color: rgba(9, 30, 66, 0.12);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
   transform: translateY(-2px);
 }
 
@@ -830,8 +782,13 @@ const learnMore = () => {
 /* Toolbar */
 .task-toolbar {
   display: flex;
-  gap: 12px;
+  gap: 16px;
   flex-wrap: wrap;
+  align-items: center;
+}
+
+.task-toolbar .jira-select:first-of-type {
+  margin-left: auto; /* Pushes filters to the right */
 }
 
 .search-input {
@@ -839,8 +796,8 @@ const learnMore = () => {
   display: flex;
   align-items: center;
   flex: 1;
-  min-width: 220px;
-  max-width: 280px;
+  min-width: 260px;
+  max-width: 320px;
 }
 .search-input i {
   position: absolute;
@@ -851,14 +808,15 @@ const learnMore = () => {
 }
 .search-input input {
   width: 100%;
-  border: 1px solid var(--color-border, #dfe1e6) !important;
-  border-radius: 8px !important;
-  padding: 8px 12px 8px 34px !important;
+  box-sizing: border-box !important;
+  border: 1px solid rgba(9, 30, 66, 0.08) !important;
+  border-radius: 20px !important;
+  padding: 8px 16px 8px 36px !important;
   font-size: 14px !important;
-  height: 38px !important;
+  height: 40px !important;
   background-color: var(--color-surface, #ffffff) !important;
   color: var(--color-text-primary, #172b4d) !important;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
   outline: none;
 }
 .search-input input:focus {
@@ -868,16 +826,17 @@ const learnMore = () => {
 }
 
 .jira-select {
-  border: 1px solid var(--color-border, #dfe1e6) !important;
-  border-radius: 8px !important;
+  box-sizing: border-box !important;
+  border: 1px solid rgba(9, 30, 66, 0.08) !important;
+  border-radius: 20px !important;
   padding: 0 16px !important;
   font-size: 14px !important;
-  height: 38px !important;
+  height: 40px !important;
   background-color: var(--color-surface, #ffffff) !important;
   color: var(--color-text-primary, #172b4d) !important;
   outline: none;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
   min-width: 140px;
 }
 .jira-select:focus {
@@ -932,19 +891,21 @@ const learnMore = () => {
 .jira-task-row {
   display: flex;
   align-items: center;
-  padding: 12px 16px;
+  padding: 16px 20px;
   background: var(--color-surface, #ffffff);
-  border: 1px solid var(--color-border, #e2e8f0);
-  border-radius: 8px;
+  border: 1px solid rgba(9, 30, 66, 0.06);
+  border-radius: 12px;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  overflow: hidden;
 }
 
 .jira-task-row:hover {
   background-color: var(--color-surface-hover, #f4f5f7);
-  border-color: var(--color-border-hover, #cbd5e1);
+  border-color: rgba(9, 30, 66, 0.12);
   transform: translateX(4px);
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.05);
 }
 
 .jtr-left {
