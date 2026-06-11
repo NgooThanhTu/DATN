@@ -13,7 +13,7 @@
           <div class="repo-head">
             <div>
               <div class="panel-title">GitHub repo analysis</div>
-              <div class="panel-copy">Chon repo, doc nhanh metadata va gui mot prompt phan tich task vao chat box.</div>
+              <div class="panel-copy">Chọn repo, đọc nhanh metadata và gửi một prompt phân tích task vào chat box.</div>
             </div>
             <button class="ghost-btn" type="button" :disabled="repoLoading" @click="analyzeRepository">Analyze repo</button>
           </div>
