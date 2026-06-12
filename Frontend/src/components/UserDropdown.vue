@@ -18,7 +18,7 @@
         <el-dropdown-item command="profile">
           <div class="menu-item-inner">
             <i class="fa-regular fa-user"></i>
-            <span>Profile</span>
+            <span>Hồ sơ</span>
           </div>
         </el-dropdown-item>
 
