@@ -1,695 +1,606 @@
 <template>
-  <NexusLayout>
-    <div class="manage-spaces-page">
-      <!-- Plane Style Header -->
-      <header class="spaces-header">
-        <div class="sh-left">
-          <i class="fa-solid fa-briefcase"></i>
-          <h1>Projects</h1>
+  <HomeSiteLayout>
+    <div class="jira-for-you-page">
+      <!-- Top banner -->
+      <div class="welcome-banner">
+        <div class="banner-content">
+          <div class="date-text">{{ currentDate }}</div>
+          <h1 class="welcome-text">Xin chào {{ userName }}</h1>
         </div>
-        
-        <div class="sh-right">
-          <div class="search-box">
-             <i class="fa-solid fa-magnifying-glass"></i>
-             <input type="text" placeholder="Search spaces..." v-model="searchQuery" />
+      </div>
+
+      <div class="content-container">
+        <!-- Ứng dụng của bạn -->
+        <section class="dashboard-section">
+          <div class="section-header">
+            <h2>Ứng dụng của bạn</h2>
+            <a href="#" class="view-all-link">Xem tất cả ứng dụng &rarr;</a>
           </div>
-          <div style="display: flex; gap: 4px; border: 1px solid var(--color-border); padding: 4px; border-radius: 8px;">
-            <button class="plane-btn-secondary outline-btn" style="border: none; margin: 0; padding: 6px 10px;" :class="{ active: viewMode === 'table' }" type="button" @click="setViewMode('table')" title="List view">
-              <i class="fa-solid fa-list"></i>
-            </button>
-            <button class="plane-btn-secondary outline-btn" style="border: none; margin: 0; padding: 6px 10px;" :class="{ active: viewMode === 'grid' }" type="button" @click="setViewMode('grid')" title="Grid view">
-              <i class="fa-solid fa-grip"></i>
-            </button>
-          </div>
-          <button class="plane-btn-secondary outline-btn" type="button" @click="toggleSort">
-             <i class="fa-solid fa-arrow-down-short-wide"></i> Created date {{ sortDirection === 'desc' ? '↓' : '↑' }}
-          </button>
-          <div class="project-filter-wrapper">
-            <button class="plane-btn-secondary outline-btn" type="button" @click="showProjectFilters = !showProjectFilters" :class="{ active: showProjectFilters || visibilityFilter !== 'all' }">
-               <i class="fa-solid fa-filter"></i> {{ filterLabel }}
-            </button>
-            <div class="project-filter-menu" v-if="showProjectFilters" @click.stop>
-              <div class="filter-title">Visibility</div>
-              <label class="filter-option"><input type="radio" value="all" v-model="visibilityFilter" /> All projects</label>
-              <label class="filter-option"><input type="radio" value="Public" v-model="visibilityFilter" /> Public</label>
-              <label class="filter-option"><input type="radio" value="Private" v-model="visibilityFilter" /> Private</label>
-              <label class="filter-option"><input type="radio" value="starred" v-model="visibilityFilter" /> Starred</label>
-              <button class="clear-filter-btn" type="button" @click="visibilityFilter = 'all'">Clear filters</button>
+          <div class="apps-container">
+            <div class="app-card" v-for="site in filteredSites.slice(0, 4)" :key="site.id" @click="goToSite(site.id)">
+              <div class="app-icon">
+                <div class="jira-icon-wrapper">
+                  <i class="fa-brands fa-jira"></i>
+                </div>
+              </div>
+              <div class="app-info">
+                <div class="app-name">SprintA</div>
+                <div class="app-url">{{ site.name }}</div>
+              </div>
+            </div>
+            <div class="app-card create-new" @click="openCreateModal">
+              <div class="create-icon"><i class="fa-solid fa-plus"></i></div>
+              <div class="app-info">
+                <div class="app-name">Tạo mới</div>
+              </div>
             </div>
           </div>
-          <button class="plane-btn-primary" @click="isCreateModalVisible = true">
-            Add Project
-          </button>
-        </div>
-      </header>
+        </section>
 
-      <section class="projects-scroll-panel">
-      <div v-if="loading" class="loading-state">
-         <i class="fa-solid fa-spinner fa-spin"></i> Loading projects...
-      </div>
-      <div v-else-if="filteredSpaces.length === 0" class="empty-state">
-         <div class="empty-icon-wrap" style="width: 80px; height: 80px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-           <i class="fa-solid fa-folder-open empty-icon" style="margin-bottom: 0;"></i>
-         </div>
-         <h3 class="empty-title" style="margin: 0 0 8px 0; font-size: 16px; font-weight: 600; color: var(--color-text-primary);">No projects found</h3>
-         <p style="margin: 0 0 24px 0; font-size: 14px; color: var(--color-text-muted);">It looks like there are no projects here. Let's create your first one!</p>
-         <button class="plane-btn-primary" @click="isCreateModalVisible = true">Create your first project</button>
-      </div>
-      <div v-else>
-        <div v-if="viewMode === 'grid'" class="spaces-grid">
-          <div class="project-card" v-for="(space, index) in filteredSpaces" :key="space.id" @click="goToSpace(space.id)">
-            <!-- Cover Image Mock -->
-            <div class="card-cover" :style="{ background: space.cover || coverGradients[index % coverGradients.length] }">
-               <div class="card-actions-top" @click.stop>
-                 <button class="card-icon-btn" type="button" @click="copySpaceLink(space)"><i class="fa-solid fa-link"></i></button>
-                 <button class="card-icon-btn" type="button" :class="{ 'starred': space.starred }" @click="toggleStar(space)"><i :class="space.starred ? 'fa-solid fa-star' : 'fa-regular fa-star'"></i></button>
-               </div>
+        <!-- Thường xuyên truy cập -->
+        <section class="dashboard-section">
+          <div class="section-header">
+            <h2>Thường xuyên truy cập</h2>
+          </div>
+          <div class="recent-access-container">
+            <!-- Mock recent access -->
+            <div class="recent-access-card" v-for="i in 1" :key="i">
+              <div class="recent-icon purple">
+                <i class="fa-solid fa-rotate"></i>
+              </div>
+              <div class="recent-info">
+                <div class="recent-title">(Example) Billing System...</div>
+                <div class="recent-subtitle">Không gian • SprintA</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Tiếp theo là gì -->
+        <section class="dashboard-section">
+          <div class="section-header space-between">
+            <h2>Tiếp theo là gì</h2>
+            <div class="tabs">
+              <button class="tab-btn active">Làm việc trên</button>
+              <button class="tab-btn">Đã xem</button>
+            </div>
+          </div>
+
+          <div class="audit-list">
+            <div class="time-group">
+              <h3 class="time-label">Hôm nay</h3>
+              <div class="audit-item">
+                <div class="item-icon yellow-bg">😎</div>
+                <div class="item-details">
+                  <div class="item-title">e</div>
+                  <div class="item-path">Dự án • Dự án • TUA46-8</div>
+                </div>
+                <div class="item-meta">
+                  <span class="status-badge pending">PENDING</span>
+                  <span class="time-ago">8 phút trước</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="time-group">
+              <h3 class="time-label">Tuần này</h3>
+              <div class="audit-item">
+                <div class="item-icon light-blue"><i class="fa-solid fa-file-lines"></i></div>
+                <div class="item-details">
+                  <div class="item-title">Chưa có tiêu đề</div>
+                  <div class="item-path">Content • Confluence • Dự Án Tốt Nghiệp</div>
+                </div>
+                <div class="item-meta">
+                  <span class="status-badge draft">BẢN NHÁP</span>
+                  <span class="time-ago">2 ngày trước</span>
+                </div>
+              </div>
+              <div class="audit-item">
+                <div class="item-icon light-blue"><i class="fa-solid fa-file-lines"></i></div>
+                <div class="item-details">
+                  <div class="item-title">Dự Án Tốt Nghiệp Home</div>
+                  <div class="item-path">Trang • Confluence • Dự Án Tốt Nghiệp</div>
+                </div>
+                <div class="item-meta">
+                  <span class="time-ago">2 ngày trước</span>
+                </div>
+              </div>
+              <div class="audit-item">
+                <div class="item-icon light-blue square"><i class="fa-solid fa-check"></i></div>
+                <div class="item-details">
+                  <div class="item-title">fw</div>
+                  <div class="item-path">Task • SprintA • DTN-12 • Dự Án Tốt Nghiệp</div>
+                </div>
+                <div class="item-meta">
+                  <span class="status-badge todo">TO DO</span>
+                  <span class="time-ago">3 ngày trước</span>
+                </div>
+              </div>
             </div>
             
-            <div class="card-body">
-              <!-- Floating Project Icon -->
-              <div class="floating-icon">
-                <span class="emoji">{{ space.icon || emojiList[index % emojiList.length] || '👇' }}</span>
-              </div>
-              
-              <div class="proj-title-row">
-                 <h3>{{ space.name }}</h3>
-                 <span class="proj-key">{{ space.key }}</span>
-              </div>
-              
-              <p class="proj-desc">
-                {{ space.originalRow?.description || 'Welcome to this Project! This project throws you into the driver\'s seat of work management. Through curated work items, you\'ll uncover key features...' }}
-              </p>
-              
-              <div class="card-footer" @click.stop>
-                 <span class="visibility-pill" :class="space.networkType?.toLowerCase()">
-                   <i :class="space.networkType === 'Private' ? 'fa-solid fa-lock' : 'fa-solid fa-globe'"></i>
-                   {{ space.networkType || 'Public' }}
-                 </span>
-                 <span style="font-size: 11px; color: var(--color-text-muted); margin-left: auto; margin-right: 8px;">
-                   Created: {{ new Date(space.originalRow?.createdAt || space.originalRow?.createdDate || Date.now()).toLocaleDateString() }}
-                 </span>
-                 <el-dropdown trigger="click" v-if="showProjectSettingsButton(space)" @click.stop>
-                   <button class="card-icon-btn" type="button"><i class="fa-solid fa-ellipsis"></i></button>
-                   <template #dropdown>
-                     <el-dropdown-menu class="plane-dropdown">
-                       <el-dropdown-item @click="goToAdmin(space)"><i class="fa-solid fa-gear" style="margin-right: 8px;"></i> Settings</el-dropdown-item>
-                       <el-dropdown-item @click="archiveProject(space)"><i class="fa-solid fa-box-archive" style="margin-right: 8px;"></i> Archive project</el-dropdown-item>
-                     </el-dropdown-menu>
-                   </template>
-                 </el-dropdown>
+            <button class="view-all-btn" @click="router.push('/home/recent')">Xem tất cả</button>
+          </div>
+        </section>
+      </div>
+      
+      <!-- Create Site Modal -->
+      <div class="modal-overlay" v-if="isCreateModalVisible" @click.self="isCreateModalVisible = false">
+        <div class="modal-dialog">
+          <div class="modal-header">
+            <h2>{{ t('Create a new site') }}</h2>
+            <button class="close-btn" @click="isCreateModalVisible = false"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+              <label>{{ t('Site Name') }} <span class="required">*</span></label>
+              <input type="text" v-model="newSiteName" :placeholder="t('e.g. My Awesome Team')" class="text-input" :class="{ 'error': errorMessage }" />
+              <div v-if="errorMessage" class="error-message">
+                <i class="fa-solid fa-triangle-exclamation"></i> {{ errorMessage }}
               </div>
             </div>
           </div>
-        </div>
-        
-        <div v-else class="spaces-table-container">
-          <table class="jira-table spaces-table" style="width: 100%; border-collapse: collapse; text-align: left;">
-            <thead>
-              <tr style="border-bottom: 2px solid var(--color-border); color: var(--color-text-muted); font-size: 12px;">
-                <th style="padding: 12px 16px; width: 40px;"></th>
-                <th style="padding: 12px 16px;">Name</th>
-                <th style="padding: 12px 16px;">Key</th>
-                <th style="padding: 12px 16px;">Type</th>
-                <th style="padding: 12px 16px;">Lead</th>
-                <th style="padding: 12px 16px;">Created</th>
-                <th style="padding: 12px 16px; width: 50px;"></th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(space, index) in filteredSpaces" :key="'table-' + space.id" @click="goToSpace(space.id)" style="border-bottom: 1px solid var(--color-border); cursor: pointer; transition: background 0.2s;" class="table-row-hover">
-                <td style="padding: 12px 16px;" @click.stop>
-                  <button class="card-icon-btn transparent-btn" style="background: transparent; border: none; color: var(--color-text-muted);" :class="{ 'starred': space.starred }" @click="toggleStar(space)">
-                    <i :class="space.starred ? 'fa-solid fa-star' : 'fa-regular fa-star'" :style="{ color: space.starred ? '#EAB308' : '' }"></i>
-                  </button>
-                </td>
-                <td style="padding: 12px 16px;">
-                  <div style="display: flex; align-items: center; gap: 12px;">
-                    <div style="width: 24px; height: 24px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 12px;" :style="{ background: space.cover || coverGradients[index % coverGradients.length] }">
-                      {{ space.icon || emojiList[index % emojiList.length] || '📦' }}
-                    </div>
-                    <span style="font-weight: 500; color: #3b82f6;">{{ space.name }}</span>
-                  </div>
-                </td>
-                <td style="padding: 12px 16px; font-size: 13px;">{{ space.key }}</td>
-                <td style="padding: 12px 16px; font-size: 13px; color: var(--color-text-muted);">
-                  {{ space.networkType === 'Private' ? 'Team-managed software (Private)' : 'Team-managed software' }}
-                </td>
-                <td style="padding: 12px 16px;">
-                  <div style="display: flex; align-items: center; gap: 8px;">
-                    <div style="width: 24px; height: 24px; border-radius: 50%; background: #10B981; color: white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;">
-                      {{ space.leadName?.charAt(0).toUpperCase() || 'T' }}
-                    </div>
-                    <span style="font-size: 13px;">{{ space.leadName }}</span>
-                  </div>
-                </td>
-                <td style="padding: 12px 16px; font-size: 13px; color: var(--color-text-muted);">
-                  {{ new Date(space.originalRow?.createdAt || space.originalRow?.createdDate || Date.now()).toLocaleDateString() }}
-                </td>
-                <td style="padding: 12px 16px;" @click.stop>
-                  <el-dropdown trigger="click" v-if="showProjectSettingsButton(space)">
-                    <button class="card-icon-btn transparent-btn" style="background: transparent; border: none; font-size: 16px; color: var(--color-text-muted);"><i class="fa-solid fa-ellipsis"></i></button>
-                    <template #dropdown>
-                      <el-dropdown-menu class="plane-dropdown">
-                        <el-dropdown-item @click="goToAdmin(space)"><i class="fa-solid fa-gear" style="margin-right: 8px;"></i> Settings</el-dropdown-item>
-                        <el-dropdown-item @click="archiveProject(space)"><i class="fa-solid fa-box-archive" style="margin-right: 8px;"></i> Archive project</el-dropdown-item>
-                      </el-dropdown-menu>
-                    </template>
-                  </el-dropdown>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+          <div class="modal-footer">
+            <button class="secondary-btn" @click="isCreateModalVisible = false">{{ t('Cancel') }}</button>
+            <button class="primary-btn" :disabled="isCreating || !newSiteName.trim()" @click="submitCreateSite">
+              {{ isCreating ? t('Creating...') : t('Create') }}
+            </button>
+          </div>
         </div>
       </div>
-      </section>
-      
-      <CreateSpaceModal v-model:visible="isCreateModalVisible" @created="fetchSpaces" />
+
     </div>
-  </NexusLayout>
+  </HomeSiteLayout>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import axiosClient from '@/api/axiosClient'
-import NexusLayout from '@/components/layout/NexusLayout.vue'
-import CreateSpaceModal from '@/components/CreateSpaceModal.vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { useProjectStore } from '@/store/useProjectStore'
-import { canAccessProjectSettings, getProjectSettingsDeniedMessage, getStoredUser } from '@/utils/permissions'
-import { subscribeAdminRealtime } from '@/utils/adminRealtime'
-import { getProjectSettingsWindowName, openNamedAppWindow } from '@/utils/windowTabs'
+import HomeSiteLayout from '@/views/HomeSite/HomeSiteLayout.vue'
+import { useSiteStore } from '@/store/useSiteStore'
+import { useI18nStore } from '@/store/useI18nStore'
+import { getStoredUser } from '@/utils/permissions'
 
 const router = useRouter()
-const projectStore = useProjectStore()
+const siteStore = useSiteStore()
+const i18nStore = useI18nStore()
+const t = i18nStore.t
+
+const currentUser = getStoredUser()
+const userName = currentUser?.username || 'Tua20000'
+
+// Format current date in Vietnamese
+const currentDate = computed(() => {
+  return new Intl.DateTimeFormat('vi-VN', { 
+    weekday: 'long', 
+    day: 'numeric', 
+    month: 'long' 
+  }).format(new Date())
+})
+
 const loading = ref(false)
-const spaces = ref([])
-const searchQuery = ref('')
-const sortDirection = ref('desc')
-const showProjectFilters = ref(false)
-const visibilityFilter = ref('all')
+
 const isCreateModalVisible = ref(false)
-const viewMode = ref(localStorage.getItem('spaces_view_mode') || 'table')
+const newSiteName = ref('')
+const isCreating = ref(false)
+const errorMessage = ref('')
 
-const setViewMode = (mode) => {
-  viewMode.value = mode
-  localStorage.setItem('spaces_view_mode', mode)
-}
-
-const currentUser = computed(() => getStoredUser())
-const canManageSpace = (space) => canAccessProjectSettings(space, currentUser.value)
-const showProjectSettingsButton = (space) => canManageSpace(space)
-
-const goToAdmin = (space) => {
-  if (!canManageSpace(space)) {
-    ElMessage.warning(getProjectSettingsDeniedMessage())
-    return
-  }
-  const routeData = router.resolve(`/space/${space.id}/settings`)
-  openNamedAppWindow(routeData.href, getProjectSettingsWindowName(space.id))
-}
-
-const archiveProject = async (space) => {
-  try {
-    await ElMessageBox.confirm(`Are you sure you want to archive project "${space.name}"?`, 'Archive Project', { type: 'warning' })
-    await axiosClient.put(`/projects/${space.id}/archive`)
-    ElMessage.success('Project archived')
-    fetchSpaces()
-  } catch (err) {
-    if (err !== 'cancel') ElMessage.error('Failed to archive project')
-  }
-}
-
-const toggleSort = () => {
-  sortDirection.value = sortDirection.value === 'desc' ? 'asc' : 'desc'
-}
-
-const copySpaceLink = async (space) => {
-  const url = `${window.location.origin}/space/${space.id}`
-  try {
-    await navigator.clipboard.writeText(url)
-    ElMessage.success('Project link copied')
-  } catch (error) {
-    ElMessage.info(url)
-  }
-}
-
-const toggleStar = async (space) => {
-  const nextFavorite = !space.starred
-  space.starred = nextFavorite
-  try {
-    await projectStore.updateFavorite(space.id, nextFavorite)
-    ElMessage.success(nextFavorite ? 'Project starred' : 'Project unstarred')
-  } catch (error) {
-    space.starred = !nextFavorite
-    ElMessage.error('Could not update favorite project')
-  }
-}
-
-const coverGradients = [
-  'linear-gradient(135deg, #1f0b0f 0%, #761d28 40%, #1e1215 100%)',
-  'linear-gradient(135deg, #0f172a 0%, #1e40af 50%, #172554 100%)',
-  'linear-gradient(135deg, #064e3b 0%, #059669 40%, #022c22 100%)',
-  'linear-gradient(135deg, #4c1d95 0%, #7c3aed 50%, #2e1065 100%)'
-]
-
-const emojiList = ['👇', '🚀', '⚡', '💡', '🔥', '🎯']
-
-const fetchSpaces = async () => {
+const loadSites = async () => {
   loading.value = true
   try {
-    const response = await axiosClient.get('/projects/discovery')
-    const data = response.data.data || response.data || []
-    
-    // Transform data
-    spaces.value = data.map(p => ({
-      id: p.id,
-      starred: Boolean(p.isFavorite),
-      name: p.name,
-      key: p.key || p.identifier || p.name.substring(0, 4).toUpperCase(),
-      myRole: p.myRole || p.MyRole || null,
-      projectRole: p.projectRole || p.ProjectRole || null,
-      leadName: p.leadName || p.reporterName || 'Admin',
-      cover: p.cover,
-      icon: p.icon,
-      networkType: p.networkType || 'Public',
-      originalRow: p
-    }))
+    await siteStore.fetchSites()
   } catch (error) {
-    console.error('Fetch spaces error:', error)
+    console.error('Fetch sites error:', error)
   } finally {
     loading.value = false
   }
 }
 
 onMounted(() => {
-  fetchSpaces()
+  loadSites()
 })
 
-let unsubscribeAdminRealtime = null
-
-onMounted(() => {
-  unsubscribeAdminRealtime = subscribeAdminRealtime(async ({ type }) => {
-    if (
-      [
-        'project-settings-updated',
-        'project-settings-favorite-updated',
-        'project-settings-integrations-updated',
-        'project-administration-updated',
-        'project-settings-deleted'
-      ].includes(type)
-    ) {
-      await fetchSpaces()
-      await projectStore.fetchAllProjects(true).catch(() => {})
-    }
-  })
+const filteredSites = computed(() => {
+  return siteStore.sites
 })
 
-onUnmounted(() => {
-  unsubscribeAdminRealtime?.()
-})
-
-const filteredSpaces = computed(() => {
-  return spaces.value
-    .filter(s => {
-      const matchesSearch = !searchQuery.value || s.name.toLowerCase().includes(searchQuery.value.toLowerCase()) || s.key.toLowerCase().includes(searchQuery.value.toLowerCase())
-      const matchesVisibility =
-        visibilityFilter.value === 'all' ||
-        (visibilityFilter.value === 'starred' && s.starred) ||
-        s.networkType === visibilityFilter.value
-      return matchesSearch && matchesVisibility
-    })
-    .sort((a, b) => {
-      const left = new Date(a.originalRow?.createdAt || a.originalRow?.createdDate || 0).getTime()
-      const right = new Date(b.originalRow?.createdAt || b.originalRow?.createdDate || 0).getTime()
-      return sortDirection.value === 'desc' ? right - left : left - right
-    })
-})
-
-const goToSpace = (id) => {
+const goToSite = (id) => {
+  siteStore.setRecentSite(siteStore.sites.find(s => s.id === id) || { id })
   router.push(`/space/${id}`)
 }
 
-const filterLabel = computed(() => ({
-  all: 'Filters',
-  Public: 'Public',
-  Private: 'Private',
-  starred: 'Starred'
-}[visibilityFilter.value] || 'Filters'))
+const openCreateModal = () => {
+  isCreateModalVisible.value = true
+  newSiteName.value = ''
+  errorMessage.value = ''
+}
+
+const submitCreateSite = async () => {
+  if (!newSiteName.value.trim()) {
+    errorMessage.value = 'Site name is required'
+    return
+  }
+  isCreating.value = true
+  errorMessage.value = ''
+  try {
+    const site = await siteStore.createSite({ name: newSiteName.value })
+    isCreateModalVisible.value = false
+    goToSite(site.id)
+  } catch (error) {
+    errorMessage.value = error.message || 'Failed to create site'
+  } finally {
+    isCreating.value = false
+  }
+}
 </script>
 
 <style scoped>
-.manage-spaces-page {
-  padding: 40px;
-  width: 100%;
-  max-width: 1480px;
-  margin: 0 auto;
-  color: var(--color-text-primary);
-  font-family: 'Inter', -apple-system, sans-serif;
-  height: calc(100vh - 66px);
+.jira-for-you-page {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  color: #172B4D;
+  background-color: #FFFFFF;
+  min-height: calc(100vh - 56px);
+  padding: 0;
   display: flex;
   flex-direction: column;
-  min-height: 0;
 }
 
-/* Header */
-.spaces-header {
+/* Welcome Banner */
+.welcome-banner {
+  background-color: #FFC400;
+  background-image: url('data:image/svg+xml;utf8,<svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg"><defs><pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(0,0,0,0.05)" stroke-width="1"/></pattern></defs><rect width="100%" height="100%" fill="url(%23grid)"/><path d="M 600 120 L 700 40 L 800 100 L 900 20" stroke="%23172B4D" stroke-width="3" fill="none" /><circle cx="900" cy="20" r="4" fill="%23172B4D" /></svg>');
+  background-position: right center;
+  background-repeat: no-repeat;
+  padding: 32px 40px;
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+  margin: 24px 40px;
+  position: relative;
+  overflow: hidden;
+}
+
+.banner-content {
+  position: relative;
+  z-index: 2;
+}
+
+.date-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: #172B4D;
+  margin-bottom: 4px;
+  text-transform: capitalize;
+}
+
+.welcome-text {
+  font-size: 24px;
+  font-weight: 600;
+  color: #172B4D;
+  margin: 0;
+}
+
+.content-container {
+  padding: 0 40px 40px;
+  max-width: 1000px;
+}
+
+.dashboard-section {
+  margin-bottom: 40px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.section-header.space-between {
+  justify-content: space-between;
+}
+
+.section-header h2 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #172B4D;
+  margin: 0;
+  margin-right: auto;
+}
+
+.view-all-link {
+  font-size: 13px;
+  color: #5E6C84;
+  text-decoration: none;
+}
+
+.view-all-link:hover {
+  text-decoration: underline;
+}
+
+/* Apps Container */
+.apps-container {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.app-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid #DFE1E6;
+  border-radius: 4px;
+  background: #FFFFFF;
+  cursor: pointer;
+  transition: box-shadow 0.2s, background-color 0.2s;
+  min-width: 220px;
+}
+
+.app-card:hover {
+  background-color: #FAFBFC;
+  box-shadow: 0 1px 2px rgba(9, 30, 66, 0.25);
+}
+
+.app-icon .jira-icon-wrapper {
+  width: 24px;
+  height: 24px;
+  background-color: #0052CC;
+  color: white;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.create-new {
+  border-style: dashed;
+  color: #0052CC;
+}
+
+.create-new .app-name {
+  color: #0052CC;
+}
+
+.create-icon {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-name {
+  font-size: 12px;
+  color: #172B4D;
+  font-weight: 500;
+}
+
+.app-url {
+  font-size: 11px;
+  color: #5E6C84;
+}
+
+/* Recent Access */
+.recent-access-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid #DFE1E6;
+  border-radius: 4px;
+  background: #FFFFFF;
+  max-width: 300px;
+}
+
+.recent-icon.purple {
+  width: 32px;
+  height: 32px;
+  background-color: #EAE6FF;
+  color: #403294;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.recent-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #172B4D;
+}
+
+.recent-subtitle {
+  font-size: 12px;
+  color: #5E6C84;
+}
+
+/* Audit List Tabs */
+.tabs {
+  display: flex;
+  background: #F4F5F7;
+  border-radius: 3px;
+  padding: 2px;
+}
+
+.tab-btn {
+  background: transparent;
+  border: none;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #5E6C84;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.tab-btn.active {
+  background: #FFFFFF;
+  color: #172B4D;
+  box-shadow: 0 1px 1px rgba(9, 30, 66, 0.25);
+}
+
+/* Audit List */
+.audit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.time-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.time-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #5E6C84;
+  margin: 0 0 8px 0;
+}
+
+.audit-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #DFE1E6;
+  gap: 16px;
+}
+
+.audit-item:last-child {
+  border-bottom: none;
+}
+
+.item-icon {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 12px;
+}
+
+.item-icon.square {
+  border-radius: 3px;
+}
+
+.yellow-bg {
+  background: #FFFAE6;
+  font-size: 16px;
+}
+
+.light-blue {
+  background: #E6FCFF;
+  color: #00B8D9;
+}
+
+.item-details {
+  flex: 1;
+}
+
+.item-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #172B4D;
+  margin-bottom: 2px;
+}
+
+.item-path {
+  font-size: 12px;
+  color: #5E6C84;
+}
+
+.item-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.status-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.status-badge.pending {
+  background: #DFE1E6;
+  color: #42526E;
+}
+
+.status-badge.draft {
+  background: #DFE1E6;
+  color: #42526E;
+}
+
+.status-badge.todo {
+  background: #DFE1E6;
+  color: #42526E;
+}
+
+.time-ago {
+  font-size: 12px;
+  color: #5E6C84;
+  min-width: 80px;
+  text-align: right;
+}
+
+.view-all-btn {
+  background: transparent;
+  border: 1px solid #DFE1E6;
+  border-radius: 3px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #172B4D;
+  cursor: pointer;
+  align-self: flex-start;
+  transition: background-color 0.2s;
+}
+
+.view-all-btn:hover {
+  background: #F4F5F7;
+}
+
+/* Modal styles preserved from original */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: rgba(9, 30, 66, 0.54);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.modal-dialog {
+  background-color: #FFFFFF;
+  border-radius: 3px;
+  width: 400px;
+  box-shadow: 0 8px 16px -4px rgba(9, 30, 66, 0.25), 0 0 1px rgba(9, 30, 66, 0.31);
+}
+.modal-header {
+  padding: 20px 24px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 24px;
-  margin-bottom: 24px;
-  flex-shrink: 0;
+  border-bottom: 1px solid #DFE1E6;
 }
-
-.sh-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.sh-left i {
-  color: var(--color-text-muted);
-  font-size: 18px;
-}
-.sh-left h1 {
-  font-size: 16px;
-  font-weight: 500;
-  margin: 0;
-  color: var(--color-text-primary);
-}
-
-.sh-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.search-box {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-.search-box i {
-  position: absolute;
-  left: 12px;
-  color: var(--color-text-muted);
-  font-size: 13px;
-}
-.search-box input {
-  background: transparent;
-  border: none;
-  color: var(--color-text-primary);
-  padding: 6px 12px 6px 32px;
-  font-size: 13px;
-  outline: none;
-  width: 180px;
-  transition: width 0.2s;
-}
-.search-box input:focus { width: 240px; }
-.search-box input::placeholder { color: #52525B; }
-
-.plane-btn-secondary.outline-btn {
-  background: transparent;
-  border: 1px solid transparent;
-  color: var(--color-text-muted);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.plane-btn-secondary.outline-btn:hover { background: #18181B; color: var(--color-text-primary); }
-.plane-btn-secondary.outline-btn.active { background: #18181B; color: var(--color-text-primary); border-color: var(--color-border); }
-
-.project-filter-wrapper { position: relative; }
-.project-filter-menu {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 20;
-  width: 220px;
-  background: #1B1C20;
-  border: 1px solid #2D2F36;
-  border-radius: 8px;
-  padding: 12px;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
-}
-.filter-title { color: var(--color-text-muted); font-size: 12px; font-weight: 600; margin-bottom: 8px; }
-.filter-option {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #D4D4D8;
-  font-size: 13px;
-  padding: 6px 0;
-  cursor: pointer;
-}
-.clear-filter-btn {
-  width: 100%;
-  margin-top: 8px;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  background: var(--color-surface);
-  color: #D4D4D8;
-  padding: 7px;
-  cursor: pointer;
-}
-.clear-filter-btn:hover { background: var(--color-border); }
-
-.plane-btn-primary {
-  background: #0EA5E9;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  padding: 6px 14px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-.plane-btn-primary:hover { background: #0284C7; }
-
-.projects-scroll-panel {
-  min-height: 0;
-  overflow-y: auto;
-  padding: 2px 8px 24px 2px;
-  scrollbar-width: thin;
-  scrollbar-color: #3f3f46 transparent;
-}
-
-.projects-scroll-panel::-webkit-scrollbar {
-  width: 8px;
-}
-
-.projects-scroll-panel::-webkit-scrollbar-thumb {
-  background: #3f3f46;
-  border-radius: 999px;
-}
-
-.spaces-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 20px;
-  align-items: stretch;
-}
-
-/* Card */
-.project-card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  overflow: hidden;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: flex;
-  flex-direction: column;
-  min-height: 300px;
-}
-.project-card:hover {
-  border-color: #3F3F46;
-  transform: translateY(-2px);
-}
-
-.card-cover {
-  height: 120px;
-  position: relative;
-  display: flex;
-  justify-content: flex-end;
-  padding: 12px;
-}
-
-.card-actions-top {
-  display: flex;
-  gap: 8px;
-}
-
-.card-icon-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  background: rgba(0,0,0,0.3);
-  border: 1px solid rgba(255,255,255,0.1);
-  color: var(--color-text-muted);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  font-size: 12px;
-  transition: all 0.2s;
-  backdrop-filter: blur(4px);
-}
-.card-icon-btn:hover { background: rgba(0,0,0,0.5); color: var(--color-text-primary); }
-.card-icon-btn.starred { color: #EAB308; }
-.card-icon-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-
-.card-body {
-  padding: 0 20px 20px 20px;
-  position: relative;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.floating-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  background: var(--color-border);
-  border: 4px solid var(--color-surface);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-top: -18px;
-  margin-bottom: 12px;
-  font-size: 18px;
-}
-
-.proj-title-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-.proj-title-row h3 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--color-text-primary);
-}
-.proj-key {
-  font-size: 11px;
-  color: var(--color-text-muted);
-  font-weight: 600;
-  margin-top: 2px;
-}
-
-.proj-desc {
-  font-size: 13px;
-  color: var(--color-text-muted);
-  line-height: 1.5;
-  margin: 0 0 20px 0;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex: 1;
-}
-
-.card-footer {
-  display: flex;
-  justify-content: flex-start;
-  align-items: center;
-  gap: 10px;
-  margin-top: auto;
-}
-
-.visibility-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 24px;
-  padding: 0 8px;
-  border-radius: 6px;
-  background: var(--color-border);
-  color: #d4d4d8;
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.visibility-pill.private {
-  color: #fca5a5;
-}
-
-.avatar-group {
-  display: flex;
-}
-.avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: #10B981;
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: 600;
-  border: 2px solid var(--color-surface);
-}
-
-.card-footer .card-icon-btn {
-  background: transparent;
-  border: none;
-  font-size: 14px;
-  margin-left: auto;
-}
-.card-footer .card-icon-btn:hover { background: var(--color-border); }
-
-.loading-state, .empty-state { text-align: center; margin-top: 60px; color: var(--color-text-muted); }
-.empty-icon { font-size: 48px; color: #3F3F46; margin-bottom: 16px; }
-.empty-state p { margin-bottom: 24px; }
-
-@media (max-width: 900px) {
-  .manage-spaces-page {
-    padding: 24px;
-  }
-
-  .spaces-header {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .sh-right {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
-  .search-box input,
-  .search-box input:focus {
-    width: 180px;
-  }
-}
-
-.table-row-hover:hover {
-  background: var(--color-surface);
-}
-
-.spaces-table-container {
-  overflow-x: auto;
-  border-radius: 8px;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-}
+.modal-header h2 { margin: 0; font-size: 20px; font-weight: 500; color: #172B4D; }
+.close-btn { background: none; border: none; font-size: 16px; color: #6B778C; cursor: pointer; padding: 4px; border-radius: 3px; }
+.close-btn:hover { background-color: rgba(9, 30, 66, 0.08); }
+.modal-body { padding: 24px; }
+.form-group label { display: block; font-size: 12px; font-weight: 600; color: #5E6C84; margin-bottom: 8px; }
+.required { color: #DE350B; }
+.text-input { width: 100%; padding: 8px 12px; border: 2px solid #DFE1E6; border-radius: 3px; font-size: 14px; color: #091E42; box-sizing: border-box; outline: none; }
+.text-input:focus { border-color: #4C9AFF; }
+.error-message { color: #DE350B; font-size: 12px; margin-top: 8px; }
+.modal-footer { padding: 16px 24px; display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid #DFE1E6; }
+.primary-btn { background-color: #0052CC; color: white; border: none; padding: 6px 12px; border-radius: 3px; cursor: pointer; }
+.primary-btn:hover { background-color: #0047B3; }
+.primary-btn:disabled { background-color: #EBECF0; color: #A5ADBA; cursor: not-allowed; }
+.secondary-btn { background: #F4F5F7; border: none; padding: 6px 12px; border-radius: 3px; cursor: pointer; }
+.secondary-btn:hover { background: #EBECF0; }
 </style>
-
-
-
-

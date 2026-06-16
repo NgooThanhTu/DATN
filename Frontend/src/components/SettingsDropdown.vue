@@ -122,7 +122,7 @@ const handleCommand = (path) => {
 }
 
 .settings-menu-item.indented {
-  padding-left: 36px;
+  padding-left: 44px;
 }
 
 .menu-divider {
