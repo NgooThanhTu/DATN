@@ -17,7 +17,7 @@
         </div>
         
         <nav class="sidebar-nav">
-          <router-link to="/sites" class="nav-item" :class="{ 'active-nav': $route.path === '/sites' || $route.path === '/spaces' }">
+          <router-link to="/sites" class="nav-item" :class="{ 'active-nav': $route.path === '/sites' }">
             <span class="nav-icon"><i class="fa-regular fa-user-circle"></i></span>
             <span>{{ t('For you', 'Dành cho bạn') }}</span>
           </router-link>

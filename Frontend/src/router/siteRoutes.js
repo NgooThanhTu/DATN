@@ -1,5 +1,11 @@
 export default [
   {
+    path: '/sites',
+    name: 'SitesForYou',
+    component: () => import('../views/SitesForYou.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/site-selection',
     name: 'SiteSelection',
     component: () => import('../views/SiteSelection.vue'),

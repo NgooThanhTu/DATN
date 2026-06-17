@@ -56,15 +56,12 @@
       <button class="icon-btn" @click="toggleTheme()" :title="currentTheme === 'dark' ? 'Light mode' : 'Dark mode'">
         <i :class="currentTheme === 'dark' ? 'fa-solid fa-sun' : 'fa-solid fa-moon'"></i>
       </button>
-      
-      <button class="icon-btn" @click="goToSettings">
-        <i class="fa-solid fa-gear"></i>
-      </button>
 
       <button v-if="isSpaceContext" class="icon-btn" @click="emit('toggle-ai')">
         <i class="fa-solid fa-robot"></i>
       </button>
-      
+
+      <SettingsDropdown />
       <UserDropdown class="nav-item" />
     </div>
   </header>
@@ -76,6 +73,7 @@ import { useRouter, useRoute } from 'vue-router'
 import axiosClient from '@/api/axiosClient'
 import UserDropdown from '@/components/UserDropdown.vue'
 import NotificationsDropdown from '@/components/NotificationsDropdown.vue'
+import SettingsDropdown from '@/components/SettingsDropdown.vue'
 import { useProjectStore } from '@/store/useProjectStore'
 import { subscribeAdminRealtime } from '@/utils/adminRealtime'
 import { getScopedCurrentProjectId, setScopedCurrentProjectId } from '@/utils/projectContext'
@@ -94,7 +92,7 @@ const projectStore = useProjectStore()
 const i18nStore = useI18nStore()
 const t = i18nStore.t
 
-const isHomeContext = computed(() => route.path.startsWith('/home') || route.path.startsWith('/sites') || route.path.startsWith('/spaces'))
+const isHomeContext = computed(() => route.path.startsWith('/home') || route.path.startsWith('/sites'))
 const isSpaceContext = computed(() => route.path.startsWith('/space') || route.path.startsWith('/dashboard') || route.path.startsWith('/stickies') || route.path.startsWith('/rewards'))
 
 const isModule = (moduleName) => {
@@ -199,11 +197,6 @@ const handleEscKey = (e) => {
     searchResults.value = []
     searchQuery.value = ''
   }
-}
-
-const goToSettings = () => {
-  // TODO: Navigate to global settings page when implemented
-  console.log('Global settings pending implementation')
 }
 
 const goToNotifications = () => {
