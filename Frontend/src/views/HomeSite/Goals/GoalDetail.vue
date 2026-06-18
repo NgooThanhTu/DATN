@@ -23,23 +23,23 @@
         <div class="header-main">
           <div class="title-block">
             <div class="goal-icon-large">
-              <i class="fa-solid fa-bullseye"></i>
+              <Target class="w-4 h-4"></Target>
             </div>
             <h1>{{ goal.title }}</h1>
           </div>
           
           <div class="header-actions">
             <button class="secondary-btn" @click="toggleFollow">
-              <i class="fa-solid fa-eye"></i> {{ goal.isFollowing ? 'Đang theo dõi' : 'Theo dõi' }}
+              <Eye class="w-4 h-4"></Eye> {{ goal.isFollowing ? 'Đang theo dõi' : 'Theo dõi' }}
             </button>
             <button class="secondary-btn icon-only" @click="toggleStar" :class="{ starred: goal.isStarred }">
-              <i :class="goal.isStarred ? 'fa-solid fa-star' : 'fa-regular fa-star'"></i>
+              <Star :class="['w-4 h-4', goal.isStarred ? 'text-yellow-400' : 'text-gray-400']"></Star>
             </button>
             <button class="secondary-btn icon-only" @click="toggleShare">
               <i class="fa-solid fa-share-nodes"></i>
             </button>
             <button class="secondary-btn icon-only" @click="toggleMenu">
-              <i class="fa-solid fa-ellipsis"></i>
+              <MoreHorizontal class="w-4 h-4"></MoreHorizontal>
             </button>
           </div>
         </div>
@@ -86,27 +86,6 @@
             </div>
           </section>
 
-          <!-- Key results -->
-          <section class="content-section">
-            <div class="section-header">
-              <h3>Key results</h3>
-            </div>
-            <div class="section-body">
-              <div style="border: 1px solid #DFE1E6; border-radius: 3px; padding: 24px; display: flex; justify-content: space-between; align-items: center; background: white;">
-                <div style="max-width: 400px;">
-                  <h4 style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600; color: #172B4D;">Theo dõi tiến độ hướng tới mục tiêu của bạn</h4>
-                  <p style="margin: 0 0 16px 0; font-size: 14px; color: #5E6C84; line-height: 1.5;">Chia sẻ nội dung cập nhật riêng cho từng kết quả chính để tự động cập nhật tiến độ của mục tiêu này.</p>
-                  <button class="primary-btn" style="display: inline-flex; align-items: center; gap: 8px; height: 32px;"><i class="fa-solid fa-plus"></i> Tạo</button>
-                </div>
-                <div>
-                  <div style="width: 180px; height: 100px; background: #E6FCFF; border-radius: 8px; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden;">
-                    <div style="position: absolute; right: -20px; top: -20px; width: 80px; height: 80px; background: #0052CC; transform: rotate(45deg);"></div>
-                    <i class="fa-solid fa-chart-line" style="font-size: 40px; color: #0052CC; z-index: 1;"></i>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
 
           <!-- Hoạt động -->
           <section class="content-section" style="margin-top: 16px;">
@@ -122,16 +101,16 @@
               <div v-if="activityTab === 'comments'">
                 <h4 style="font-size: 14px; color: #172B4D; margin: 0 0 16px 0;">Comments</h4>
                 <div class="update-input-mockup" style="background: #FAFBFC; padding: 12px; border-radius: 3px; border: 1px solid transparent; transition: border 0.2s;" onmouseover="this.style.border='1px solid #DFE1E6'" onmouseout="this.style.border='1px solid transparent'">
-                  <div class="user-avatar-current" style="background: #36B37E;">T</div>
+                  <div class="user-avatar-current" style="background: #36B37E;">{{ currentUserInitials }}</div>
                   <input type="text" placeholder="Thêm nhận xét... đặt câu hỏi" style="border: none; background: transparent; width: 100%; outline: none; font-size: 14px;" />
                 </div>
               </div>
               <div v-else>
                 <div class="timeline-item" style="display: flex; align-items: flex-start; gap: 12px;">
-                   <div class="user-avatar-current" style="background: #36B37E; width: 24px; height: 24px; font-size: 10px;">T</div>
+                   <UserAvatar :user="currentUser" size="sm" />
                    <div style="flex: 1;">
                       <div style="display: flex; justify-content: space-between; align-items: center;">
-                         <span style="font-size: 14px; color: #172B4D;"><strong>Tua20000</strong> đã tạo Mục tiêu</span>
+                         <span style="font-size: 14px; color: #172B4D;"><strong>{{ currentUserName }}</strong> đã tạo Mục tiêu</span>
                          <span style="font-size: 12px; color: #5E6C84;">9 days ago</span>
                       </div>
                       <div style="font-size: 14px; color: #5E6C84; margin-top: 4px;">{{ goal.title }}</div>
@@ -146,7 +125,7 @@
         <template v-if="currentTab === 'updates'">
            <div class="status-update-box">
              <div class="update-input-mockup" @click="showUpdateForm = true" v-if="!showUpdateForm" style="background: white; border: 1px solid #DFE1E6; padding: 16px; border-radius: 3px;">
-               <div class="user-avatar-current" style="background: #36B37E;">T</div>
+               <UserAvatar :user="currentUser" size="md" />
                <div style="color: #5E6C84; font-size: 14px;">Đăng bản cập nhật của bạn</div>
              </div>
              
@@ -156,7 +135,7 @@
                  <div style="position: relative;">
                    <label style="font-size: 11px; font-weight: 600; color: #6B778C; display: block; margin-bottom: 4px;">Trạng thái hiện tại</label>
                    <div @click="isUpdateStatusOpen = !isUpdateStatusOpen" style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
-                      <span class="status-badge" :class="getStatusClass(newUpdate.status)" style="font-size: 11px; padding: 4px 8px;">{{ newUpdate.status }} <i class="fa-solid fa-chevron-down" style="font-size: 10px; margin-left: 4px;"></i></span>
+                      <span class="status-badge" :class="getStatusClass(newUpdate.status)" style="font-size: 11px; padding: 4px 8px;">{{ newUpdate.status }} <ChevronDown class="w-4 h-4" style="font-size: 10px; margin-left: 4px;"></ChevronDown></span>
                    </div>
                    <!-- Status Menu -->
                    <div v-if="isUpdateStatusOpen" class="dropdown-menu" style="position: absolute; top: 100%; left: 0; margin-top: 4px; background: white; border: 1px solid #DFE1E6; border-radius: 3px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); width: 200px; z-index: 100; display: flex; flex-direction: column; padding: 8px 0;">
@@ -169,7 +148,7 @@
                  <div>
                    <label style="font-size: 11px; font-weight: 600; color: #6B778C; display: block; margin-bottom: 4px;">Ngày mục tiêu</label>
                    <div style="display: flex; align-items: center; gap: 4px; color: #172B4D; font-size: 13px; font-weight: 500;">
-                     <i class="fa-regular fa-calendar" style="color: #6B778C;"></i> Tháng 07 <i class="fa-solid fa-chevron-down" style="font-size: 10px; color: #6B778C;"></i>
+                     <Calendar class="w-4 h-4" style="color: #6B778C;"></Calendar> Tháng 07 <ChevronDown class="w-4 h-4" style="font-size: 10px; color: #6B778C;"></ChevronDown>
                    </div>
                  </div>
                  
@@ -186,7 +165,7 @@
                  
                  <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #DFE1E6; padding-top: 12px; margin-top: 8px;">
                    <div style="display: flex; gap: 16px; color: #6B778C; font-size: 16px;">
-                     <i class="fa-regular fa-face-smile" style="cursor: pointer;"></i>
+                     <Smile class="w-4 h-4" style="cursor: pointer;"></Smile>
                      <i class="fa-regular fa-image" style="cursor: pointer;"></i>
                      <i class="fa-solid fa-link" style="cursor: pointer;"></i>
                    </div>
@@ -206,9 +185,9 @@
              <div style="border: 1px solid #DFE1E6; border-radius: 3px; padding: 16px; background: white; margin-bottom: 24px;">
                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
                  <div style="display: flex; gap: 12px;">
-                    <div class="user-avatar-current" style="background: #36B37E; width: 32px; height: 32px;">T</div>
+                    <UserAvatar :user="currentUser" size="md" />
                     <div>
-                      <div style="font-size: 14px; font-weight: 600; color: #172B4D;">Tua20000</div>
+                      <div style="font-size: 14px; font-weight: 600; color: #172B4D;">{{ currentUserName }}</div>
                       <div style="font-size: 12px; color: #5E6C84;">khoảng 12 giờ trước • 1 người đã xem</div>
                     </div>
                  </div>
@@ -221,7 +200,7 @@
                   <span style="font-size: 12px; color: #5E6C84;">Đã thay đổi trạng thái</span>
                   <div style="display: flex; align-items: center; gap: 8px;">
                      <span class="status-badge" style="font-size: 10px; background: #DFE1E6; color: #42526E;">ĐANG CHỜ XỬ LÝ</span>
-                     <i class="fa-solid fa-arrow-right" style="font-size: 10px; color: #5E6C84;"></i>
+                     <ArrowRight class="w-4 h-4" style="font-size: 10px; color: #5E6C84;"></ArrowRight>
                      <span class="status-badge" style="font-size: 10px; background: #EAE6FF; color: #403294;">ĐÃ HOÀN TẤT</span>
                   </div>
                </div>
@@ -233,12 +212,12 @@
                  <div style="display: flex; gap: 4px;">
                    <span style="background: #FFF0B3; padding: 2px 6px; border-radius: 12px; cursor: pointer;">👍 1</span>
                    <span style="background: #FFEBE6; padding: 2px 6px; border-radius: 12px; cursor: pointer;">❤️ 1</span>
-                   <span style="background: #FAFBFC; border: 1px solid #DFE1E6; padding: 2px 6px; border-radius: 12px; cursor: pointer;"><i class="fa-regular fa-face-smile"></i></span>
+                   <span style="background: #FAFBFC; border: 1px solid #DFE1E6; padding: 2px 6px; border-radius: 12px; cursor: pointer;"><Smile class="w-4 h-4"></Smile></span>
                  </div>
                </div>
                
                <div style="display: flex; align-items: center; gap: 12px;">
-                 <div class="user-avatar-current" style="background: #36B37E; width: 24px; height: 24px; font-size: 10px;">T</div>
+                 <UserAvatar :user="currentUser" size="sm" />
                  <input type="text" placeholder="Thêm nhận xét... ăn mừng cùng đồng đội của bạn" style="flex: 1; border: none; background: #FAFBFC; padding: 8px 12px; border-radius: 3px; font-size: 13px; outline: none;" />
                </div>
              </div>
@@ -250,9 +229,9 @@
           <div style="border: 1px solid #DFE1E6; border-radius: 3px; padding: 32px; background: white; margin-top: 16px;">
             <div style="display: flex; gap: 24px; max-width: 600px; margin: 0 auto; position: relative;">
                <div style="width: 64px; height: 64px; background: #0052CC; color: white; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 32px; position: relative; flex-shrink: 0;">
-                  <i class="fa-solid fa-layer-group"></i>
+                  <Layers class="w-4 h-4"></Layers>
                   <div style="position: absolute; bottom: -8px; right: -8px; width: 24px; height: 24px; background: #0052CC; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; border: 2px solid white;">
-                     <i class="fa-solid fa-plus"></i>
+                     <Plus class="w-4 h-4"></Plus>
                   </div>
                </div>
                <div>
@@ -280,9 +259,9 @@
           <div style="border: 1px solid #DFE1E6; border-radius: 3px; padding: 32px; background: white; margin-top: 16px;">
             <div style="display: flex; gap: 24px; max-width: 600px; margin: 0 auto; position: relative;">
                <div style="width: 64px; height: 64px; background: #EBECF0; color: #172B4D; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 32px; position: relative; flex-shrink: 0;">
-                  <i class="fa-solid fa-rocket"></i>
+                  <Rocket class="w-4 h-4"></Rocket>
                   <div style="position: absolute; bottom: -8px; right: -8px; width: 24px; height: 24px; background: #0052CC; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; border: 2px solid white;">
-                     <i class="fa-solid fa-plus"></i>
+                     <Plus class="w-4 h-4"></Plus>
                   </div>
                </div>
                <div>
@@ -298,7 +277,7 @@
                       </div>
                       <div style="max-height: 200px; overflow-y: auto;">
                         <div v-for="proj in ['uqe', 'e', 'ueq', 'rWÉ']" :key="proj" style="padding: 8px 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 14px; color: #172B4D;" onmouseover="this.style.background='#FAFBFC'" onmouseout="this.style.background='transparent'">
-                           <div style="width: 16px; height: 16px; background: #FFAB00; border-radius: 3px; font-size: 10px; display: flex; align-items: center; justify-content: center;"><i class="fa-solid fa-rocket" style="color: white;"></i></div>
+                           <div style="width: 16px; height: 16px; background: #FFAB00; border-radius: 3px; font-size: 10px; display: flex; align-items: center; justify-content: center;"><Rocket class="w-4 h-4" style="color: white;"></Rocket></div>
                            {{ proj }}
                         </div>
                       </div>
@@ -340,28 +319,28 @@
              <!-- Rich Text Editor Toolbar Mockup -->
              <div style="display: flex; gap: 8px; padding: 8px 16px; border-bottom: 1px solid #DFE1E6; background: white; flex-wrap: wrap; align-items: center;">
                 <div style="display: flex; align-items: center; gap: 4px; padding: 4px 8px; cursor: pointer; color: #5E6C84; border-radius: 3px;" onmouseover="this.style.background='#FAFBFC'" onmouseout="this.style.background='transparent'">
-                  <span style="font-size: 13px;">Normal text</span> <i class="fa-solid fa-chevron-down" style="font-size: 10px;"></i>
+                  <span style="font-size: 13px;">Normal text</span> <ChevronDown class="w-4 h-4" style="font-size: 10px;"></ChevronDown>
                 </div>
                 <div style="width: 1px; height: 16px; background: #DFE1E6;"></div>
                 <i class="fa-solid fa-bold toolbar-icon"></i>
                 <i class="fa-solid fa-italic toolbar-icon"></i>
-                <i class="fa-solid fa-ellipsis toolbar-icon"></i>
+                <MoreHorizontal class="w-4 h-4 toolbar-icon"></MoreHorizontal>
                 <div style="width: 1px; height: 16px; background: #DFE1E6;"></div>
                 <div style="display: flex; flex-direction: column; align-items: center; cursor: pointer; padding: 4px; border-radius: 3px;" onmouseover="this.style.background='#FAFBFC'" onmouseout="this.style.background='transparent'">
                    <i class="fa-solid fa-font" style="font-size: 14px; color: #5E6C84;"></i>
                    <div style="width: 12px; height: 3px; background: #FF5630; margin-top: 2px;"></div>
                 </div>
-                <i class="fa-solid fa-chevron-down toolbar-icon" style="font-size: 10px; margin-left: -4px;"></i>
+                <ChevronDown class="w-4 h-4 toolbar-icon" style="font-size: 10px; margin-left: -4px;"></ChevronDown>
                 <div style="width: 1px; height: 16px; background: #DFE1E6;"></div>
-                <i class="fa-solid fa-list-ul toolbar-icon"></i>
+                <List class="w-4 h-4 toolbar-icon"></List>
                 <i class="fa-solid fa-list-ol toolbar-icon"></i>
-                <i class="fa-regular fa-square-check toolbar-icon"></i>
+                <CheckSquare class="w-4 h-4 toolbar-icon"></CheckSquare>
                 <div style="width: 1px; height: 16px; background: #DFE1E6;"></div>
                 <i class="fa-solid fa-link toolbar-icon"></i>
                 <i class="fa-solid fa-at toolbar-icon"></i>
-                <i class="fa-regular fa-face-smile toolbar-icon"></i>
+                <Smile class="w-4 h-4 toolbar-icon"></Smile>
                 <div style="width: 1px; height: 16px; background: #DFE1E6;"></div>
-                <i class="fa-solid fa-table-cells toolbar-icon"></i>
+                <Grid class="w-4 h-4 toolbar-icon"></Grid>
                 <div style="position: relative;">
                   <i class="fa-solid fa-columns toolbar-icon" @click="isLayoutMenuOpen = !isLayoutMenuOpen"></i>
                   <!-- Layout Float Menu Mock -->
@@ -375,8 +354,8 @@
                   </div>
                 </div>
                 <div style="width: 1px; height: 16px; background: #DFE1E6;"></div>
-                <i class="fa-solid fa-plus toolbar-icon"></i>
-                <i class="fa-solid fa-chevron-down toolbar-icon" style="font-size: 10px; margin-left: -4px;"></i>
+                <Plus class="w-4 h-4 toolbar-icon"></Plus>
+                <ChevronDown class="w-4 h-4 toolbar-icon" style="font-size: 10px; margin-left: -4px;"></ChevronDown>
              </div>
              
              <!-- Editor Area -->
@@ -447,28 +426,28 @@
              <!-- Rich Text Editor Toolbar Mockup -->
              <div style="display: flex; gap: 8px; padding: 8px 16px; border-bottom: 1px solid #DFE1E6; background: white; flex-wrap: wrap; align-items: center;">
                 <div style="display: flex; align-items: center; gap: 4px; padding: 4px 8px; cursor: pointer; color: #5E6C84; border-radius: 3px;" onmouseover="this.style.background='#FAFBFC'" onmouseout="this.style.background='transparent'">
-                  <span style="font-size: 13px;">Normal text</span> <i class="fa-solid fa-chevron-down" style="font-size: 10px;"></i>
+                  <span style="font-size: 13px;">Normal text</span> <ChevronDown class="w-4 h-4" style="font-size: 10px;"></ChevronDown>
                 </div>
                 <div style="width: 1px; height: 16px; background: #DFE1E6;"></div>
                 <i class="fa-solid fa-bold toolbar-icon"></i>
                 <i class="fa-solid fa-italic toolbar-icon"></i>
-                <i class="fa-solid fa-ellipsis toolbar-icon"></i>
+                <MoreHorizontal class="w-4 h-4 toolbar-icon"></MoreHorizontal>
                 <div style="width: 1px; height: 16px; background: #DFE1E6;"></div>
                 <div style="display: flex; flex-direction: column; align-items: center; cursor: pointer; padding: 4px; border-radius: 3px;" onmouseover="this.style.background='#FAFBFC'" onmouseout="this.style.background='transparent'">
                    <i class="fa-solid fa-font" style="font-size: 14px; color: #5E6C84;"></i>
                    <div style="width: 12px; height: 3px; background: #FF5630; margin-top: 2px;"></div>
                 </div>
-                <i class="fa-solid fa-chevron-down toolbar-icon" style="font-size: 10px; margin-left: -4px;"></i>
+                <ChevronDown class="w-4 h-4 toolbar-icon" style="font-size: 10px; margin-left: -4px;"></ChevronDown>
                 <div style="width: 1px; height: 16px; background: #DFE1E6;"></div>
-                <i class="fa-solid fa-list-ul toolbar-icon"></i>
+                <List class="w-4 h-4 toolbar-icon"></List>
                 <i class="fa-solid fa-list-ol toolbar-icon"></i>
-                <i class="fa-regular fa-square-check toolbar-icon"></i>
+                <CheckSquare class="w-4 h-4 toolbar-icon"></CheckSquare>
                 <div style="width: 1px; height: 16px; background: #DFE1E6;"></div>
                 <i class="fa-solid fa-link toolbar-icon"></i>
                 <i class="fa-solid fa-at toolbar-icon"></i>
-                <i class="fa-regular fa-face-smile toolbar-icon"></i>
+                <Smile class="w-4 h-4 toolbar-icon"></Smile>
                 <div style="width: 1px; height: 16px; background: #DFE1E6;"></div>
-                <i class="fa-solid fa-table-cells toolbar-icon"></i>
+                <Grid class="w-4 h-4 toolbar-icon"></Grid>
                 <div style="position: relative;">
                   <i class="fa-solid fa-columns toolbar-icon" @click="isLayoutMenuOpenRisk = !isLayoutMenuOpenRisk"></i>
                   <div v-if="isLayoutMenuOpenRisk" style="position: absolute; top: 100%; left: 0; background: white; border: 1px solid #DFE1E6; border-radius: 3px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); display: flex; gap: 8px; padding: 8px; z-index: 100;">
@@ -481,8 +460,8 @@
                   </div>
                 </div>
                 <div style="width: 1px; height: 16px; background: #DFE1E6;"></div>
-                <i class="fa-solid fa-plus toolbar-icon"></i>
-                <i class="fa-solid fa-chevron-down toolbar-icon" style="font-size: 10px; margin-left: -4px;"></i>
+                <Plus class="w-4 h-4 toolbar-icon"></Plus>
+                <ChevronDown class="w-4 h-4 toolbar-icon" style="font-size: 10px; margin-left: -4px;"></ChevronDown>
              </div>
              
              <!-- Editor Area -->
@@ -502,7 +481,7 @@
         <template v-if="currentTab === 'decisions'">
           <div v-if="!isEditingDecision" style="border: 1px solid #DFE1E6; border-radius: 3px; padding: 40px; background: white; margin-top: 16px; display: flex; align-items: center; justify-content: center; gap: 32px;">
              <div style="position: relative; width: 64px; height: 64px; display: flex; justify-content: center; align-items: center;">
-               <i class="fa-solid fa-code-branch fa-rotate-270" style="font-size: 40px; color: #36B37E;"></i>
+               <GitBranch class="w-4 h-4" style="font-size: 40px; color: #36B37E;"></GitBranch>
                <div style="position: absolute; top: 12px; left: 16px; width: 12px; height: 12px; background: #0052CC; transform: rotate(45deg);"></div>
                <div style="position: absolute; bottom: 12px; left: 16px; width: 12px; height: 12px; background: #6554C0; transform: rotate(45deg);"></div>
              </div>
@@ -517,35 +496,35 @@
 
           <div v-else style="border: 1px solid #4C9AFF; border-radius: 3px; background: white; margin-top: 16px; overflow: hidden; box-shadow: 0 0 0 1px #4C9AFF;">
              <div style="padding: 16px 24px; border-bottom: 1px solid #DFE1E6; display: flex; align-items: center; gap: 12px;">
-                <i class="fa-solid fa-code-branch fa-rotate-270" style="color: #36B37E; font-size: 18px;"></i>
+                <GitBranch class="w-4 h-4" style="color: #36B37E; font-size: 18px;"></GitBranch>
                 <input type="text" placeholder="Tóm tắt cho quyết định của bạn là gì?" style="border: none; outline: none; font-size: 16px; color: #172B4D; width: 100%;" />
              </div>
              
              <!-- Rich Text Editor Toolbar Mockup -->
              <div style="display: flex; gap: 8px; padding: 8px 16px; border-bottom: 1px solid #DFE1E6; background: white; flex-wrap: wrap; align-items: center;">
                 <div style="display: flex; align-items: center; gap: 4px; padding: 4px 8px; cursor: pointer; color: #5E6C84; border-radius: 3px;" onmouseover="this.style.background='#FAFBFC'" onmouseout="this.style.background='transparent'">
-                  <span style="font-size: 13px;">Normal text</span> <i class="fa-solid fa-chevron-down" style="font-size: 10px;"></i>
+                  <span style="font-size: 13px;">Normal text</span> <ChevronDown class="w-4 h-4" style="font-size: 10px;"></ChevronDown>
                 </div>
                 <div style="width: 1px; height: 16px; background: #DFE1E6;"></div>
                 <i class="fa-solid fa-bold toolbar-icon"></i>
                 <i class="fa-solid fa-italic toolbar-icon"></i>
-                <i class="fa-solid fa-ellipsis toolbar-icon"></i>
+                <MoreHorizontal class="w-4 h-4 toolbar-icon"></MoreHorizontal>
                 <div style="width: 1px; height: 16px; background: #DFE1E6;"></div>
                 <div style="display: flex; flex-direction: column; align-items: center; cursor: pointer; padding: 4px; border-radius: 3px;" onmouseover="this.style.background='#FAFBFC'" onmouseout="this.style.background='transparent'">
                    <i class="fa-solid fa-font" style="font-size: 14px; color: #5E6C84;"></i>
                    <div style="width: 12px; height: 3px; background: #FF5630; margin-top: 2px;"></div>
                 </div>
-                <i class="fa-solid fa-chevron-down toolbar-icon" style="font-size: 10px; margin-left: -4px;"></i>
+                <ChevronDown class="w-4 h-4 toolbar-icon" style="font-size: 10px; margin-left: -4px;"></ChevronDown>
                 <div style="width: 1px; height: 16px; background: #DFE1E6;"></div>
-                <i class="fa-solid fa-list-ul toolbar-icon"></i>
+                <List class="w-4 h-4 toolbar-icon"></List>
                 <i class="fa-solid fa-list-ol toolbar-icon"></i>
-                <i class="fa-regular fa-square-check toolbar-icon"></i>
+                <CheckSquare class="w-4 h-4 toolbar-icon"></CheckSquare>
                 <div style="width: 1px; height: 16px; background: #DFE1E6;"></div>
                 <i class="fa-solid fa-link toolbar-icon"></i>
                 <i class="fa-solid fa-at toolbar-icon"></i>
-                <i class="fa-regular fa-face-smile toolbar-icon"></i>
+                <Smile class="w-4 h-4 toolbar-icon"></Smile>
                 <div style="width: 1px; height: 16px; background: #DFE1E6;"></div>
-                <i class="fa-solid fa-table-cells toolbar-icon"></i>
+                <Grid class="w-4 h-4 toolbar-icon"></Grid>
                 <div style="position: relative;">
                   <i class="fa-solid fa-columns toolbar-icon" @click="isLayoutMenuOpenDecision = !isLayoutMenuOpenDecision"></i>
                   <div v-if="isLayoutMenuOpenDecision" style="position: absolute; top: 100%; left: 0; background: white; border: 1px solid #DFE1E6; border-radius: 3px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); display: flex; gap: 8px; padding: 8px; z-index: 100;">
@@ -558,8 +537,8 @@
                   </div>
                 </div>
                 <div style="width: 1px; height: 16px; background: #DFE1E6;"></div>
-                <i class="fa-solid fa-plus toolbar-icon"></i>
-                <i class="fa-solid fa-chevron-down toolbar-icon" style="font-size: 10px; margin-left: -4px;"></i>
+                <Plus class="w-4 h-4 toolbar-icon"></Plus>
+                <ChevronDown class="w-4 h-4 toolbar-icon" style="font-size: 10px; margin-left: -4px;"></ChevronDown>
              </div>
              
              <!-- Editor Area -->
@@ -592,29 +571,21 @@
               </div>
             </div>
 
-            <!-- Key results -->
-            <div class="detail-row">
-              <div class="detail-label">Key results <span class="badge-count">0</span></div>
-              <div class="detail-value progress-value">
-                <div class="progress-bar-bg"><div class="progress-bar-fill" style="width: 0%"></div></div>
-                <span>0%</span>
-              </div>
-            </div>
 
             <!-- Chủ sở hữu -->
             <div class="detail-row">
               <div class="detail-label">Chủ sở hữu</div>
               <div class="detail-value">
                 <div class="owner-chip">
-                  <div class="owner-avatar-micro">{{ goal.creatorName ? goal.creatorName.substring(0,1) : (goal.owner ? goal.owner.substring(0,1) : 'U') }}</div>
-                  <span>{{ goal.creatorName || goal.owner || 'Chưa có' }}</span>
+                  <UserAvatar :user="goal.owner || currentUser" size="sm" />
+                  <span>{{ goal.owner?.fullName || goal.owner?.email || currentUserName || 'Chưa có' }}</span>
                 </div>
               </div>
             </div>
 
             <!-- Người theo dõi -->
             <div class="detail-row">
-              <div class="detail-label">Người theo dõi <button class="icon-btn-micro" @click="isShareModalOpen = true"><i class="fa-solid fa-plus"></i></button></div>
+              <div class="detail-label">Người theo dõi <button class="icon-btn-micro" @click="isShareModalOpen = true"><Plus class="w-4 h-4"></Plus></button></div>
               <div class="detail-value flex-between">
                 <span class="empty-value" style="cursor: pointer;" @click="isShareModalOpen = true">Thêm người theo dõi</span>
                 <div class="follower-icons">
@@ -626,13 +597,13 @@
 
             <!-- Mục tiêu chính -->
             <div class="detail-row relative-popover-container">
-              <div class="detail-label">Mục tiêu chính <button class="icon-btn-micro" v-if="!linkedParentGoal" @click.stop="togglePopover('parentGoal')"><i class="fa-solid fa-plus"></i></button></div>
+              <div class="detail-label">Mục tiêu chính <button class="icon-btn-micro" v-if="!linkedParentGoal" @click.stop="togglePopover('parentGoal')"><Plus class="w-4 h-4"></Plus></button></div>
               
               <div class="detail-value" v-if="linkedParentGoal">
                 <div class="linked-item">
-                  <i class="fa-solid fa-bullseye item-icon"></i>
+                  <Target class="w-4 h-4 item-icon"></Target>
                   <span class="item-name">{{ linkedParentGoal.name }}</span>
-                  <button class="remove-btn" @click="linkedParentGoal = null"><i class="fa-solid fa-xmark"></i></button>
+                  <button class="remove-btn" @click="linkedParentGoal = null"><X class="w-4 h-4"></X></button>
                 </div>
               </div>
 
@@ -642,7 +613,7 @@
                 <div class="popover-list-title">Kết quả</div>
                 <div class="popover-list">
                   <div class="popover-item" v-for="g in mockGoalsList" :key="g.id" @click="setParentGoal(g)">
-                    <i class="fa-solid fa-bullseye item-icon-muted"></i>
+                    <Target class="w-4 h-4 item-icon-muted"></Target>
                     <div class="item-details">
                       <div class="item-name">{{ g.name }}</div>
                       <div class="item-meta">{{ g.owner }}</div>
@@ -650,20 +621,20 @@
                   </div>
                 </div>
                 <div style="padding: 12px 12px 0; border-top: 1px solid #DFE1E6; margin-top: 8px;">
-                  <span style="font-size: 14px; color: #172B4D; cursor: pointer; display: flex; align-items: center; gap: 8px;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'"><i class="fa-solid fa-plus"></i> Tạo mục tiêu</span>
+                  <span style="font-size: 14px; color: #172B4D; cursor: pointer; display: flex; align-items: center; gap: 8px;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'"><Plus class="w-4 h-4"></Plus> Tạo mục tiêu</span>
                 </div>
               </div>
             </div>
 
             <!-- Mục tiêu phụ -->
             <div class="detail-row relative-popover-container">
-              <div class="detail-label">Mục tiêu phụ <button class="icon-btn-micro" @click.stop="togglePopover('subGoals')"><i class="fa-solid fa-plus"></i></button></div>
+              <div class="detail-label">Mục tiêu phụ <button class="icon-btn-micro" @click.stop="togglePopover('subGoals')"><Plus class="w-4 h-4"></Plus></button></div>
               
               <div class="detail-value" v-if="linkedSubGoals.length > 0">
                 <div class="linked-item" v-for="g in linkedSubGoals" :key="g.id">
-                  <i class="fa-solid fa-bullseye item-icon"></i>
+                  <Target class="w-4 h-4 item-icon"></Target>
                   <span class="item-name">{{ g.name }}</span>
-                  <button class="remove-btn" @click="removeSubGoal(g.id)"><i class="fa-solid fa-xmark"></i></button>
+                  <button class="remove-btn" @click="removeSubGoal(g.id)"><X class="w-4 h-4"></X></button>
                 </div>
               </div>
 
@@ -673,7 +644,7 @@
                 <div class="popover-list-title">Kết quả</div>
                 <div class="popover-list">
                   <div class="popover-item" v-for="g in mockGoalsList" :key="g.id" @click="addSubGoal(g)">
-                    <i class="fa-solid fa-bullseye item-icon-muted"></i>
+                    <Target class="w-4 h-4 item-icon-muted"></Target>
                     <div class="item-details">
                       <div class="item-name">{{ g.name }}</div>
                       <div class="item-meta">{{ g.owner }}</div>
@@ -687,33 +658,33 @@
             <div class="detail-row">
               <div class="detail-label">Loại</div>
               <div class="detail-value" style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: #172B4D;">
-                <i class="fa-solid fa-bullseye"></i> Mục tiêu
+                <Target class="w-4 h-4"></Target> Mục tiêu
               </div>
             </div>
 
             <!-- Nhóm -->
             <div class="detail-row relative-popover-container">
-              <div class="detail-label">Nhóm <button class="icon-btn-micro" @click.stop="togglePopover('teams')"><i class="fa-solid fa-plus"></i></button></div>
+              <div class="detail-label">Nhóm <button class="icon-btn-micro" @click.stop="togglePopover('teams')"><Plus class="w-4 h-4"></Plus></button></div>
               
               <div class="detail-value" v-if="linkedTeams.length > 0">
                 <div class="linked-item team-item-chip" v-for="t in linkedTeams" :key="t.id">
-                  <div class="team-icon" :style="{ backgroundColor: t.color }"><i class="fa-solid fa-users"></i></div>
-                  <span class="item-name">{{ t.name }} <i class="fa-solid fa-circle-check text-blue" style="font-size: 12px;" v-if="t.verified"></i></span>
-                  <button class="remove-btn" @click="removeTeam(t.id)"><i class="fa-solid fa-xmark"></i></button>
+                  <div class="team-icon" :style="{ backgroundColor: t.color }"><User class="w-4 h-4"></User></div>
+                  <span class="item-name">{{ t.name }} <CheckCircle2 class="w-4 h-4 text-blue" style="font-size: 12px;" v-if="t.verified"></CheckCircle2></span>
+                  <button class="remove-btn" @click="removeTeam(t.id)"><X class="w-4 h-4"></X></button>
                 </div>
               </div>
 
               <!-- Teams Popover -->
               <div class="custom-popover popover-large" v-if="popovers.teams" @click.stop style="width: 320px;">
                 <div class="search-input-with-icon">
-                  <i class="fa-solid fa-user-group icon-left"></i>
+                  <User class="w-4 h-4 icon-left"></User>
                   <input type="text" class="popover-search with-icon" placeholder="Tìm kiếm đội ngũ" v-model="searchQueries.teams" />
                 </div>
                 <div class="popover-list mt-2" style="max-height: 250px; overflow-y: auto;">
                   <div class="popover-item team-select-item" v-for="t in mockTeamsList" :key="t.id" @click="addTeam(t)">
-                    <div class="team-icon-large" :style="{ backgroundColor: t.color }"><i class="fa-solid fa-users"></i></div>
+                    <div class="team-icon-large" :style="{ backgroundColor: t.color }"><User class="w-4 h-4"></User></div>
                     <div class="item-details">
-                      <div class="item-name" style="font-weight: 500;">{{ t.name }} <i class="fa-solid fa-circle-check text-blue" style="font-size: 12px;" v-if="t.verified"></i></div>
+                      <div class="item-name" style="font-weight: 500;">{{ t.name }} <CheckCircle2 class="w-4 h-4 text-blue" style="font-size: 12px;" v-if="t.verified"></CheckCircle2></div>
                       <div class="item-meta">Đội ngũ chính thức • {{ t.members }} thành viên, kể cả bạn</div>
                     </div>
                   </div>
@@ -723,7 +694,7 @@
 
             <!-- Ngày bắt đầu -->
             <div class="detail-row relative-popover-container">
-              <div class="detail-label">Ngày bắt đầu <button class="icon-btn-micro" @click.stop="togglePopover('startDate')"><i class="fa-solid fa-plus"></i></button></div>
+              <div class="detail-label">Ngày bắt đầu <button class="icon-btn-micro" @click.stop="togglePopover('startDate')"><Plus class="w-4 h-4"></Plus></button></div>
               <div class="detail-value" v-if="startDate"><span class="item-name">{{ formattedStartDate }}</span></div>
 
               <!-- Start Date Popover -->
@@ -732,7 +703,7 @@
                   <h4 style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600; color: #172B4D;">Ngày bắt đầu</h4>
                   <div class="date-input-mock">
                     <input type="text" placeholder="Nhập ngày bắt đầu" v-model="formattedStartDate" readonly />
-                    <i class="fa-regular fa-calendar"></i>
+                    <Calendar class="w-4 h-4"></Calendar>
                   </div>
                 </div>
                 <div style="padding: 16px;">
@@ -775,15 +746,21 @@
 </template>
 
 <script setup>
+import { Target, Eye, Star, MoreHorizontal, Plus, LineChart, ChevronDown, Calendar, Smile, ArrowRight, Layers, Rocket, List, CheckSquare, Grid, GitBranch, X, User, CheckCircle2 } from 'lucide-vue-next';
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { getStoredUser } from '@/utils/permissions'
 import { useGoalStore } from '@/store/useGoalStore'
+import { usePeopleStore } from '@/store/usePeopleStore'
+import { getInitials } from '@/utils/avatarUtils'
 import RichTextEditor from '@/components/common/RichTextEditor.vue'
 import ShareModal from '@/components/common/ShareModal.vue'
+import UserAvatar from '@/components/common/UserAvatar.vue'
 
 const route = useRoute()
 const router = useRouter()
 const goalStore = useGoalStore()
+const peopleStore = usePeopleStore()
 
 const showUpdateForm = ref(false)
 const isUpdateStatusOpen = ref(false)
@@ -809,6 +786,25 @@ const updates = computed(() => goalStore.updates || [])
 
 // Mocks for subgoals
 const subGoals = ref([])
+
+const siteUsers = computed(() => peopleStore.users || [])
+
+const currentUser = computed(() => {
+  try {
+    const localUser = getStoredUser() || {}
+    const fullUser = siteUsers.value.find(u => u.id === localUser.id)
+    return fullUser || localUser
+  } catch {
+    return {}
+  }
+})
+
+const currentUserName = computed(() => {
+  const u = currentUser.value
+  return u.fullName || u.username || u.email || 'Người dùng'
+})
+
+const currentUserInitials = computed(() => getInitials(currentUserName.value))
 
 const isShareModalOpen = ref(false)
 

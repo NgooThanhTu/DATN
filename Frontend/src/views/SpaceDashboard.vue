@@ -8,34 +8,36 @@
         </div>
       </header>
       
-      <div v-if="loading" class="text-center py-12 text-[var(--color-text-muted)]">
-        <i class="fa-solid fa-spinner fa-spin text-2xl"></i>
+      <div v-if="loading" class="dashboard-grid">
+        <SprintaSkeleton height="88px" rounded="md" v-for="i in 4" :key="i" />
+        <SprintaSkeleton class="col-span-2" height="200px" rounded="md" />
+        <SprintaSkeleton class="col-span-2" height="200px" rounded="md" />
       </div>
 
       <div v-else class="dashboard-grid">
         <div class="stat-card">
-          <div class="stat-icon bg-blue-500/10 text-blue-500"><i class="fa-solid fa-list-check"></i></div>
+          <div class="stat-icon bg-blue-500/10 text-blue-500"><ListTodo class="w-5 h-5" /></div>
           <div class="stat-info">
             <span class="stat-value">12</span>
             <span class="stat-label">Open Tasks</span>
           </div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon bg-green-500/10 text-green-500"><i class="fa-solid fa-check-double"></i></div>
+          <div class="stat-icon bg-green-500/10 text-green-500"><CheckCircle2 class="w-5 h-5" /></div>
           <div class="stat-info">
             <span class="stat-value">45</span>
             <span class="stat-label">Completed</span>
           </div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon bg-yellow-500/10 text-yellow-500"><i class="fa-solid fa-clock-rotate-left"></i></div>
+          <div class="stat-icon bg-yellow-500/10 text-yellow-500"><Clock class="w-5 h-5" /></div>
           <div class="stat-info">
             <span class="stat-value">3</span>
             <span class="stat-label">In Progress</span>
           </div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon bg-red-500/10 text-red-500"><i class="fa-solid fa-triangle-exclamation"></i></div>
+          <div class="stat-icon bg-red-500/10 text-red-500"><AlertTriangle class="w-5 h-5" /></div>
           <div class="stat-info">
             <span class="stat-value">2</span>
             <span class="stat-label">Blocked</span>
@@ -43,21 +45,23 @@
         </div>
         
         <div class="dashboard-panel col-span-2">
-          <h3 class="font-semibold text-lg mb-4">Recent Tasks</h3>
-          <div class="empty-state">
-            <i class="fa-solid fa-inbox text-3xl mb-3 text-[var(--color-text-muted)]"></i>
-            <h4 class="text-[var(--color-text-primary)] font-medium">No recent tasks</h4>
-            <p class="text-[var(--color-text-secondary)] text-sm mt-1">Get started by creating a new task in your board or backlog.</p>
-          </div>
+          <h3 class="font-semibold text-lg mb-4 text-[var(--color-text-primary)]">Recent Tasks</h3>
+          <SprintaEmptyState
+            icon="Inbox"
+            title="No recent tasks"
+            description="Get started by creating a new task in your board or backlog."
+            class="h-[180px]"
+          />
         </div>
 
         <div class="dashboard-panel col-span-2">
-          <h3 class="font-semibold text-lg mb-4">Team Workload</h3>
-          <div class="empty-state">
-            <i class="fa-solid fa-users text-3xl mb-3 text-[var(--color-text-muted)]"></i>
-            <h4 class="text-[var(--color-text-primary)] font-medium">Workload distribution</h4>
-            <p class="text-[var(--color-text-secondary)] text-sm mt-1">Assign tasks to your team members to see their workload here.</p>
-          </div>
+          <h3 class="font-semibold text-lg mb-4 text-[var(--color-text-primary)]">Team Workload</h3>
+          <SprintaEmptyState
+            icon="Users"
+            title="Workload distribution"
+            description="Assign tasks to your team members to see their workload here."
+            class="h-[180px]"
+          />
         </div>
       </div>
     </div>
@@ -67,6 +71,9 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import NexusLayout from '@/components/layout/NexusLayout.vue'
+import SprintaSkeleton from '@/components/ui/SprintaSkeleton.vue'
+import SprintaEmptyState from '@/components/ui/SprintaEmptyState.vue'
+import { ListTodo, CheckCircle2, Clock, AlertTriangle } from 'lucide-vue-next'
 
 const loading = ref(false)
 
@@ -88,22 +95,22 @@ onMounted(() => {
   grid-column: span 2;
 }
 .stat-card {
-  background: var(--color-bg);
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 20px;
   display: flex;
   align-items: center;
   gap: 16px;
+  box-shadow: var(--shadow-sm);
 }
 .stat-icon {
   width: 48px;
   height: 48px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
 }
 .stat-info {
   display: flex;
@@ -113,16 +120,18 @@ onMounted(() => {
   font-size: 24px;
   font-weight: 700;
   line-height: 1.2;
+  color: var(--color-text-primary);
 }
 .stat-label {
   font-size: 13px;
   color: var(--color-text-muted);
 }
 .dashboard-panel {
-  background: var(--color-bg);
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: 8px;
-  padding: 20px;
+  border-radius: var(--radius-md);
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
 }
 @media (max-width: 1024px) {
   .dashboard-grid {
@@ -136,12 +145,5 @@ onMounted(() => {
   .col-span-2 {
     grid-column: span 1;
   }
-}
-.empty-state {
-  text-align: center;
-  background: var(--color-surface);
-  border: 1px dashed var(--color-border);
-  border-radius: 8px;
-  padding: 32px;
 }
 </style>

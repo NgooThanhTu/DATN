@@ -30,7 +30,7 @@
             </div>
             <div class="empty-banner-illustration">
               <div class="mock-illustration">
-                <i class="fa-solid fa-bullseye"></i>
+                <Target class="w-4 h-4"></Target>
               </div>
             </div>
           </div>
@@ -41,14 +41,14 @@
       <div v-else class="tab-all-archived">
         <div class="list-controls">
           <div class="search-box-wrapper">
-            <i class="fa-solid fa-magnifying-glass search-icon"></i>
+            <Search class="w-4 h-4 search-icon"></Search>
             <input type="text" v-model="searchQuery" placeholder="Tìm kiếm" class="search-input" />
           </div>
           <div class="filter-actions">
-            <button class="filter-btn" v-if="currentTab === 'following'" style="background-color: #E6FCFF; color: #0052CC; border: 1px solid #4C9AFF;">Đang theo dõi <i class="fa-solid fa-xmark"></i></button>
-            <button class="filter-btn">Trạng thái <i class="fa-solid fa-chevron-down"></i></button>
-            <button class="filter-btn">Chủ sở hữu <i class="fa-solid fa-chevron-down"></i></button>
-            <button class="filter-btn">Nhãn <i class="fa-solid fa-chevron-down"></i></button>
+            <button class="filter-btn" v-if="currentTab === 'following'" style="background-color: #E6FCFF; color: #0052CC; border: 1px solid #4C9AFF;">Đang theo dõi <X class="w-4 h-4"></X></button>
+            <button class="filter-btn">Trạng thái <ChevronDown class="w-4 h-4"></ChevronDown></button>
+            <button class="filter-btn">Chủ sở hữu <ChevronDown class="w-4 h-4"></ChevronDown></button>
+            <button class="filter-btn">Nhãn <ChevronDown class="w-4 h-4"></ChevronDown></button>
           </div>
         </div>
 
@@ -68,7 +68,7 @@
               <tr v-for="goal in filteredGoals" :key="goal.id" @click="goToGoal(goal.id)">
                 <td>
                   <div class="goal-title-cell">
-                    <span class="goal-icon"><i class="fa-solid fa-bullseye"></i></span>
+                    <span class="goal-icon"><Target class="w-4 h-4"></Target></span>
                     <span class="goal-title">{{ goal.title }}</span>
                   </div>
                 </td>
@@ -95,8 +95,8 @@
                 </td>
                 <td>
                   <div class="owner-cell">
-                    <div class="owner-avatar">{{ goal.owner ? goal.owner.substring(0, 1).toUpperCase() : 'U' }}</div>
-                    <span class="owner-name">{{ goal.owner || 'Chưa gán' }}</span>
+                    <UserAvatar :user="goal.owner" size="sm" />
+                    <span class="owner-name">{{ goal.owner?.fullName || goal.owner?.email || 'Chưa gán' }}</span>
                   </div>
                 </td>
               </tr>
@@ -105,7 +105,7 @@
           
           <div class="empty-state" v-else>
             <div class="empty-icon-wrapper">
-              <i class="fa-solid fa-bullseye"></i>
+              <Target class="w-4 h-4"></Target>
             </div>
             <h3>Không tìm thấy mục tiêu nào</h3>
             <p>Không có mục tiêu nào khớp với bộ lọc của bạn.</p>
@@ -123,7 +123,7 @@
       <div class="modal-content" style="width: 500px; padding: 0;">
         <div class="modal-header" style="border-bottom: none; padding-bottom: 0;">
           <h2 style="display: flex; align-items: center; gap: 8px;">
-             <i class="fa-solid fa-bullseye" style="color: #6B778C;"></i> Tạo mục tiêu
+             <Target class="w-4 h-4" style="color: #6B778C;"></Target> Tạo mục tiêu
           </h2>
         </div>
         <div class="modal-body" style="padding-top: 12px;">
@@ -139,21 +139,21 @@
           
           <div class="form-group">
             <label>Loại <span class="required">*</span></label>
-            <div style="position: relative;">
-               <select v-model="newGoal.type" class="jira-select" style="appearance: none; background: #FAFBFC; padding-left: 32px;">
-                 <option value="Objective">Objective</option>
-                 <option value="Key Result">Key Result</option>
-               </select>
-               <i class="fa-solid fa-bullseye" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #6B778C; font-size: 14px;"></i>
-               <i class="fa-solid fa-chevron-down" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: #6B778C; font-size: 12px; pointer-events: none;"></i>
+            <div style="position: relative; border: 1px solid #DFE1E6; border-radius: 3px; background: #FAFBFC; padding: 8px 12px 8px 36px; color: #172B4D; cursor: not-allowed; opacity: 0.8; display: flex; align-items: center;">
+               <Target class="w-4 h-4" style="position: absolute; left: 10px; color: #6B778C; font-size: 14px;"></Target>
+               <span style="font-size: 14px;">Objective</span>
+               <ChevronDown class="w-4 h-4" style="position: absolute; right: 10px; color: #6B778C; font-size: 12px; pointer-events: none;"></ChevronDown>
             </div>
           </div>
           
           <div class="form-group" style="position: relative;">
-            <label>Ngày mục tiêu</label>
-            <div class="date-input-wrapper" @click="isDateDropdownOpen = !isDateDropdownOpen" style="position: relative; border: 2px solid #DFE1E6; border-radius: 3px; padding: 8px 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: white;">
+            <label>Ngày mục tiêu <span class="required">*</span></label>
+            <div class="date-input-wrapper" @click="isDateDropdownOpen = !isDateDropdownOpen" :class="{'error-input': isDateTouched && !newGoal.date}" style="position: relative; border: 2px solid #DFE1E6; border-radius: 3px; padding: 8px 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: white;">
                <span :style="{ color: newGoal.date ? '#172B4D' : '#6B778C' }">{{ newGoal.date || 'Chọn ngày' }}</span>
-               <i class="fa-regular fa-calendar" style="color: #6B778C;"></i>
+               <Calendar class="w-4 h-4" style="color: #6B778C;"></Calendar>
+            </div>
+            <div v-if="isDateTouched && !newGoal.date" style="color: #DE350B; font-size: 11px; margin-top: 4px; display: flex; align-items: center; gap: 4px;">
+               <i class="fa-solid fa-circle-exclamation"></i> Bạn phải chọn ngày mục tiêu
             </div>
             
             <!-- Custom Date Dropdown -->
@@ -164,9 +164,9 @@
                  <button style="flex: 1; padding: 4px 0 8px; background: none; border: none; font-size: 12px; font-weight: 500; color: #5E6C84; cursor: pointer;">Quý</button>
                </div>
                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                 <i class="fa-solid fa-chevron-left" style="cursor: pointer; color: #6B778C; font-size: 12px;"></i>
+                 <ChevronLeft class="w-4 h-4" style="cursor: pointer; color: #6B778C; font-size: 12px;"></ChevronLeft>
                  <span style="font-weight: 600; font-size: 14px; color: #172B4D;">2026</span>
-                 <i class="fa-solid fa-chevron-right" style="cursor: pointer; color: #6B778C; font-size: 12px;"></i>
+                 <ChevronRight class="w-4 h-4" style="cursor: pointer; color: #6B778C; font-size: 12px;"></ChevronRight>
                </div>
                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;">
                  <div v-for="month in ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']" :key="month" @click="selectDate(month + ' 2026')" style="text-align: center; padding: 8px 0; font-size: 13px; color: #172B4D; cursor: pointer; border-radius: 3px;" :style="{ background: month === 'Jun' ? '#E6FCFF' : 'transparent', color: month === 'Jun' ? '#0052CC' : '#172B4D', fontWeight: month === 'Jun' ? '600' : '400' }" onmouseover="this.style.background='#FAFBFC'" onmouseout="if(this.innerText !== 'Jun') this.style.background='transparent'">
@@ -179,14 +179,14 @@
           <div class="form-group" style="position: relative;">
             <label>Chủ sở hữu <span class="required">*</span></label>
             <div class="owner-input-wrapper" @click="isOwnerDropdownOpen = !isOwnerDropdownOpen" style="position: relative; border: 2px solid #DFE1E6; border-radius: 3px; padding: 6px 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; background: white;">
-               <div class="member-avatar-micro" style="background-color: #36B37E; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px;">{{ newGoal.ownerAvatar }}</div>
-               <span style="font-size: 14px; color: #172B4D;">{{ newGoal.ownerName }}</span>
+               <UserAvatar :user="newGoal.owner" size="sm" />
+               <span style="font-size: 14px; color: #172B4D;">{{ newGoal.owner?.fullName || newGoal.owner?.email || 'Chọn chủ sở hữu' }}</span>
             </div>
             
             <div v-if="isOwnerDropdownOpen" class="dropdown-menu" style="position: absolute; top: 100%; left: 0; margin-top: 4px; background: white; border: 1px solid #DFE1E6; border-radius: 3px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); width: 100%; z-index: 100; max-height: 200px; overflow-y: auto;">
-               <div v-for="user in mockUsers" :key="user.id" @click="selectOwner(user)" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; transition: background 0.1s;" onmouseover="this.style.background='#FAFBFC'" onmouseout="this.style.background='transparent'">
-                  <div class="member-avatar-micro" style="background-color: #0052CC; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px;">{{ user.initials }}</div>
-                  <span style="font-size: 14px; color: #172B4D;">{{ user.name }}</span>
+               <div v-for="user in siteUsers" :key="user.id" @click="selectOwner(user)" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; transition: background 0.1s;" onmouseover="this.style.background='#FAFBFC'" onmouseout="this.style.background='transparent'">
+                  <UserAvatar :user="user" size="sm" />
+                  <span style="font-size: 14px; color: #172B4D;">{{ user.fullName || user.email }}</span>
                </div>
             </div>
           </div>
@@ -201,37 +201,58 @@
 </template>
 
 <script setup>
+import { Target, Search, X, ChevronDown, Calendar, ChevronLeft, ChevronRight } from 'lucide-vue-next';
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { getStoredUser } from '@/utils/permissions'
 import { useGoalStore } from '@/store/useGoalStore'
+import { usePeopleStore } from '@/store/usePeopleStore'
+import UserAvatar from '@/components/common/UserAvatar.vue'
 
 const router = useRouter()
 const goalStore = useGoalStore()
+const peopleStore = usePeopleStore()
 
 const currentTab = ref('all')
 const searchQuery = ref('')
 const isCreateModalOpen = ref(false)
 const isTitleTouched = ref(false)
+const isDateTouched = ref(false)
 const isDateDropdownOpen = ref(false)
 const isOwnerDropdownOpen = ref(false)
 
-const mockUsers = [
-  { id: 'u1', name: 'Tua20000', initials: 'T' },
-  { id: 'u2', name: 'Tuấn Khôi Đinh', initials: 'TK' },
-  { id: 'u3', name: 'ngkiet2805', initials: 'N' }
-]
+const siteUsers = computed(() => {
+  return peopleStore.users || []
+})
+
+const currentUser = computed(() => {
+  try {
+    const localUser = getStoredUser() || {}
+    const fullUser = siteUsers.value.find(u => u.id === localUser.id)
+    return fullUser || localUser
+  } catch {
+    return {}
+  }
+})
+
+const currentUserName = computed(() => {
+  const u = currentUser.value
+  return u.fullName || u.username || u.email || 'Người dùng'
+})
+
+const currentUserInitials = computed(() => getInitials(currentUserName.value))
 
 const newGoal = ref({
   title: '',
   type: 'Objective',
   date: '',
-  ownerName: 'Tua20000',
-  ownerAvatar: 'T',
-  status: 'Đang chờ cập nhật'
+  owner: null,
+  status: 'ĐANG CHỜ XỬ LÝ'
 })
 
 onMounted(async () => {
   await goalStore.fetchGoals()
+  await peopleStore.fetchPeople()
   window.addEventListener('global-create-click', openCreateModal)
 })
 
@@ -260,7 +281,7 @@ const filteredGoals = computed(() => {
     list = list.filter(g => 
       g.title.toLowerCase().includes(q) || 
       (g.status && g.status.toLowerCase().includes(q)) ||
-      (g.owner && g.owner.toLowerCase().includes(q))
+      (g.owner && (g.owner.fullName || g.owner.email) && (g.owner.fullName || g.owner.email).toLowerCase().includes(q))
     )
   }
 
@@ -275,6 +296,7 @@ const getStatusClass = (status) => {
     'trễ tiến độ': 'status-off-track',
     'không đúng tiến độ': 'status-off-track',
     'đang chờ cập nhật': 'status-pending',
+    'đang chờ xử lý': 'status-pending',
     'đã hoàn tất': 'status-done',
     'đã lưu trữ': 'status-archived'
   }
@@ -282,8 +304,15 @@ const getStatusClass = (status) => {
 }
 
 const openCreateModal = () => {
-  newGoal.value = { title: '', type: 'Objective', date: '', ownerName: 'Tua20000', ownerAvatar: 'T', status: 'Đang chờ cập nhật' }
+  newGoal.value = { 
+    title: '', 
+    type: 'Objective', 
+    date: '', 
+    owner: currentUser.value,
+    status: 'ĐANG CHỜ XỬ LÝ' 
+  }
   isTitleTouched.value = false
+  isDateTouched.value = false
   isDateDropdownOpen.value = false
   isOwnerDropdownOpen.value = false
   isCreateModalOpen.value = true
@@ -295,20 +324,20 @@ const selectDate = (d) => {
 }
 
 const selectOwner = (user) => {
-  newGoal.value.ownerName = user.name
-  newGoal.value.ownerAvatar = user.initials
+  newGoal.value.owner = user
   isOwnerDropdownOpen.value = false
 }
 
 const submitCreateGoal = async () => {
   isTitleTouched.value = true
-  if (!newGoal.value.title) return
+  isDateTouched.value = true
+  if (!newGoal.value.title || !newGoal.value.date) return
   
   try {
     await goalStore.createGoal({ 
       title: newGoal.value.title, 
       status: newGoal.value.status,
-      owner: newGoal.value.ownerName,
+      ownerId: newGoal.value.owner?.id,
       type: newGoal.value.type,
       date: newGoal.value.date
     })

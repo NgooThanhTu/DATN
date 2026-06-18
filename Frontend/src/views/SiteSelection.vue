@@ -13,10 +13,10 @@
         </div>
       </div>
       <div class="header-right">
-        <button class="pill-btn blue" @click="goToSpaceProject(recentSite?.id)" :disabled="!recentSite">{{ t('Go to SprintA') }}</button>
+        <button class="pill-btn blue" @click="router.push('/')">{{ t('Go to SprintA') }}</button>
         <div class="user-profile">
-          <div class="user-avatar-circle">{{ userInitials }}</div>
-          <span class="user-name-text">{{ userName }}</span>
+          <div class="user-avatar-circle" :style="{ backgroundColor: avatarColor }">{{ userInitials }}</div>
+          <span class="user-name-text">{{ userEmailPrefix }}</span>
         </div>
       </div>
     </header>
@@ -24,7 +24,7 @@
     <main class="start-content">
       <div class="welcome-container">
         <h1 class="welcome-title">
-          {{ t('Welcome back,') }} <span class="highlight-wrapper">{{ userName }}.
+          {{ t('Welcome back,') }} <span class="highlight-wrapper">{{ userEmailPrefix }}.
             <svg class="squiggly-line" width="100%" height="12" viewBox="0 0 100 12" preserveAspectRatio="none" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M0 6 Q 12 0, 25 6 T 50 6 T 75 6 T 100 6" stroke="#FFAB00" stroke-width="3" stroke-linecap="round" fill="none"/>
             </svg>
@@ -45,26 +45,30 @@
         <div class="recent-site-card" v-if="recentSite">
           <div class="site-card-left">
             <div class="site-avatar-square" :style="{ backgroundColor: recentSite.color || '#b3df72' }">
-              {{ recentSite.avatarText || 'Tu' }}
+              {{ recentSite.avatarText || (recentSite.name ? recentSite.name.substring(0, 2).toUpperCase() : userInitials) }}
             </div>
             <div class="site-info-stack">
-              <span class="site-name-bold">{{ recentSite.name || 'tua4699' }}</span>
+              <span class="site-name-bold">{{ recentSite.name || userName }}</span>
               <div class="member-avatars">
-                <div class="member-circle" style="background-color: #00875A">{{ userInitials }}</div>
-                <div class="member-circle" style="background-color: #0052CC">QV</div>
-                <div class="member-circle" style="background-color: #FF8B00">TB</div>
-                <div class="member-circle" style="background-color: #6554C0"><i class="fa-solid fa-user" style="font-size: 10px;"></i></div>
-                <div class="member-count">+2</div>
+                <div 
+                  class="member-circle" 
+                  v-for="(member, idx) in visibleMembers" 
+                  :key="member.id" 
+                  :style="{ backgroundColor: getMemberColor(member.fullName || member.name, idx) }"
+                >
+                  {{ member.avatar || getInitials(member.fullName || member.name) }}
+                </div>
+                <div class="member-count" v-if="hiddenMembersCount > 0">+{{ hiddenMembersCount }}</div>
               </div>
             </div>
           </div>
           <div class="site-card-right">
-            <button class="pill-btn orange" @click="goToSpaceProject(recentSite.id)">{{ t('Go to SprintA') }}</button>
+            <button class="pill-btn orange" @click="goToSpaceProject(recentSite.id)">{{ t('Go to Space') }}</button>
           </div>
         </div>
 
         <div class="card-footer-row">
-          <router-link to="/sites" class="different-site-link">{{ t('Looking for a different site?') }} &rarr;</router-link>
+          <router-link to="/home" class="different-site-link">{{ t('Looking for a different site?') }} &rarr;</router-link>
           
           <div class="decorative-stars">
             <svg width="60" height="60" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -86,7 +90,7 @@
       <div class="jira-modal">
         <div class="jira-modal-body">
           <h1 class="jira-modal-title text-center">
-            {{ t('Welcome back,') }} <span class="highlight-wrapper">{{ userName }}
+            {{ t('Welcome back,') }} <span class="highlight-wrapper">{{ userEmailPrefix }}
               <svg class="squiggly-line" width="100%" height="12" viewBox="0 0 100 12" preserveAspectRatio="none" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M0 6 Q 12 0, 25 6 T 50 6 T 75 6 T 100 6" stroke="#FFAB00" stroke-width="3" stroke-linecap="round" fill="none"/>
               </svg>
@@ -133,7 +137,7 @@
       <div class="jira-modal join-modal">
         <div class="jira-modal-body">
           <h1 class="jira-modal-title text-center">
-            {{ t('Welcome back,') }} <span class="highlight-wrapper">{{ userName }}
+            {{ t('Welcome back,') }} <span class="highlight-wrapper">{{ userEmailPrefix }}
               <svg class="squiggly-line" width="100%" height="12" viewBox="0 0 100 12" preserveAspectRatio="none" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M0 6 Q 12 0, 25 6 T 50 6 T 75 6 T 100 6" stroke="#FFAB00" stroke-width="3" stroke-linecap="round" fill="none"/>
               </svg>
@@ -170,24 +174,57 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSiteStore } from '@/store/useSiteStore'
+import { usePeopleStore } from '@/store/usePeopleStore'
 import { getStoredUser } from '@/utils/permissions'
 import { useI18nStore } from '@/store/useI18nStore'
 
 const router = useRouter()
 const siteStore = useSiteStore()
+const peopleStore = usePeopleStore()
 const i18nStore = useI18nStore()
 const t = i18nStore.t
 
 const currentUser = getStoredUser()
-const userName = currentUser?.username || 'Tua20000'
-const userEmail = currentUser?.email || 'tua4699@gmail.com'
-const userInitials = userName.substring(0, 1).toUpperCase()
+const userEmail = currentUser?.email || ''
+const userEmailPrefix = userEmail ? userEmail.split('@')[0] : 'User'
+const userName = currentUser?.fullName || currentUser?.name || currentUser?.publicName || currentUser?.username || userEmailPrefix
+
+const getInitials = (name) => {
+  if (!name) return '?'
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .map((word) => word[0])
+    .join('')
+    .substring(0, 2)
+    .toUpperCase()
+}
+
+const userInitials = getInitials(userName)
+
+const avatarColor = computed(() => {
+  const colors = ['#579dff', '#c97cf4', '#00b8d9', '#22a06b', '#f5cd47', '#e2483d']
+  const name = userName || 'User'
+  const index = name.length % colors.length
+  return colors[index]
+})
 
 const recentSite = computed(() => siteStore.recentSite)
 const sites = computed(() => siteStore.sites)
 
+const siteMembers = computed(() => peopleStore.users)
+const visibleMembers = computed(() => siteMembers.value.slice(0, 4))
+const hiddenMembersCount = computed(() => Math.max(0, siteMembers.value.length - 4))
+
+const getMemberColor = (name, index) => {
+  const colors = ['#579dff', '#c97cf4', '#00b8d9', '#22a06b', '#f5cd47', '#e2483d']
+  if (!name) return colors[index % colors.length]
+  return colors[name.length % colors.length]
+}
+
 onMounted(async () => {
   await siteStore.fetchSites()
+  await peopleStore.fetchPeople()
 })
 
 const isCreateModalOpen = ref(false)
@@ -281,7 +318,7 @@ const goToSpaceProject = (siteId) => {
 <style scoped>
 .start-page-wrapper {
   min-height: 100vh;
-  background-color: #f4f5f7;
+  background-color: var(--color-bg);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   display: flex;
   flex-direction: column;
@@ -292,8 +329,8 @@ const goToSpaceProject = (siteId) => {
   justify-content: space-between;
   align-items: center;
   height: 64px;
-  background-color: #ffffff;
-  border-bottom: 1px solid #dfe1e6;
+  background-color: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
   padding-right: 24px;
 }
 
@@ -306,7 +343,7 @@ const goToSpaceProject = (siteId) => {
 .atlassian-brand-block {
   width: 64px;
   height: 100%;
-  background-color: #2684ff;
+  background-color: var(--color-accent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -319,13 +356,8 @@ const goToSpaceProject = (siteId) => {
   margin-left: 24px;
 }
 
-.sprinta-logo-img {
-  height: 40px;
-  width: auto;
-  object-fit: contain;
-  transform: scale(4);
-  margin-right: 8px;
-}
+.sprinta-logo-img { height: 32px; width: auto; }
+.sprinta-logo-img.small { height: 16px; width: auto; margin: 0 6px; }
 
 .sprinta-logo-img.small {
   height: 16px;
@@ -337,7 +369,7 @@ const goToSpaceProject = (siteId) => {
 .app-logo .logo-text {
   font-size: 24px;
   font-weight: bold;
-  color: #172b4d;
+  color: var(--color-text-primary);
   letter-spacing: -0.5px;
 }
 
@@ -348,34 +380,27 @@ const goToSpaceProject = (siteId) => {
 }
 
 .pill-btn {
-  border: none;
-  border-radius: 24px;
-  font-weight: 600;
+  border-radius: var(--radius-sm);
   font-size: 14px;
+  font-weight: 500;
+  height: 32px;
+  padding: 0 16px;
+  border: none;
   cursor: pointer;
-  transition: background-color 0.2s;
-  font-family: inherit;
+  transition: background-color 0.15s;
 }
 
-.pill-btn.blue {
-  background-color: #0052cc;
-  color: white;
-  padding: 8px 16px;
-}
-.pill-btn.blue:hover { background-color: #0047b3; }
+.pill-btn.blue  { background-color: var(--color-accent); color: #fff; }
+.pill-btn.blue:hover { background-color: var(--color-accent-hover); }
 
-.pill-btn.orange {
-  background-color: #ff991f;
-  color: #172b4d;
-  padding: 8px 24px;
-}
+.pill-btn.orange { background-color: #FF991F; color: var(--color-text-primary); }
 .pill-btn.orange:hover { background-color: #e2851e; }
 
 .user-profile {
   display: flex;
   align-items: center;
   gap: 8px;
-  border-left: 1px solid #dfe1e6;
+  border-left: 1px solid var(--color-border);
   padding-left: 24px;
 }
 
@@ -383,7 +408,6 @@ const goToSpaceProject = (siteId) => {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background-color: #00875a;
   color: white;
   display: flex;
   align-items: center;
@@ -395,7 +419,7 @@ const goToSpaceProject = (siteId) => {
 .user-name-text {
   font-size: 14px;
   font-weight: 600;
-  color: #172b4d;
+  color: var(--color-text-primary);
 }
 
 .start-content {
@@ -413,7 +437,7 @@ const goToSpaceProject = (siteId) => {
 .welcome-title {
   font-size: 40px;
   font-weight: 800;
-  color: #091e42;
+  color: var(--color-text-primary);
   margin: 0;
   letter-spacing: -1px;
 }
@@ -445,7 +469,7 @@ const goToSpaceProject = (siteId) => {
 
 .pickup-text {
   font-size: 14px;
-  color: #172b4d;
+  color: var(--color-text-primary);
   display: flex;
   align-items: center;
 }
@@ -453,20 +477,20 @@ const goToSpaceProject = (siteId) => {
 .create-site-link {
   font-size: 14px;
   font-weight: 600;
-  color: #0052cc;
+  color: var(--color-accent);
   text-decoration: none;
 }
 .create-site-link:hover { text-decoration: underline; }
 
 .recent-site-card {
   background: white;
-  border: 1px solid #091e4224;
+  border: 1px solid var(--color-text-primary)24;
   border-radius: 4px;
   padding: 16px 24px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 1px 1px #091e420f;
+  box-shadow: 0 1px 1px var(--color-text-primary)0f;
 }
 
 .site-card-left {
@@ -480,7 +504,7 @@ const goToSpaceProject = (siteId) => {
   height: 56px;
   border-radius: 4px;
   background-color: #b3df72;
-  color: #172b4d;
+  color: var(--color-text-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -497,7 +521,7 @@ const goToSpaceProject = (siteId) => {
 .site-name-bold {
   font-size: 18px;
   font-weight: 700;
-  color: #172b4d;
+  color: var(--color-text-primary);
 }
 
 .member-avatars {
@@ -525,8 +549,8 @@ const goToSpaceProject = (siteId) => {
   height: 24px;
   border-radius: 50%;
   border: 2px solid white;
-  background-color: #dfe1e6;
-  color: #172b4d;
+  background-color: var(--color-border);
+  color: var(--color-text-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -562,22 +586,22 @@ const goToSpaceProject = (siteId) => {
 
 .explore-section p {
   font-size: 16px;
-  color: #172b4d;
+  color: var(--color-text-primary);
   margin-bottom: 16px;
 }
 
 .explore-btn {
   background: transparent;
-  border: 1px solid #172b4d;
+  border: 1px solid var(--color-text-primary);
   border-radius: 24px;
   padding: 8px 24px;
   font-weight: 600;
   font-size: 14px;
-  color: #172b4d;
+  color: var(--color-text-primary);
   cursor: pointer;
   transition: background-color 0.2s;
 }
-.explore-btn:hover { background-color: #091e420a; }
+.explore-btn:hover { background-color: var(--color-text-primary)0a; }
 
 /* Modal Styles */
 .modal-overlay {
@@ -591,7 +615,7 @@ const goToSpaceProject = (siteId) => {
 }
 /* Jira Modal Styles */
 .jira-modal {
-  background-color: #ffffff;
+  background-color: var(--color-surface);
   border-radius: 8px;
   width: 540px;
   box-shadow: 0 8px 16px -4px rgba(9, 30, 66, 0.25);
@@ -611,7 +635,7 @@ const goToSpaceProject = (siteId) => {
 .jira-modal-title {
   font-size: 28px;
   font-weight: bold;
-  color: #172b4d;
+  color: var(--color-text-primary);
   margin: 0 0 8px 0;
   letter-spacing: -0.5px;
   line-height: 1.2;
@@ -619,7 +643,7 @@ const goToSpaceProject = (siteId) => {
 
 .jira-subtitle {
   font-size: 14px;
-  color: #5e6c84;
+  color: var(--color-text-secondary);
   margin: 0 0 48px 0;
 }
 
@@ -631,27 +655,25 @@ const goToSpaceProject = (siteId) => {
 .jira-label {
   display: block;
   font-size: 12px;
-  color: #5e6c84;
+  color: var(--color-text-secondary);
   margin-bottom: 8px;
   font-weight: 500;
 }
 
 .jira-input-wrapper {
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  height: 40px;
   display: flex;
   align-items: center;
-  width: 100%;
-  border: 2px solid #dfe1e6;
-  border-radius: 24px;
-  padding: 0 16px;
-  height: 48px;
-  box-sizing: border-box;
+  background: var(--color-surface);
+  overflow: hidden;
   transition: border-color 0.2s;
-  background: white;
 }
 
 .jira-input-wrapper:focus-within { border-color: #4c9aff; }
-.jira-input-wrapper.checking { border-color: #0052cc; }
-.jira-input-wrapper.success { border-color: #00875a; }
+.jira-input-wrapper.checking { border-color: var(--color-accent); }
+.jira-input-wrapper.success { border-color: var(--color-success); }
 .jira-input-wrapper.error { border-color: #de350b; }
 
 .jira-input {
@@ -659,7 +681,7 @@ const goToSpaceProject = (siteId) => {
   border: none !important;
   outline: none !important;
   font-size: 16px !important;
-  color: #172b4d !important;
+  color: var(--color-text-primary) !important;
   background: transparent !important;
   background-color: transparent !important;
   box-shadow: none !important;
@@ -674,12 +696,12 @@ const goToSpaceProject = (siteId) => {
 }
 
 .domain-text {
-  color: #6b778c;
+  color: var(--color-text-muted);
   font-size: 16px;
 }
 
-.jira-input-wrapper.checking .fa-spin { color: #0052cc; }
-.jira-input-wrapper.success .fa-circle-check { color: #00875a; font-size: 18px; }
+.jira-input-wrapper.checking .fa-spin { color: var(--color-accent); }
+.jira-input-wrapper.success .fa-circle-check { color: var(--color-success); font-size: 18px; }
 .jira-input-wrapper.error .fa-triangle-exclamation { color: #de350b; font-size: 18px; }
 
 .jira-error-text {
@@ -695,11 +717,7 @@ const goToSpaceProject = (siteId) => {
   font-size: 16px;
   margin-top: 8px;
 }
-.pill-btn:disabled {
-  background-color: #091e420a !important;
-  color: #a5adba !important;
-  cursor: not-allowed;
-}
+.pill-btn:disabled { background-color: rgba(9,30,66,0.04); color: var(--color-text-muted); cursor: not-allowed; }
 
 .jira-modal-footer {
   margin-top: 48px;
@@ -708,11 +726,11 @@ const goToSpaceProject = (siteId) => {
 }
 
 .or-text {
-  color: #5e6c84;
+  color: var(--color-text-secondary);
 }
 
 .join-link {
-  color: #0052cc;
+  color: var(--color-accent);
   text-decoration: none;
   font-weight: 500;
 }
@@ -725,16 +743,16 @@ const goToSpaceProject = (siteId) => {
 
 .logged-in-text {
   font-size: 12px;
-  color: #5e6c84;
+  color: var(--color-text-secondary);
   margin-top: -32px;
   margin-bottom: 24px;
   text-align: center;
 }
 .logged-in-text strong {
-  color: #172b4d;
+  color: var(--color-text-primary);
 }
 .switch-account-link {
-  color: #0052cc;
+  color: var(--color-accent);
   text-decoration: none;
 }
 .switch-account-link:hover { text-decoration: underline; }
@@ -749,7 +767,7 @@ const goToSpaceProject = (siteId) => {
   margin-bottom: 8px;
   /* Scrollbar styling */
   scrollbar-width: thin;
-  scrollbar-color: #dfe1e6 transparent;
+  scrollbar-color: var(--color-border) transparent;
 }
 .site-list-container::-webkit-scrollbar {
   width: 6px;
@@ -758,7 +776,7 @@ const goToSpaceProject = (siteId) => {
   background: transparent;
 }
 .site-list-container::-webkit-scrollbar-thumb {
-  background-color: #dfe1e6;
+  background-color: var(--color-border);
   border-radius: 10px;
 }
 
@@ -766,14 +784,14 @@ const goToSpaceProject = (siteId) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border: 1px solid #dfe1e6;
+  border: 1px solid var(--color-border);
   border-radius: 4px;
   padding: 12px 16px;
   background-color: white;
   transition: background-color 0.2s, box-shadow 0.2s;
 }
 .site-list-item:hover {
-  background-color: #f4f5f7;
+  background-color: var(--color-bg);
 }
 
 .site-list-item-left {
@@ -785,12 +803,12 @@ const goToSpaceProject = (siteId) => {
 
 .site-list-item-title {
   font-size: 12px;
-  color: #5e6c84;
+  color: var(--color-text-secondary);
 }
 
 .site-list-item-url {
   font-size: 14px;
-  color: #172b4d;
+  color: var(--color-text-primary);
 }
 
 .pill-btn.small {
